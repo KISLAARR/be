@@ -4,17 +4,26 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+from app.api.v1.endpoints import users
+from app.api.v1.endpoints import bookings
 
 from app.db.session import get_db
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
+from app.api.v1.endpoints import auth
 
 app = FastAPI(
     title="Beauty Platform API",
     description="API для платформы красоты Руми",
     version="0.1.0"
 )
+
+# Подключаем роутер авторизации
+# Подключаем роутеры
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
+app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
 
 @app.get("/")
 async def root():
