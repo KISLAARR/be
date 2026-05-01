@@ -6,7 +6,9 @@ from sqlalchemy import select
 from typing import List
 from app.api.v1.endpoints import users
 from app.api.v1.endpoints import bookings
+from app.web.views import router as web_router
 
+from fastapi.staticfiles import StaticFiles
 from app.db.session import get_db
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
@@ -24,10 +26,12 @@ app = FastAPI(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
+app.include_router(web_router, include_in_schema=False)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
-async def root():
-    return {"message": "Добро пожаловать в Руми API!"}
+# @app.get("/")
+# async def root():
+#     return {"message": "Добро пожаловать в Руми API!"}
 
 @app.get("/health")
 async def health_check():

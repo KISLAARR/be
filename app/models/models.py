@@ -18,6 +18,7 @@ class UserRole(str, enum.Enum):
     MODEL = "model"
     MASTER = "master"
     ADMIN = "admin"
+    OWNER = "owner"
 
 class BookingStatus(str, enum.Enum):
     PENDING = "pending"
@@ -50,6 +51,9 @@ class User(Base):
 
     subscription_tier: Mapped[Optional[SubscriptionTier]] = mapped_column(Enum(SubscriptionTier), nullable=True)
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+        # Если пользователь — админ или владелец, он привязан к салону
+    managed_salon_id: Mapped[Optional[int]] = mapped_column(ForeignKey("salons.id"), nullable=True)
+    managed_salon: Mapped[Optional["Salon"]] = relationship(foreign_keys=[managed_salon_id])
 
     master_profile: Mapped[Optional["Master"]] = relationship(back_populates="user", uselist=False)
     bookings: Mapped[List["Booking"]] = relationship(back_populates="client", foreign_keys="Booking.client_id")
@@ -79,6 +83,8 @@ class Salon(Base):
 
     working_hours: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    owner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    owner: Mapped[Optional["User"]] = relationship(foreign_keys=[owner_id])
 
     masters: Mapped[List["Master"]] = relationship(back_populates="salon")
     promotions: Mapped[List["Promotion"]] = relationship(back_populates="salon")

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ salon.name }} | Руми{% endblock %}
+
+{% block content %}
+<!-- Хлебные крошки -->
+<section style="background: #f9fafb; padding: 16px 0;">
+    <div class="section-container">
+        <a href="/salons" style="color: #6B7280; text-decoration: none; font-size: 0.9rem;">← Все салоны</a>
+    </div>
+</section>
+
+<!-- Информация о салоне -->
+<section style="background: white; padding: 32px 0;">
+    <div class="section-container">
+        <div style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
+            
+            <!-- Логотип -->
+            <div style="width: 100px; height: 100px; border-radius: 16px; overflow: hidden; background: #f3f4f6; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                {% if salon.logo_url %}
+                <img src="{{ salon.logo_url }}" alt="{{ salon.name }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                <span style="font-size: 2.5rem; opacity: 0.3;">💈</span>
+                {% endif %}
+            </div>
+            
+            <!-- Детали -->
+            <div style="flex: 1; min-width: 250px;">
+                <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">{{ salon.name }}</h1>
+                
+                <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 8px;">
+                    <span style="display: flex; align-items: center; gap: 4px; font-weight: 600;">
+                        ⭐ {{ salon.rating }}
+                    </span>
+                    <span style="color: #6B7280; font-size: 0.9rem;">({{ salon.reviews_count }} отзывов)</span>
+                    
+                    <span style="background: #f3f4f6; padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem;">
+                        {{ salon.address }}
+                    </span>
+                </div>
+                
+                {% if salon.description %}
+                <p style="color: #4B5563; line-height: 1.6; max-width: 600px;">{{ salon.description }}</p>
+                {% endif %}
+                
+                <div style="display: flex; gap: 8px; margin-top: 12px; color: #6B7280; font-size: 0.9rem;">
+                    <span>📍 {{ salon.address }}</span>
+                    <span>📞 {{ salon.phone }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Мастера -->
+<section style="background: #f9fafb; padding: 40px 0;">
+    <div class="section-container">
+        <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 24px;">Мастера салона</h2>
+        
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            {% for master in masters %}
+            <div style="background: white; border-radius: 16px; padding: 24px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                
+                <!-- Аватар мастера -->
+                <div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; background: #f3f4f6; flex-shrink: 0;">
+                    {% if master.photo_url %}
+                    <img src="{{ master.photo_url }}" alt="{{ master.user.full_name if master.user else 'Мастер' }}" style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2rem; opacity: 0.3;">👤</div>
+                    {% endif %}
+                </div>
+                
+                <!-- Информация о мастере -->
+                <div style="flex: 1;">
+                    <h3 style="font-weight: 600; font-size: 1.2rem;">{{ master.user.full_name if master.user else 'Имя не указано' }}</h3>
+                    <p style="color: #6B7280; font-size: 0.9rem;">{{ master.specialization }} • Опыт {{ master.experience_years }} лет</p>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                        {% for service in master.services %}
+                        <span style="background: #f3f4f6; padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem;">
+                            {{ service.name }} — {{ service.price }}₽ / {{ service.duration_minutes }} мин
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Кнопка записи -->
+                <a href="/book?master_id={{ master.id }}" style="background: linear-gradient(135deg, #F28C6F, #E8A0BF); color: white; padding: 10px 24px; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 0.9rem; white-space: nowrap;">
+                    Записаться
+                </a>
+            </div>
+            {% endfor %}
+            
+            {% if not masters %}
+            <div style="text-align: center; padding: 40px; color: #6B7280;">
+                <p>В этом салоне пока нет мастеров.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Акции -->
+{% if promotions %}
+<section style="background: white; padding: 40px 0;">
+    <div class="section-container">
+        <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 16px;">🔥 Акции</h2>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            {% for promo in promotions %}
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 12px 20px;">
+                <span style="font-weight: 600; font-size: 0.9rem;">{{ promo.title }}</span>
+                <p style="color: #6B7280; font-size: 0.8rem; margin-top: 4px;">{{ promo.description }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% endblock %}

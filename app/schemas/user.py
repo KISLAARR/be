@@ -20,6 +20,7 @@ class UserResponse(UserBase):
     subscription_tier: Optional[SubscriptionTier] = None
     subscription_expires_at: Optional[datetime] = None
     created_at: datetime
+    managed_salon_id: Optional[int] = None  # <-- Добавь эту строку
     
     class Config:
         from_attributes = True
