@@ -1,0 +1,22 @@
+<!-- templates/favorites/index.html -->
+{% extends "base.html" %}
+{% block title %}Избранное | Руми{% endblock %}
+{% block content %}
+<!-- Проверка авторизации -->
+<script>
+if (!localStorage.getItem('rumi_token')) {
+    localStorage.setItem('rumi_redirect_after_login', '/favorites');
+    window.location.href = '/login';
+}
+</script>
+<section class="section-py bg-surface">
+    <div class="section-container">
+        <div style="max-width: 600px; margin: 0 auto; text-align: center; padding: 80px 20px;">
+            <div style="font-size: 4rem; margin-bottom: 24px; opacity: 0.4;">❤️</div>
+            <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 12px;">Избранные салоны</h1>
+            <p style="color: #6B7280; margin-bottom: 32px;">Нажмите на сердечко на карточке салона, чтобы добавить его в избранное. Здесь появятся все отмеченные вами салоны и мастера.</p>
+            <a href="/salons" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">Найти салон →</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

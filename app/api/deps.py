@@ -3,10 +3,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import JWTError
+from typing import List
 
 from app.db.session import get_db
-from app.models.models import User
+from app.models.models import User, UserRole
 from app.core.security import decode_access_token
 
 security = HTTPBearer()
@@ -48,3 +48,14 @@ async def get_current_user(
         )
     
     return user
+
+def require_role(allowed_roles: List[UserRole]):
+    """Фабрика зависимостей — проверяет, что у пользователя есть одна из разрешённых ролей"""
+    async def role_checker(current_user: User = Depends(get_current_user)):
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Недостаточно прав. Требуемая роль: {[r.value for r in allowed_roles]}"
+            )
+        return current_user
+    return role_checker

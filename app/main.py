@@ -14,6 +14,7 @@ from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
 from app.api.v1.endpoints import auth
+from app.api.v1.endpoints import business, master
 
 app = FastAPI(
     title="Beauty Platform API",
@@ -21,13 +22,19 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Подключаем роутер авторизации
-# Подключаем роутеры
+# 1. Веб-роутер (страницы) — ПЕРВЫМ!
+app.include_router(web_router, include_in_schema=False)
+
+# 2. Статические файлы
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 3. API-роутеры — ПОСЛЕ веб-роутера
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
-app.include_router(web_router, include_in_schema=False)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(business.router, prefix="/api/v1/business", tags=["business"])
+app.include_router(master.router, prefix="/api/v1/master", tags=["master"])
+
 
 # @app.get("/")
 # async def root():
