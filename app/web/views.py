@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.session import get_db
-from app.models.models import Salon, User, Master
+from app.models.models import Salon, User, Master, Service as ServiceModel
 from app.web.pages.home import render_home_page
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
@@ -21,6 +21,7 @@ async def home_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_current_user_from_cookie(request, db)
     html = await render_home_page(db, user)
     return HTMLResponse(content=html)
+
 
 @router.get("/salons", response_class=HTMLResponse)
 async def salons_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -87,6 +88,7 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
     from app.web.pages.settings import render_settings_page
     user = await get_current_user_from_cookie(request, db)
     return HTMLResponse(content=render_settings_page(user))
+
 
 @router.get("/business/dashboard", response_class=HTMLResponse)
 async def business_dashboard_page(
@@ -226,7 +228,6 @@ async def book_service_page(salon_id: int, request: Request, db: AsyncSession = 
         function updatePriceAndTime(select) {{
             const selectedOption = select.options[select.selectedIndex];
             if (selectedOption && selectedOption.dataset.price) {{
-                // Можно добавить отображение цены и времени, если нужно
                 console.log('Цена:', selectedOption.dataset.price);
             }}
         }}
@@ -329,6 +330,63 @@ async def model_dashboard_page(request: Request, db: AsyncSession = Depends(get_
     return HTMLResponse(content=render_model_dashboard(user))
 
 
+@router.get("/book", response_class=HTMLResponse)
+async def book_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница подтверждения записи."""
+    params = dict(request.query_params)
+    master_id = int(params.get("master_id", 0))
+    service_id = int(params.get("service_id", 0))
+    time_str = params.get("time", "")
+    
+    user = await get_current_user_from_cookie(request, db)
+    
+    # Получаем данные мастера и услуги
+    master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
+    service = (await db.execute(select(ServiceModel).where(ServiceModel.id == service_id))).scalar_one_or_none()
+    
+    if not master or not service:
+        return HTMLResponse(content="<h1>Ошибка: мастер или услуга не найдены</h1>", status_code=404)
+    
+    master_user = (await db.execute(select(User).where(User.id == master.user_id))).scalar_one_or_none()
+    master_name = master_user.full_name if master_user else "Мастер"
+    salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
+    salon_name = salon.name if salon else "Салон"
+    
+    html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Подтверждение записи — руми</title>
+    {get_base_styles()}
+</head>
+<body style="background:var(--color-surface-alt);min-height:100vh;display:flex;align-items:center;justify-content:center">
+<div class="card" style="max-width:500px;width:100%;padding:2rem">
+    <h2 style="margin-bottom:1.5rem">Подтверждение записи</h2>
+    
+    <div style="margin-bottom:1rem;padding:1rem;background:var(--color-surface-alt);border-radius:0.75rem">
+        <p><strong>🏢 Салон:</strong> {salon_name}</p>
+        <p><strong>💇 Мастер:</strong> {master_name}</p>
+        <p><strong>✂️ Услуга:</strong> {service.name}</p>
+        <p><strong>⏱ Длительность:</strong> {service.duration_minutes} мин</p>
+        <p><strong>📅 Время:</strong> {time_str.replace('T', ' ')}</p>
+        <p><strong>💰 Цена:</strong> <span style="font-size:1.25rem;font-weight:700;color:var(--color-primary)">{service.price} ₽</span></p>
+    </div>
+    
+    <form action="/api/v1/bookings/confirm" method="post">
+        <input type="hidden" name="master_id" value="{master_id}">
+        <input type="hidden" name="service_id" value="{service_id}">
+        <input type="hidden" name="start_time" value="{time_str}">
+        <button type="submit" class="btn-primary" style="width:100%;padding:1rem;font-size:1rem">Подтвердить запись</button>
+    </form>
+    
+    <a href="/salons/{master.salon_id}" style="display:block;text-align:center;margin-top:1rem;color:var(--color-muted);font-size:0.9rem">← Назад к салону</a>
+</div>
+</body>
+</html>"""
+    
+    return HTMLResponse(content=html)
+
+
 @router.get("/{path:path}", response_class=HTMLResponse)
 async def not_found_page(request: Request, path: str):
     """Страница 404 — для всех несуществующих маршрутов."""
@@ -403,61 +461,3 @@ async def not_found_page(request: Request, path: str):
     </div>
 </body>
 </html>""", status_code=404)
-@router.get("/book", response_class=HTMLResponse)
-async def book_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница подтверждения записи."""
-    from urllib.parse import parse_qs
-    from app.models.models import Master, Service, User
-    
-    params = dict(request.query_params)
-    master_id = int(params.get("master_id", 0))
-    service_id = int(params.get("service_id", 0))
-    time_str = params.get("time", "")
-    
-    user = await get_current_user_from_cookie(request, db)
-    
-    # Получаем данные мастера и услуги
-    master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
-    service = (await db.execute(select(Service).where(Service.id == service_id))).scalar_one_or_none()
-    
-    if not master or not service:
-        return HTMLResponse(content="<h1>Ошибка: мастер или услуга не найдены</h1>", status_code=404)
-    
-    master_user = (await db.execute(select(User).where(User.id == master.user_id))).scalar_one_or_none()
-    master_name = master_user.full_name if master_user else "Мастер"
-    salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
-    salon_name = salon.name if salon else "Салон"
-    
-    html = f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Подтверждение записи — руми</title>
-    {get_base_styles()}
-</head>
-<body style="background:var(--color-surface-alt);min-height:100vh;display:flex;align-items:center;justify-content:center">
-<div class="card" style="max-width:500px;width:100%;padding:2rem">
-    <h2 style="margin-bottom:1.5rem">Подтверждение записи</h2>
-    
-    <div style="margin-bottom:1rem;padding:1rem;background:var(--color-surface-alt);border-radius:0.75rem">
-        <p><strong>🏢 Салон:</strong> {salon_name}</p>
-        <p><strong>💇 Мастер:</strong> {master_name}</p>
-        <p><strong>✂️ Услуга:</strong> {service.name}</p>
-        <p><strong>⏱ Длительность:</strong> {service.duration_minutes} мин</p>
-        <p><strong>📅 Время:</strong> {time_str.replace('T', ' ')}</p>
-        <p><strong>💰 Цена:</strong> <span style="font-size:1.25rem;font-weight:700;color:var(--color-primary)">{service.price} ₽</span></p>
-    </div>
-    
-    <form action="/api/v1/bookings/confirm" method="post">
-        <input type="hidden" name="master_id" value="{master_id}">
-        <input type="hidden" name="service_id" value="{service_id}">
-        <input type="hidden" name="start_time" value="{time_str}">
-        <button type="submit" class="btn-primary" style="width:100%;padding:1rem;font-size:1rem">Подтвердить запись</button>
-    </form>
-    
-    <a href="/salons/{master.salon_id}" style="display:block;text-align:center;margin-top:1rem;color:var(--color-muted);font-size:0.9rem">← Назад к салону</a>
-</div>
-</body>
-</html>"""
-    
-    return HTMLResponse(content=html)

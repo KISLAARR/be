@@ -12,7 +12,7 @@ from sqlalchemy.sql import func
 
 Base = declarative_base()
 
-# --- Enums (для строгой типизации в БД) ---
+# --- Enums ---
 class UserRole(str, enum.Enum):
     CLIENT = "client"
     MODEL = "model"
@@ -51,7 +51,6 @@ class User(Base):
     subscription_tier: Mapped[Optional[SubscriptionTier]] = mapped_column(Enum(SubscriptionTier), nullable=True)
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Связи
     master_profile: Mapped[Optional["Master"]] = relationship(back_populates="user", uselist=False)
     owned_salon: Mapped[Optional["Salon"]] = relationship(back_populates="owner", uselist=False)
     bookings: Mapped[List["Booking"]] = relationship(back_populates="client", foreign_keys="Booking.client_id")
@@ -83,6 +82,7 @@ class Salon(Base):
 
     working_hours: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow", server_default="Europe/Moscow", nullable=False)  # ← НОВОЕ ПОЛЕ
 
     masters: Mapped[List["Master"]] = relationship(back_populates="salon")
     promotions: Mapped[List["Promotion"]] = relationship(back_populates="salon")
@@ -111,7 +111,8 @@ class Master(Base):
 
     rating: Mapped[float] = mapped_column(Float, default=0.0)
     photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-
+    break_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15", nullable=False)
+    
     user: Mapped["User"] = relationship(back_populates="master_profile")
     salon: Mapped["Salon"] = relationship(back_populates="masters")
     services: Mapped[List["Service"]] = relationship(back_populates="master")
@@ -133,9 +134,7 @@ class Service(Base):
     master: Mapped["Master"] = relationship(back_populates="services")
 
 class Schedule(Base):
-    """Расписание мастера (повторяющиеся слоты)"""
     __tablename__ = "schedule"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     day_of_week: Mapped[int] = mapped_column(Integer)
@@ -152,8 +151,8 @@ class Booking(Base):
     master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
 
-    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
 
     status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.PENDING)
     discount_percent: Mapped[int] = mapped_column(Integer, default=0)
@@ -171,7 +170,6 @@ class Booking(Base):
 
 class Promotion(Base):
     __tablename__ = "promotions"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id"))
     title: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -181,16 +179,13 @@ class Promotion(Base):
     salon: Mapped["Salon"] = relationship(back_populates="promotions")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-
-# ========== НОВАЯ МОДЕЛЬ: Отзывы ==========
 class Review(Base):
     __tablename__ = "reviews"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id"))
-    rating: Mapped[int] = mapped_column(Integer)  # 1-5
+    rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

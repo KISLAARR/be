@@ -2,7 +2,7 @@
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, delete
+from sqlalchemy import select, func
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -14,28 +14,27 @@ async def seed_database():
     engine = create_async_engine(settings.DATABASE_URL, echo=True)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    # Создаём таблицы
+    # Создаём таблицы (если их ещё нет)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
     async with async_session() as session:
-        # Очистка старых данных
-        await session.execute(delete(Promotion))
-        await session.execute(delete(Service))
-        await session.execute(delete(Master))
-        await session.execute(delete(Salon))
-        # Удаляем пользователей-мастеров (но не трогаем обычных пользователей)
-        from sqlalchemy import delete as sql_delete
-        await session.execute(sql_delete(User).where(User.role == UserRole.MASTER))
-        await session.flush()
-        print("✅ Старые данные удалены")
+        # Проверяем, есть ли уже салоны в базе
+        existing_salons = await session.execute(select(func.count(Salon.id)))
+        salon_count = existing_salons.scalar()
+        
+        if salon_count > 0:
+            print(f"✅ База уже содержит {salon_count} салонов. Seed не требуется.")
+            return
+        
+        print("🔄 База пуста. Заполняем тестовыми данными...")
         
         # ========== САЛОНЫ ==========
-        s1 = Salon(name="Брутальный", description="Мужские стрижки, борода, уход", address="Москва, ул. Тверская, 15", latitude=55.761859, longitude=37.606138, phone="+79991234567", rating=0.0, reviews_count=0)
-        s2 = Salon(name="Classic", description="Классические мужские стрижки", address="Санкт-Петербург, Невский пр., 22", latitude=59.934280, longitude=30.335099, phone="+78121234567", rating=0.0, reviews_count=89)
-        s3 = Salon(name="Имидж", description="Женские и мужские стрижки, окрашивание", address="Москва, пр. Мира, 45", latitude=55.779438, longitude=37.636928, phone="+74959876543", rating=0.0, reviews_count=234)
-        s4 = Salon(name="Гламур", description="Маникюр, педикюр, наращивание", address="Санкт-Петербург, Большой пр. П.С., 10", latitude=59.962264, longitude=30.308452, phone="+78123334455", rating=0.0, reviews_count=312)
-        s5 = Salon(name="Элегант", description="Стрижки, укладки, уход за волосами", address="Казань, ул. Баумана, 33", latitude=55.792752, longitude=49.121467, phone="+78432987654", rating=0.0, reviews_count=178)
+        s1 = Salon(name="Брутальный", description="Мужские стрижки, борода, уход", address="Москва, ул. Тверская, 15", latitude=55.761859, longitude=37.606138, phone="+79991234567", rating=0.0, reviews_count=0, timezone="Europe/Moscow")
+        s2 = Salon(name="Classic", description="Классические мужские стрижки", address="Санкт-Петербург, Невский пр., 22", latitude=59.934280, longitude=30.335099, phone="+78121234567", rating=0.0, reviews_count=89, timezone="Europe/Moscow")
+        s3 = Salon(name="Имидж", description="Женские и мужские стрижки, окрашивание", address="Москва, пр. Мира, 45", latitude=55.779438, longitude=37.636928, phone="+74959876543", rating=0.0, reviews_count=234, timezone="Europe/Moscow")
+        s4 = Salon(name="Гламур", description="Маникюр, педикюр, наращивание", address="Санкт-Петербург, Большой пр. П.С., 10", latitude=59.962264, longitude=30.308452, phone="+78123334455", rating=0.0, reviews_count=312, timezone="Europe/Moscow")
+        s5 = Salon(name="Элегант", description="Стрижки, укладки, уход за волосами", address="Казань, ул. Баумана, 33", latitude=55.792752, longitude=49.121467, phone="+78432987654", rating=0.0, reviews_count=178, timezone="Europe/Moscow")
         session.add_all([s1, s2, s3, s4, s5])
         await session.flush()
         
@@ -108,11 +107,10 @@ async def seed_database():
         for sid, title, desc, tag in promos:
             session.add(Promotion(salon_id=sid, title=title, description=desc, tag=tag))
         
-        # ========== ТЕСТОВЫЕ ПОЛЬЗОВАТЕЛИ ДЛЯ ПРОВЕРКИ РОЛЕЙ ==========
+        # ========== ТЕСТОВЫЕ ПОЛЬЗОВАТЕЛИ ==========
         import hashlib
         
         def simple_hash(password: str) -> str:
-            """Простой хеш для тестовых пользователей."""
             return hashlib.sha256(password.encode()).hexdigest()
         
         test_users = [
@@ -126,7 +124,7 @@ async def seed_database():
             if not existing.scalar_one_or_none():
                 session.add(tu)
         
-        # Привязываем владельца к первому салону (Брутальный)
+        # Привязываем владельца к первому салону
         owner = await session.execute(select(User).where(User.phone == "+79990000002"))
         owner = owner.scalar_one_or_none()
         if owner and not s1.owner_id:

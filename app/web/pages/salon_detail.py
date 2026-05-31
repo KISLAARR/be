@@ -28,13 +28,10 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     )
     promotions = promos_result.scalars().all()
     
-    # Загружаем отзывы салона
     reviews_result = await db.execute(
         select(Review).where(Review.salon_id == salon.id).order_by(Review.created_at.desc()).limit(10)
     )
     reviews = reviews_result.scalars().all()
-    
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
     masters_html = ""
     for m in masters:
@@ -76,9 +73,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             
             <div class="services-section">
                 <div class="services-title">Услуги мастера:</div>
-                <div class="services-grid">
-                    {services_cards}
-                </div>
+                <div class="services-grid">{services_cards}</div>
             </div>
             
             <div class="slots-container" id="slots-{m.id}" style="display:none">
@@ -98,7 +93,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         </div>
         """
     
-    # Отзывы
     reviews_html = ""
     for r in reviews:
         client_result = await db.execute(select(User).where(User.id == r.client_id))
@@ -118,19 +112,24 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         </div>
         """
     
-    # Форма отзыва (показываем только авторизованным)
     review_form = ""
     if user:
+        masters_options = ""
+        for m in masters:
+            master_user = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
+            master_name = master_user.full_name if master_user else "Мастер"
+            masters_options += f'<option value="{m.id}">{master_name} — {m.specialization}</option>'
+        
         review_form = f"""
         <div class="review-form-card">
             <h3>Оставить отзыв</h3>
-            <form action="/api/v1/bookings/reviews/create" method="post">
+            <form action="/api/v1/reviews/create" method="post">
                 <input type="hidden" name="salon_id" value="{salon.id}">
                 <div class="form-group">
                     <label>Мастер:</label>
                     <select name="master_id" required style="width:100%;padding:0.5rem;border:1px solid var(--color-border);border-radius:0.5rem">
                         <option value="">Выберите мастера</option>
-                        {"".join(f'<option value="{m.id}">{m.user.full_name if m.user else "Мастер"} — {m.specialization}</option>' for m in masters)}
+                        {masters_options}
                     </select>
                 </div>
                 <div class="form-group">
@@ -159,257 +158,53 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     <title>{salon.name} — руми</title>
     {get_base_styles()}
     <style>
-        .salon-hero {{
-            background: linear-gradient(135deg, #FFF8F6, #F8C8DC33);
-            padding: 3rem 0;
-            margin-bottom: 2rem;
-        }}
-        .salon-hero h1 {{
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }}
-        .salon-hero .meta {{
-            display: flex;
-            gap: 1.5rem;
-            color: var(--color-muted);
-            font-size: 0.9rem;
-        }}
-        .master-card {{
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            transition: border-color 0.2s;
-        }}
-        .master-card:hover {{
-            border-color: var(--color-primary);
-        }}
-        .master-header {{
-            display: flex;
-            gap: 1rem;
-            align-items: start;
-            margin-bottom: 1rem;
-        }}
-        .master-avatar {{
-            width: 4rem;
-            height: 4rem;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            color: white;
-            font-weight: 700;
-            flex-shrink: 0;
-        }}
-        .master-info h3 {{
-            font-size: 1.1rem;
-            margin-bottom: 0.25rem;
-        }}
-        .master-spec {{
-            font-size: 0.85rem;
-            color: var(--color-muted);
-        }}
-        .services-section {{
-            border-top: 1px solid var(--color-border);
-            padding-top: 1rem;
-            margin-top: 0.5rem;
-        }}
-        .services-title {{
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--color-muted);
-            margin-bottom: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }}
-        .services-grid {{
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }}
-        .service-card {{
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            padding: 0.75rem;
-            background: var(--color-surface-alt);
-            border-radius: 0.75rem;
-            transition: all 0.2s;
-        }}
-        .service-card:hover {{
-            background: var(--color-accent-light);
-        }}
-        .service-card.selected {{
-            background: var(--color-accent-light);
-            border: 1px solid var(--color-primary);
-        }}
-        .service-info {{
-            flex: 1;
-        }}
-        .service-name {{
-            font-weight: 600;
-            font-size: 0.95rem;
-            color: var(--color-heading);
-        }}
-        .service-meta {{
-            font-size: 0.8rem;
-            color: var(--color-muted);
-            margin-top: 0.15rem;
-        }}
-        .service-price {{
-            font-weight: 700;
-            font-size: 1.1rem;
-            color: var(--color-primary);
-            white-space: nowrap;
-        }}
-        .slots-container {{
-            border-top: 1px solid var(--color-primary);
-            margin-top: 1rem;
-            padding-top: 1rem;
-        }}
-        .slots-title {{
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            color: var(--color-heading);
-        }}
-        .slot-grid {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }}
-        .slot-btn {{
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--color-primary);
-            border-radius: 0.5rem;
-            font-size: 0.85rem;
-            cursor: pointer;
-            background: white;
-            color: var(--color-primary);
-            transition: all 0.2s;
-            font-weight: 500;
-        }}
-        .slot-btn:hover {{
-            background: var(--color-primary);
-            color: white;
-        }}
-        .slot-btn.selected {{
-            background: var(--color-primary);
-            color: white;
-        }}
-        .no-slots {{
-            color: var(--color-muted);
-            font-size: 0.85rem;
-            padding: 0.5rem 0;
-        }}
-        .book-panel {{
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-top: 2px solid var(--color-primary);
-            padding: 1rem 2rem;
-            display: none;
-            z-index: 200;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-        }}
-        .book-panel.active {{
-            display: block;
-        }}
-        .book-panel-inner {{
-            max-width: 1200px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }}
-        .promo-card {{
-            background: var(--color-surface-alt);
-            border: 1px solid var(--color-border);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-        }}
-        .promo-tag {{
-            display: inline-block;
-            background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-            color: white;
-            padding: 0.15rem 0.5rem;
-            border-radius: 1rem;
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-right: 0.5rem;
-        }}
-        .section-title {{
-            font-size: 1.5rem;
-            margin: 2rem 0 1rem;
-        }}
-        .review-card {{
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-        }}
-        .review-header {{
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }}
-        .review-stars {{
-            font-size: 0.9rem;
-        }}
-        .review-date {{
-            font-size: 0.8rem;
-            color: var(--color-muted);
-            margin-left: auto;
-        }}
-        .review-comment {{
-            color: var(--color-body);
-            font-size: 0.9rem;
-        }}
-        .review-form-card {{
-            background: var(--color-surface);
-            border: 1px solid var(--color-border);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            margin-top: 2rem;
-        }}
-        .review-form-card h3 {{
-            margin-bottom: 1rem;
-        }}
-        .form-group {{
-            margin-bottom: 1rem;
-        }}
-        .form-group label {{
-            display: block;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }}
-        .rating-input {{
-            display: flex;
-            gap: 0.5rem;
-        }}
-        .rating-input input {{
-            display: none;
-        }}
-        .rating-input label {{
-            font-size: 1.5rem;
-            cursor: pointer;
-            opacity: 0.5;
-            transition: opacity 0.2s;
-        }}
+        .salon-hero {{ background: linear-gradient(135deg, #FFF8F6, #F8C8DC33); padding: 3rem 0; margin-bottom: 2rem; }}
+        .salon-hero h1 {{ font-size: 2.5rem; margin-bottom: 0.5rem; }}
+        .salon-hero .meta {{ display: flex; gap: 1.5rem; color: var(--color-muted); font-size: 0.9rem; }}
+        .master-card {{ background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.25rem; transition: border-color 0.2s; }}
+        .master-card:hover {{ border-color: var(--color-primary); }}
+        .master-header {{ display: flex; gap: 1rem; align-items: start; margin-bottom: 1rem; }}
+        .master-avatar {{ width: 4rem; height: 4rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; font-weight: 700; flex-shrink: 0; }}
+        .master-info h3 {{ font-size: 1.1rem; margin-bottom: 0.25rem; }}
+        .master-spec {{ font-size: 0.85rem; color: var(--color-muted); }}
+        .services-section {{ border-top: 1px solid var(--color-border); padding-top: 1rem; margin-top: 0.5rem; }}
+        .services-title {{ font-size: 0.85rem; font-weight: 600; color: var(--color-muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; }}
+        .services-grid {{ display: flex; flex-direction: column; gap: 0.5rem; }}
+        .service-card {{ display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem; background: var(--color-surface-alt); border-radius: 0.75rem; transition: all 0.2s; }}
+        .service-card:hover {{ background: var(--color-accent-light); }}
+        .service-card.selected {{ background: var(--color-accent-light); border: 1px solid var(--color-primary); }}
+        .service-info {{ flex: 1; }}
+        .service-name {{ font-weight: 600; font-size: 0.95rem; color: var(--color-heading); }}
+        .service-meta {{ font-size: 0.8rem; color: var(--color-muted); margin-top: 0.15rem; }}
+        .service-price {{ font-weight: 700; font-size: 1.1rem; color: var(--color-primary); white-space: nowrap; }}
+        .slots-container {{ border-top: 1px solid var(--color-primary); margin-top: 1rem; padding-top: 1rem; }}
+        .slots-title {{ font-weight: 600; margin-bottom: 0.75rem; color: var(--color-heading); }}
+        .slot-grid {{ display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }}
+        .slot-btn {{ padding: 0.5rem 0.75rem; border: 1px solid var(--color-primary); border-radius: 0.5rem; font-size: 0.85rem; cursor: pointer; background: white; color: var(--color-primary); transition: all 0.2s; font-weight: 500; }}
+        .slot-btn:hover {{ background: var(--color-primary); color: white; }}
+        .slot-btn.selected {{ background: var(--color-primary); color: white; }}
+        .no-slots {{ color: var(--color-muted); font-size: 0.85rem; padding: 0.5rem 0; }}
+        .book-panel {{ position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 2px solid var(--color-primary); padding: 1rem 2rem; display: none; z-index: 200; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }}
+        .book-panel.active {{ display: block; }}
+        .book-panel-inner {{ max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }}
+        .promo-card {{ background: var(--color-surface-alt); border: 1px solid var(--color-border); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.5rem; }}
+        .promo-tag {{ display: inline-block; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); color: white; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.7rem; font-weight: 600; margin-right: 0.5rem; }}
+        .section-title {{ font-size: 1.5rem; margin: 2rem 0 1rem; }}
+        .review-card {{ background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 0.75rem; padding: 1rem; margin-bottom: 0.75rem; }}
+        .review-header {{ display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }}
+        .review-stars {{ font-size: 0.9rem; }}
+        .review-date {{ font-size: 0.8rem; color: var(--color-muted); margin-left: auto; }}
+        .review-comment {{ color: var(--color-body); font-size: 0.9rem; }}
+        .review-form-card {{ background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 1rem; padding: 1.5rem; margin-top: 2rem; }}
+        .review-form-card h3 {{ margin-bottom: 1rem; }}
+        .form-group {{ margin-bottom: 1rem; }}
+        .form-group label {{ display: block; font-weight: 500; margin-bottom: 0.5rem; }}
+        .rating-input {{ display: flex; gap: 0.5rem; }}
+        .rating-input input {{ display: none; }}
+        .rating-input label {{ font-size: 1.5rem; cursor: pointer; opacity: 0.5; transition: opacity 0.2s; }}
         .rating-input input:checked ~ label,
         .rating-input label:hover,
-        .rating-input label:hover ~ label {{
-            opacity: 1;
-        }}
+        .rating-input label:hover ~ label {{ opacity: 1; }}
     </style>
 </head>
 <body>
@@ -435,10 +230,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             
             <div class="section-title">💇 Мастера и запись</div>
             <p style="color:var(--color-muted);margin-bottom:1.5rem">Выберите услугу и свободное время для записи</p>
-            
             {masters_html or '<p>В этом салоне пока нет мастеров.</p>'}
             
-            <!-- Отзывы -->
             <div class="section-title">💬 Отзывы</div>
             {reviews_html or '<p style="color:var(--color-muted)">Пока нет отзывов. Будьте первым!</p>'}
             {review_form}
@@ -447,12 +240,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     
     <div class="book-panel" id="bookPanel">
         <div class="book-panel-inner">
-            <div>
-                <strong id="panelMaster"></strong> · <span id="panelTime" style="color:var(--color-primary)"></span>
-            </div>
-            <button class="btn-primary" onclick="confirmBooking()" style="font-size:1rem;padding:0.75rem 2rem">
-                Записаться
-            </button>
+            <div><strong id="panelMaster"></strong> · <span id="panelTime" style="color:var(--color-primary)"></span></div>
+            <button class="btn-primary" onclick="confirmBooking()" style="font-size:1rem;padding:0.75rem 2rem">Записаться</button>
         </div>
     </div>
     
@@ -479,36 +268,55 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             const slotsTitle = document.getElementById('slots-title-' + masterId);
             const slotGrid = document.getElementById('slot-grid-' + masterId);
             
-            slotsTitle.textContent = `📅 Доступное время для «${{serviceName}}» (${{price}} ₽, ${{duration}} мин):`;
-            slotGrid.innerHTML = '<p style="color:var(--color-muted);font-size:0.85rem">Загружаем слоты...</p>';
+            slotsTitle.innerHTML = `
+                📅 Доступное время для «${{serviceName}}» (${{price}} ₽, ${{duration}} мин):
+                <br><input type="date" id="datePicker-${{masterId}}" value="${{new Date().toISOString().split('T')[0]}}" 
+                    onchange="loadSlots(${{masterId}}, ${{serviceId}}, '${{serviceName}}', ${{price}}, ${{duration}})"
+                    style="margin-top:0.5rem;padding:0.4rem;border:1px solid var(--color-border);border-radius:0.5rem">
+            `;
+            slotGrid.innerHTML = '<p style="color:var(--color-muted);font-size:0.85rem">Выберите дату для загрузки слотов...</p>';
             slotsContainer.style.display = 'block';
             slotsContainer.scrollIntoView({{ behavior: 'smooth' }});
             
+            loadSlots(masterId, serviceId, serviceName, price, duration);
+        }}
+        
+        async function loadSlots(masterId, serviceId, serviceName, price, duration) {{
+            const datePicker = document.getElementById('datePicker-' + masterId);
+            const dateStr = datePicker ? datePicker.value : new Date().toISOString().split('T')[0];
+            const slotGrid = document.getElementById('slot-grid-' + masterId);
+            
+            slotGrid.innerHTML = '<p style="color:var(--color-muted);font-size:0.85rem">Загружаем слоты...</p>';
+            
             try {{
-                const today = new Date();
-                const dateStr = today.toISOString().split('T')[0];
-                const response = await fetch(`/api/v1/bookings/available/${{masterId}}?date=${{dateStr}}T00:00:00`);
+                const response = await fetch(`/api/v1/bookings/available/${{masterId}}?date=${{dateStr}}&service_id=${{serviceId}}`);
                 const data = await response.json();
                 
                 if (data.slots && data.slots.length > 0) {{
                     const now = new Date();
+                    const todayStr = new Date().toISOString().split('T')[0];
                     let slotsHtml = '';
                     for (const slot of data.slots) {{
                         const slotDate = new Date(slot);
-                        if (slotDate < now) continue;
+                        if (dateStr === todayStr && slotDate < now) continue;
                         
                         const timeStr = slotDate.toTimeString().slice(0, 5);
-                        const fullSlot = slotDate.toISOString().slice(0, 16);
+                        const fullSlot = slotDate.getFullYear() + '-' + 
+                            String(slotDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(slotDate.getDate()).padStart(2, '0') + 'T' + 
+                            String(slotDate.getHours()).padStart(2, '0') + ':' + 
+                            String(slotDate.getMinutes()).padStart(2, '0');
+                        
                         slotsHtml += `<span class="slot-btn" onclick="selectSlot(this, '${{fullSlot}}', ${{masterId}}, ${{serviceId}}, '${{serviceName}}', ${{price}})">${{timeStr}}</span>`;
                     }}
                     
                     if (slotsHtml) {{
                         slotGrid.innerHTML = slotsHtml;
                     }} else {{
-                        slotGrid.innerHTML = '<p class="no-slots">Нет свободных окон на сегодня. Все прошедшие.</p>';
+                        slotGrid.innerHTML = '<p class="no-slots">Нет свободных окон на выбранную дату.</p>';
                     }}
                 }} else {{
-                    slotGrid.innerHTML = '<p class="no-slots">Нет свободных окон на сегодня. Рабочее время: 10:00–20:00.</p>';
+                    slotGrid.innerHTML = `<p class="no-slots">${{data.message || 'Нет свободных окон на эту дату.'}}</p>`;
                 }}
             }} catch (err) {{
                 slotGrid.innerHTML = '<p class="no-slots">Ошибка загрузки. Попробуйте позже.</p>';
@@ -518,11 +326,9 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         function selectSlot(el, time, masterId, serviceId, serviceName, price) {{
             document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
             el.classList.add('selected');
-            
             selectedSlot = time;
             selectedMasterId = masterId;
             selectedServiceId = serviceId;
-            
             document.getElementById('bookPanel').classList.add('active');
             document.getElementById('panelMaster').textContent = `${{serviceName}} · ${{price}} ₽`;
             document.getElementById('panelTime').textContent = time.replace('T', ' ');
@@ -533,7 +339,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                 alert('Выберите услугу и время!');
                 return;
             }}
-            
             window.location.href = `/book?master_id=${{selectedMasterId}}&service_id=${{selectedServiceId}}&time=${{encodeURIComponent(selectedSlot)}}`;
         }}
     </script>

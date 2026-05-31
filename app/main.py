@@ -17,21 +17,18 @@ from app.schemas.master import MasterResponse, ServiceResponse
 from app.api.v1.endpoints import auth
 from app.api.v1.endpoints import business
 from app.api.v1.endpoints import auth_web
-from app.api.v1.endpoints import reviews  # ← ДОБАВЛЕНО
+from app.api.v1.endpoints import reviews
 
 app = FastAPI(
     title="Beauty Platform API",
     description="API для платформы красоты Руми",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # 1. Статические файлы — ПЕРВЫМИ!
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 2. Веб-роутер (страницы) — ВТОРЫМ
-app.include_router(web_router, include_in_schema=False)
-
-# 3. API-роутеры — ТРЕТЬИМИ
+# 2. API-роутеры — ДОЛЖНЫ БЫТЬ ДО ВЕБ-РОУТЕРА, иначе /api/v1/... перехватится 404
 app.include_router(auth_web.router, prefix="/api/v1", tags=["auth-web"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
@@ -39,6 +36,12 @@ app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"]
 app.include_router(business.router, prefix="/api/v1/business", tags=["business"])
 app.include_router(master_endpoints.router, prefix="/api/v1/master", tags=["master"])
 app.include_router(reviews.router, prefix="/api/v1", tags=["reviews"])
+
+# 3. Веб-роутер (страницы) — ПОСЛЕ API, чтобы не перехватывал /api/v1/...
+app.include_router(web_router, include_in_schema=False)
+
+app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}

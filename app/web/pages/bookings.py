@@ -1,13 +1,13 @@
 # app/web/pages/bookings.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
-from app.models.models import Booking, BookingStatus, Master, Service, Salon
+from datetime import datetime, timezone
+from app.models.models import Booking, BookingStatus, Master, Service, Salon, User
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
-
+from datetime import timedelta
 
 async def render_bookings_page(db: AsyncSession, user) -> str:
     """Страница 'Мои записи' для клиента."""
@@ -21,22 +21,34 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
     bookings = bookings_result.scalars().all()
     
     # Разделяем на предстоящие и завершённые
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     upcoming = [b for b in bookings if b.start_time > now and b.status not in [BookingStatus.CANCELLED, BookingStatus.COMPLETED]]
     completed = [b for b in bookings if b.status in [BookingStatus.COMPLETED, BookingStatus.CANCELLED] or b.start_time <= now]
     
-    def render_booking_card(booking, is_upcoming=True):
-        # Получаем информацию о мастере и услуге
+    async def render_booking_card(booking, is_upcoming=True):
+        # Явно загружаем мастера
+        master = None
+        if booking.master_id:
+            master = (await db.execute(select(Master).where(Master.id == booking.master_id))).scalar_one_or_none()
+        
+        # Явно загружаем услугу
+        service = None
+        if booking.service_id:
+            service = (await db.execute(select(Service).where(Service.id == booking.service_id))).scalar_one_or_none()
+        
         master_name = "Мастер"
         service_name = "Услуга"
         salon_name = "Салон"
         
-        if booking.master:
-            master_name = booking.master.user.full_name if booking.master.user else "Мастер"
-            if booking.master.salon:
-                salon_name = booking.master.salon.name
-        if booking.service:
-            service_name = booking.service.name
+        if master:
+            master_user = (await db.execute(select(User).where(User.id == master.user_id))).scalar_one_or_none()
+            master_name = master_user.full_name if master_user else "Мастер"
+            if master.salon_id:
+                salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
+                salon_name = salon.name if salon else "Салон"
+        
+        if service:
+            service_name = service.name
         
         status_label = {
             BookingStatus.PENDING: "⏳ Ожидает",
@@ -56,7 +68,7 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
                 <span class="booking-status">{status_label}</span>
             </div>
             <div class="booking-body">
-                <p><strong>📅 Дата:</strong> {booking.start_time.strftime('%d.%m.%Y в %H:%M')}</p>
+                <p><strong>📅 Дата:</strong> {booking.start_time.replace(tzinfo=None).strftime('%d.%m.%Y в %H:%M')}</p>
                 <p><strong>💇 Мастер:</strong> {master_name}</p>
                 <p><strong>🏢 Салон:</strong> {salon_name}</p>
                 <p><strong>💰 Цена:</strong> {booking.final_price or '—'} ₽</p>
@@ -65,8 +77,14 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
         </div>
         """
     
-    upcoming_cards = "".join([render_booking_card(b, True) for b in upcoming])
-    completed_cards = "".join([render_booking_card(b, False) for b in completed])
+    # Собираем карточки с await
+    upcoming_cards = ""
+    for b in upcoming:
+        upcoming_cards += await render_booking_card(b, True)
+    
+    completed_cards = ""
+    for b in completed:
+        completed_cards += await render_booking_card(b, False)
     
     html = f"""<!DOCTYPE html>
 <html lang="ru">
