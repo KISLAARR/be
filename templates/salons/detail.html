@@ -26,7 +26,15 @@
             
             <!-- Детали -->
             <div style="flex: 1; min-width: 250px;">
-                <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">{{ salon.name }}</h1>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                    <h1 style="font-size: 2rem; font-weight: 700;">{{ salon.name }}</h1>
+                    <button onclick="toggleFavoriteSalon({{ salon.id }}, this)" 
+                        id="salon-fav-btn"
+                        style="width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; background: transparent;"
+                        title="Добавить в избранное">
+                        🤍
+                    </button>
+                </div>
                 
                 <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 8px;">
                     <span style="display: flex; align-items: center; gap: 4px; font-weight: 600;">
@@ -72,7 +80,15 @@
                 
                 <!-- Информация о мастере -->
                 <div style="flex: 1;">
-                    <h3 style="font-weight: 600; font-size: 1.2rem;">{{ master.user.full_name if master.user else 'Имя не указано' }}</h3>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <h3 style="font-weight: 600; font-size: 1.2rem;">{{ master.user.full_name if master.user else 'Имя не указано' }}</h3>
+                        <button onclick="toggleFavoriteMaster({{ master.id }}, this)" 
+                            class="master-fav-btn"
+                            data-master-id="{{ master.id }}"
+                            style="width: 28px; height: 28px; border-radius: 50%; border: none; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; background: transparent;">
+                            🤍
+                        </button>
+                    </div>
                     <p style="color: #6B7280; font-size: 0.9rem;">{{ master.specialization }} • Опыт {{ master.experience_years }} лет</p>
                     
                     <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
@@ -117,4 +133,72 @@
 </section>
 {% endif %}
 
+<script>
+// === ИЗБРАННОЕ ДЛЯ САЛОНА ===
+function toggleFavoriteSalon(salonId, btn) {
+    let favs = JSON.parse(localStorage.getItem('rumi_favorites') || '[]');
+    const index = favs.indexOf(salonId);
+    
+    if (index > -1) {
+        favs.splice(index, 1);
+        btn.innerHTML = '🤍';
+    } else {
+        favs.push(salonId);
+        btn.innerHTML = '❤️';
+        btn.style.transform = 'scale(1.3)';
+        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+    }
+    
+    localStorage.setItem('rumi_favorites', JSON.stringify(favs));
+    updateFavCount();
+}
+
+// Подсветка салона при загрузке
+(function() {
+    const favs = JSON.parse(localStorage.getItem('rumi_favorites') || '[]');
+    if (favs.includes({{ salon.id }})) {
+        const btn = document.getElementById('salon-fav-btn');
+        if (btn) btn.innerHTML = '❤️';
+    }
+})();
+
+// === ИЗБРАННОЕ ДЛЯ МАСТЕРА ===
+function toggleFavoriteMaster(masterId, btn) {
+    let favs = JSON.parse(localStorage.getItem('rumi_favorite_masters') || '[]');
+    const index = favs.indexOf(masterId);
+    
+    if (index > -1) {
+        favs.splice(index, 1);
+        btn.innerHTML = '🤍';
+    } else {
+        favs.push(masterId);
+        btn.innerHTML = '❤️';
+        btn.style.transform = 'scale(1.3)';
+        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 200);
+    }
+    
+    localStorage.setItem('rumi_favorite_masters', JSON.stringify(favs));
+}
+
+// Подсветка мастеров при загрузке
+(function() {
+    const favs = JSON.parse(localStorage.getItem('rumi_favorite_masters') || '[]');
+    document.querySelectorAll('.master-fav-btn').forEach(btn => {
+        const masterId = parseInt(btn.dataset.masterId);
+        if (favs.includes(masterId)) {
+            btn.innerHTML = '❤️';
+        }
+    });
+})();
+
+// Обновление счётчика в сайдбаре
+function updateFavCount() {
+    const favs = JSON.parse(localStorage.getItem('rumi_favorites') || '[]');
+    const countEl = document.getElementById('favorites-count');
+    if (countEl) {
+        countEl.textContent = favs.length;
+        countEl.style.display = favs.length > 0 ? 'flex' : 'none';
+    }
+}
+</script>
 {% endblock %}

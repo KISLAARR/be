@@ -11,11 +11,10 @@
 <section style="padding: 32px 0; background: white;">
     <div class="section-container" style="max-width: 500px;">
         
-        <!-- ВСЕГДА показываем форму подтверждения -->
+        <!-- Форма подтверждения -->
         <div id="confirm-form" style="border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
             <h3 style="text-align: center; font-size: 1.25rem; font-weight: 600; margin-bottom: 20px;">Подтверждение записи</h3>
             
-            <!-- Мастер -->
             <div style="display: flex; align-items: center; gap: 14px; background: #f9fafb; border-radius: 12px; padding: 14px; margin-bottom: 10px;">
                 <div style="width: 48px; height: 48px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: #e5e7eb;">
                     {% if master.photo_url %}
@@ -29,10 +28,8 @@
                     <p style="font-weight: 500; font-size: 0.9rem;">{{ master.user.full_name }}</p>
                     <p style="color: #6B7280; font-size: 0.75rem;">{{ master.specialization }}</p>
                 </div>
-                <span style="margin-left: auto; color: #10b981;">✓</span>
             </div>
             
-            <!-- Услуга -->
             <div style="display: flex; align-items: center; justify-content: space-between; background: #f9fafb; border-radius: 12px; padding: 14px; margin-bottom: 10px;">
                 <div>
                     <p style="font-size: 0.75rem; color: #6B7280;">Услуга</p>
@@ -42,7 +39,6 @@
                 <span style="font-weight: 700; font-size: 1.1rem;">{{ service.price }} ₽</span>
             </div>
             
-            <!-- Дата и время -->
             <div style="display: flex; align-items: center; gap: 12px; background: #f9fafb; border-radius: 12px; padding: 14px; margin-bottom: 10px;">
                 <span style="color: #F28C6F; font-size: 1.2rem;">🕐</span>
                 <div>
@@ -51,7 +47,6 @@
                 </div>
             </div>
             
-            <!-- Салон -->
             <div style="display: flex; align-items: center; gap: 12px; background: #f9fafb; border-radius: 12px; padding: 14px; margin-bottom: 10px;">
                 <span style="color: #F28C6F; font-size: 1.2rem;">📍</span>
                 <div>
@@ -61,7 +56,6 @@
                 </div>
             </div>
             
-            <!-- Напоминание -->
             <div style="display: flex; align-items: center; gap: 12px; background: #f9fafb; border-radius: 12px; padding: 14px; margin-bottom: 20px;">
                 <span style="color: #F28C6F; font-size: 1.2rem;">🔔</span>
                 <div>
@@ -70,7 +64,6 @@
                 </div>
             </div>
             
-            <!-- Кнопка записи -->
             <form id="booking-form" onsubmit="handleBooking(event)" style="margin-bottom: 10px;">
                 <button type="submit" id="submit-btn" style="width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 700; color: white; border: none; cursor: pointer; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
                     Записаться
@@ -82,7 +75,7 @@
             </a>
         </div>
         
-        <!-- Успех (изначально скрыт) -->
+        <!-- Успех -->
         <div id="success-box" style="display: none; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 28px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.04); text-align: center;">
             <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #F28C6F, #E8A0BF); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
                 <span style="color: white; font-size: 2rem;">✓</span>
@@ -92,12 +85,8 @@
             <p style="font-weight: 500; margin-bottom: 16px;">{{ date }} в {{ time }}</p>
             <p style="color: #6B7280; font-size: 0.8rem; margin-bottom: 24px;">{{ salon.name }}, {{ salon.address }}</p>
             <div style="display: flex; gap: 12px;">
-                <a href="/salons/{{ salon.id }}" style="flex: 1; border: 1px solid #e5e7eb; border-radius: 9999px; padding: 12px; text-align: center; font-size: 0.875rem; font-weight: 500; color: #111827; text-decoration: none;">
-                    Записать ещё
-                </a>
-                <a href="/bookings" style="flex: 1; border-radius: 9999px; padding: 12px; text-align: center; font-size: 0.875rem; font-weight: 700; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
-                    Мои записи
-                </a>
+                <a href="/salons/{{ salon.id }}" style="flex: 1; border: 1px solid #e5e7eb; border-radius: 9999px; padding: 12px; text-align: center; font-size: 0.875rem; font-weight: 500; color: #111827; text-decoration: none;">Записать ещё</a>
+                <a href="/bookings" style="flex: 1; border-radius: 9999px; padding: 12px; text-align: center; font-size: 0.875rem; font-weight: 700; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">Мои записи</a>
             </div>
         </div>
         
@@ -105,22 +94,6 @@
 </section>
 
 <script>
-// ПРОВЕРЯЕМ URL при загрузке
-(function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    console.log('URL params:', window.location.search);
-    console.log('success =', urlParams.get('success'));
-    
-    if (urlParams.get('success') === '1') {
-        // Показываем успех, скрываем форму
-        document.getElementById('confirm-form').style.display = 'none';
-        document.getElementById('success-box').style.display = 'block';
-        // Убираем success из URL, чтобы при обновлении не было повторной отправки
-        const cleanUrl = window.location.href.split('&success=')[0];
-        window.history.replaceState({}, '', cleanUrl);
-    }
-})();
-
 async function handleBooking(event) {
     event.preventDefault();
     
@@ -133,15 +106,13 @@ async function handleBooking(event) {
         return;
     }
     
-    // Блокируем кнопку на время запроса
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
     btn.textContent = 'Отправка...';
     btn.style.opacity = '0.7';
     
-    const urlParams = new URLSearchParams(window.location.search);
-    const dateStr = urlParams.get('date') || '{{ date }}';
-    const timeStr = urlParams.get('time') || '{{ time }}';
+    const dateStr = "{{ date }}";
+    const timeStr = "{{ time }}";
     const startTime = dateStr + 'T' + timeStr + ':00';
     
     const data = {
@@ -150,7 +121,7 @@ async function handleBooking(event) {
         start_time: startTime
     };
     
-    console.log('Отправляю запись:', data);
+    console.log('ОТПРАВКА НА СЕРВЕР:', JSON.stringify(data));
     
     try {
         const response = await fetch('/api/v1/bookings/', {
@@ -164,27 +135,22 @@ async function handleBooking(event) {
         
         if (response.ok) {
             const result = await response.json();
-            console.log('Запись создана:', result);
+            console.log('УСПЕХ. Сервер вернул:', result);
             
-            // Показываем успех
             document.getElementById('confirm-form').style.display = 'none';
             document.getElementById('success-box').style.display = 'block';
             
-            // Меняем URL на чистый + success=1
-            const baseUrl = window.location.href.split('&success=')[0].split('?success=')[0];
-            window.history.replaceState({}, '', baseUrl + '&success=1');
-            
         } else {
             const error = await response.json();
-            console.error('Ошибка:', error);
-            alert(error.detail || 'Ошибка при создании записи. Возможно, это время уже занято.');
+            console.error('ОШИБКА СЕРВЕРА:', error);
+            alert(error.detail || 'Ошибка при создании записи.');
             btn.disabled = false;
             btn.textContent = 'Записаться';
             btn.style.opacity = '1';
         }
     } catch (e) {
-        console.error('Ошибка сети:', e);
-        alert('Ошибка соединения с сервером. Проверьте интернет.');
+        console.error('ОШИБКА СЕТИ:', e);
+        alert('Ошибка соединения с сервером.');
         btn.disabled = false;
         btn.textContent = 'Записаться';
         btn.style.opacity = '1';

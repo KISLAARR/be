@@ -2,78 +2,111 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from datetime import datetime, timedelta
+from jose import jwt
+from passlib.context import CryptContext
 
 from app.db.session import get_db
-from app.models.models import User
-from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
-from app.core.security import get_password_hash, verify_password, create_access_token
+from app.models.models import User, UserRole
+from app.core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
-    """Регистрация нового пользователя"""
-    
+# Настройка хеширования паролей
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(user_id: int) -> str:
+    """Создаёт JWT-токен для пользователя."""
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": str(user_id),
+        "exp": expire
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Проверяет пароль."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def hash_password(password: str) -> str:
+    """Хеширует пароль."""
+    return pwd_context.hash(password)
+
+
+@router.post("/auth/register")
+async def register(
+    phone: str,
+    password: str,
+    full_name: str = None,
+    role: UserRole = UserRole.CLIENT,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Регистрация нового пользователя.
+    phone — в формате +7XXXXXXXXXX
+    password — любой
+    role — client / model / business
+    """
     # Проверяем, не занят ли телефон
-    result = await db.execute(select(User).where(User.phone == user_data.phone))
-    existing_user = result.scalar_one_or_none()
-    if existing_user:
+    existing = await db.execute(select(User).where(User.phone == phone))
+    if existing.scalar_one_or_none():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пользователь с таким телефоном уже существует"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Пользователь с таким номером уже зарегистрирован"
         )
     
-    # Проверяем email, если указан
-    if user_data.email:
-        result = await db.execute(select(User).where(User.email == user_data.email))
-        existing_email = result.scalar_one_or_none()
-        if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Пользователь с таким email уже существует"
-            )
-    
-    # Создаём пользователя
-    hashed_password = get_password_hash(user_data.password)
-    db_user = User(
-        phone=user_data.phone,
-        email=user_data.email,
-        full_name=user_data.full_name,
-        hashed_password=hashed_password,
-        role=user_data.role
+    user = User(
+        phone=phone,
+        full_name=full_name,
+        hashed_password=hash_password(password),
+        role=role
     )
-    
-    db.add(db_user)
+    db.add(user)
     await db.commit()
-    await db.refresh(db_user)
+    await db.refresh(user)
     
-    return db_user
+    token = create_access_token(user.id)
+    
+    return {
+        "user": {
+            "id": user.id,
+            "phone": user.phone,
+            "full_name": user.full_name,
+            "role": user.role
+        },
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
-@router.post("/login", response_model=Token)
-async def login(login_data: UserLogin, db: AsyncSession = Depends(get_db)):
-    """Вход в систему"""
-    
-    # Ищем пользователя по телефону
-    result = await db.execute(select(User).where(User.phone == login_data.phone))
+
+@router.post("/auth/login")
+async def login(
+    phone: str,
+    password: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Вход в систему.
+    Возвращает JWT-токен, который нужно передавать в заголовке Authorization: Bearer <токен>
+    """
+    result = await db.execute(select(User).where(User.phone == phone))
     user = result.scalar_one_or_none()
     
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный телефон или пароль"
+            detail="Неверный номер телефона или пароль"
         )
     
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Аккаунт деактивирован"
-        )
+    token = create_access_token(user.id)
     
-    # Создаём токен
-    access_token = create_access_token(data={
-    "sub": str(user.id),
-    "phone": user.phone,
-    "role": user.role.value
-})
-    
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "user": {
+            "id": user.id,
+            "phone": user.phone,
+            "full_name": user.full_name,
+            "role": user.role
+        },
+        "access_token": token,
+        "token_type": "bearer"
+    }

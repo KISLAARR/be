@@ -4,7 +4,6 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-from fastapi.responses import HTMLResponse
 
 from app.db.session import get_db
 from app.models.models import User, Salon, SalonPhoto, Master, Service, Promotion, UserRole
@@ -45,50 +44,40 @@ async def get_owner_salon(
     return salon
 
 
-# ========== POST-эндпоинт (создание И обновление салона) ==========
+# ========== НОВЫЙ POST-эндпоинт для создания салона ==========
 @router.post("/my-salon")
-async def create_or_update_salon(
+async def create_my_salon(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
     address: str = Form(...),
     phone: str = Form(...),
-    method_override: str = Form(""),
+    latitude: str = Form(""),
+    longitude: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
-    """Создание ИЛИ обновление салона через веб-форму."""
+    """Создание нового салона владельцем через веб-форму."""
     from app.web.auth import get_current_user_from_cookie
     
+    # Получаем пользователя из куки
     user = await get_current_user_from_cookie(request, db)
     if not user or user.role.value != "business":
         return RedirectResponse(url="/login", status_code=302)
     
-    # Если method_override=put — это обновление существующего салона
-    if method_override == "put":
-        salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-        if not salon:
-            return RedirectResponse(url="/business/register-salon", status_code=302)
-        
-        salon.name = name
-        salon.description = description
-        salon.address = address
-        salon.phone = phone
-        await db.commit()
-        return RedirectResponse(url="/business/dashboard?updated=1", status_code=302)
-    
-    # Иначе — создание нового салона
+    # Проверяем, нет ли уже салона у этого владельца
     existing = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
     if existing:
         return RedirectResponse(url="/business/dashboard", status_code=302)
     
+    # Создаём салон
     salon = Salon(
         owner_id=user.id,
         name=name,
         description=description,
         address=address,
         phone=phone,
-        latitude=55.7558,
-        longitude=37.6173,
+        latitude=float(latitude) if latitude else 55.7558,
+        longitude=float(longitude) if longitude else 37.6173,
         rating=0.0,
         reviews_count=0,
         is_active=True
@@ -97,7 +86,9 @@ async def create_or_update_salon(
     await db.commit()
     await db.refresh(salon)
     
+    # После успешного создания — перенаправляем в бизнес-панель
     return RedirectResponse(url="/business/dashboard?success=1", status_code=302)
+
 
 @router.get("/my-salon", response_model=SalonResponse)
 async def get_my_salon(
@@ -113,7 +104,7 @@ async def update_my_salon(
     salon: Salon = Depends(get_owner_salon),
     db: AsyncSession = Depends(get_db)
 ):
-    """Обновляет информацию о своём салоне (API)."""
+    """Обновляет информацию о своём салоне."""
     if update_data.name is not None:
         salon.name = update_data.name
     if update_data.description is not None:
@@ -226,57 +217,3 @@ async def get_business_dashboard(
         "rating": salon.rating,
         "reviews_count": salon.reviews_count
     }
-@router.post("/my-salon/promotions/web")
-async def create_promotion_web(
-    request: Request,
-    title: str = Form(...),
-    description: str = Form(""),
-    tag: str = Form(...),
-    db: AsyncSession = Depends(get_db)
-):
-    """Создание акции через веб-форму."""
-    from app.web.auth import get_current_user_from_cookie
-    
-    user = await get_current_user_from_cookie(request, db)
-    if not user or user.role.value != "business":
-        return RedirectResponse(url="/login", status_code=302)
-    
-    salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-    if not salon:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
-    
-    promo = Promotion(
-        salon_id=salon.id,
-        title=title,
-        description=description,
-        tag=tag
-    )
-    db.add(promo)
-    await db.commit()
-    
-    return RedirectResponse(url="/business/my-salon?promo_added=1", status_code=302)
-@router.post("/my-salon/promotions/{promo_id}/delete")
-async def delete_promotion_web(
-    promo_id: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """Удаление акции владельцем салона."""
-    from app.web.auth import get_current_user_from_cookie
-    
-    user = await get_current_user_from_cookie(request, db)
-    if not user or user.role.value != "business":
-        return RedirectResponse(url="/login", status_code=302)
-    
-    salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-    if not salon:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
-    
-    promo = (await db.execute(select(Promotion).where(Promotion.id == promo_id, Promotion.salon_id == salon.id))).scalar_one_or_none()
-    if not promo:
-        return HTMLResponse(content="Акция не найдена", status_code=404)
-    
-    await db.delete(promo)
-    await db.commit()
-    
-    return RedirectResponse(url="/business/my-salon?promo_deleted=1", status_code=302)

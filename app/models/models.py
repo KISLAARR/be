@@ -5,7 +5,7 @@ from typing import Optional, List
 
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, ForeignKey,
-    Text, DateTime, Enum, Table, CheckConstraint, Index
+    Text, DateTime, Enum, CheckConstraint, Index
 )
 from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -17,8 +17,8 @@ class UserRole(str, enum.Enum):
     CLIENT = "client"
     MODEL = "model"
     MASTER = "master"
+    BUSINESS = "business"
     ADMIN = "admin"
-    OWNER = "owner"
 
 class BookingStatus(str, enum.Enum):
     PENDING = "pending"
@@ -47,26 +47,26 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    portfolio_desc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     subscription_tier: Mapped[Optional[SubscriptionTier]] = mapped_column(Enum(SubscriptionTier), nullable=True)
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-        # Если пользователь — админ или владелец, он привязан к салону
-    managed_salon_id: Mapped[Optional[int]] = mapped_column(ForeignKey("salons.id"), nullable=True)
-    managed_salon: Mapped[Optional["Salon"]] = relationship(foreign_keys=[managed_salon_id])
 
+    # Связи
     master_profile: Mapped[Optional["Master"]] = relationship(back_populates="user", uselist=False)
+    owned_salon: Mapped[Optional["Salon"]] = relationship(back_populates="owner", uselist=False)
     bookings: Mapped[List["Booking"]] = relationship(back_populates="client", foreign_keys="Booking.client_id")
-    favorites: Mapped[List["Favorite"]] = relationship(back_populates="user")
+    reviews: Mapped[List["Review"]] = relationship(back_populates="client")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
 
 class Salon(Base):
     __tablename__ = "salons"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, nullable=True)
+    owner: Mapped["User"] = relationship(back_populates="owned_salon")
+    
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     address: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -83,15 +83,13 @@ class Salon(Base):
 
     working_hours: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    owner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
-    owner: Mapped[Optional["User"]] = relationship(foreign_keys=[owner_id])
 
     masters: Mapped[List["Master"]] = relationship(back_populates="salon")
     promotions: Mapped[List["Promotion"]] = relationship(back_populates="salon")
+    reviews: Mapped[List["Review"]] = relationship(back_populates="salon")
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
 
 class SalonPhoto(Base):
     __tablename__ = "salon_photos"
@@ -99,7 +97,6 @@ class SalonPhoto(Base):
     salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
     url: Mapped[str] = mapped_column(String(500))
     salon: Mapped["Salon"] = relationship(back_populates="photos")
-
 
 class Master(Base):
     __tablename__ = "masters"
@@ -119,10 +116,9 @@ class Master(Base):
     salon: Mapped["Salon"] = relationship(back_populates="masters")
     services: Mapped[List["Service"]] = relationship(back_populates="master")
     schedule: Mapped[List["Schedule"]] = relationship(back_populates="master")
-    portfolio_photos: Mapped[List["PortfolioPhoto"]] = relationship(back_populates="master")
+    reviews: Mapped[List["Review"]] = relationship(back_populates="master")
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-
 
 class Service(Base):
     __tablename__ = "services"
@@ -136,8 +132,8 @@ class Service(Base):
 
     master: Mapped["Master"] = relationship(back_populates="services")
 
-
 class Schedule(Base):
+    """Расписание мастера (повторяющиеся слоты)"""
     __tablename__ = "schedule"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -147,7 +143,6 @@ class Schedule(Base):
     end_time: Mapped[time] = mapped_column()
 
     master: Mapped["Master"] = relationship(back_populates="schedule")
-
 
 class Booking(Base):
     __tablename__ = "bookings"
@@ -161,9 +156,8 @@ class Booking(Base):
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.PENDING)
-
     discount_percent: Mapped[int] = mapped_column(Integer, default=0)
-    final_price: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    final_price: Mapped[int] = mapped_column(Integer, nullable=True)
 
     client: Mapped["User"] = relationship(back_populates="bookings", foreign_keys=[client_id])
     master: Mapped["Master"] = relationship()
@@ -174,7 +168,6 @@ class Booking(Base):
     __table_args__ = (
         Index('ix_bookings_master_start', 'master_id', 'start_time'),
     )
-
 
 class Promotion(Base):
     __tablename__ = "promotions"
@@ -189,31 +182,22 @@ class Promotion(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
-class Favorite(Base):
-    __tablename__ = "favorites"
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id"), primary_key=True)
-
-    user: Mapped["User"] = relationship(back_populates="favorites")
-    salon: Mapped["Salon"] = relationship()
-
-
-class PortfolioPhoto(Base):
-    __tablename__ = "portfolio_photos"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
-    url: Mapped[str] = mapped_column(String(500))
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    master: Mapped["Master"] = relationship(back_populates="portfolio_photos")
-
-
+# ========== НОВАЯ МОДЕЛЬ: Отзывы ==========
 class Review(Base):
     __tablename__ = "reviews"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    booking_id: Mapped[int] = mapped_column(ForeignKey("bookings.id"), unique=True)
-    rating: Mapped[int] = mapped_column(Integer, CheckConstraint('rating >= 1 AND rating <= 5'))
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id"))
+    rating: Mapped[int] = mapped_column(Integer)  # 1-5
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    client: Mapped["User"] = relationship(back_populates="reviews")
+    master: Mapped["Master"] = relationship(back_populates="reviews")
+    salon: Mapped["Salon"] = relationship(back_populates="reviews")
+
+    __table_args__ = (
+        CheckConstraint('rating >= 1 AND rating <= 5', name='check_rating_range'),
+    )

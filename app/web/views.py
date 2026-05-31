@@ -1,258 +1,463 @@
 # app/web/views.py
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, Request, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from datetime import datetime, timedelta, timezone, date as date_type
-
 from app.db.session import get_db
-from app.models.models import Salon, Master, User, Service, Promotion, Booking, BookingStatus
-from app.core.security import decode_access_token
+from app.models.models import Salon, User, Master
+from app.web.pages.home import render_home_page
+from app.web.components.header import render_header
+from app.web.components.footer import render_footer
+from app.web.components.styles import get_base_styles
+from app.web.components.sidebar import render_sidebar
+from app.web.auth import get_current_user_from_cookie
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
-# Московский часовой пояс (UTC+3)
-MSK = timezone(timedelta(hours=3))
 
-def get_current_user_from_cookie(request: Request) -> User | None:
-    """Пытаемся получить пользователя из токена в заголовке или куках (для веб-страниц)"""
-    return None
+@router.get("/", response_class=HTMLResponse)
+async def home_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Главная страница."""
+    user = await get_current_user_from_cookie(request, db)
+    html = await render_home_page(db, user)
+    return HTMLResponse(content=html)
 
-@router.get("/")
-async def index(request: Request):
-    """Главная страница"""
-    return templates.TemplateResponse("index.html", {"request": request})
+@router.get("/salons", response_class=HTMLResponse)
+async def salons_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница со списком салонов."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.salons import render_salons_page
+    html = await render_salons_page(db, user)
+    return HTMLResponse(content=html)
 
-@router.get("/salons")
-async def salons_list(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница со списком салонов"""
-    result = await db.execute(
-        select(Salon)
-        .where(Salon.is_active == True)
-        .order_by(Salon.rating.desc())
-    )
-    salons = result.scalars().all()
+
+@router.get("/salons/{salon_id}", response_class=HTMLResponse)
+async def salon_detail_page(salon_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница конкретного салона."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.salon_detail import render_salon_detail
+    html = await render_salon_detail(db, salon_id, user)
+    return HTMLResponse(content=html)
+
+
+@router.get("/masters/{master_id}", response_class=HTMLResponse)
+async def master_detail_page(master_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница конкретного мастера."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.master_detail import render_master_detail
+    html = await render_master_detail(db, master_id, user)
+    return HTMLResponse(content=html)
+
+
+@router.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница профиля."""
+    from app.web.pages.profile import render_profile_page
     
-    return templates.TemplateResponse(
-        "salons/list.html",
-        {"request": request, "salons": salons}
-    )
+    user = await get_current_user_from_cookie(request, db)
+    return HTMLResponse(content=render_profile_page(user))
 
-@router.get("/salons/{salon_id}")
-async def salon_detail(request: Request, salon_id: int, db: AsyncSession = Depends(get_db)):
-    """Страница конкретного салона"""
-    result = await db.execute(select(Salon).where(Salon.id == salon_id))
+
+@router.get("/bookings", response_class=HTMLResponse)
+async def bookings_page(
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница 'Мои записи'."""
+    from app.web.pages.bookings import render_bookings_page
+    
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login?redirect=/bookings", status_code=302)
+    
+    return HTMLResponse(content=await render_bookings_page(db, user))
+
+
+@router.get("/favorites", response_class=HTMLResponse)
+async def favorites_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница 'Избранное'."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.favorites import render_favorites_page
+    return HTMLResponse(content=render_favorites_page(user))
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница настроек."""
+    from app.web.pages.settings import render_settings_page
+    user = await get_current_user_from_cookie(request, db)
+    return HTMLResponse(content=render_settings_page(user))
+
+@router.get("/business/dashboard", response_class=HTMLResponse)
+async def business_dashboard_page(
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    """Бизнес-панель с аналитикой."""
+    from app.web.pages.business_dashboard import render_business_dashboard
+    
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "business":
+        return RedirectResponse(url="/login?redirect=/business/dashboard", status_code=302)
+    
+    result = await db.execute(select(Salon).where(Salon.owner_id == user.id))
     salon = result.scalar_one_or_none()
     
     if not salon:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+        return RedirectResponse(url="/business/register-salon", status_code=302)
     
-    masters_result = await db.execute(
-        select(Master)
-        .where(Master.salon_id == salon_id, Master.is_active == True)
-        .options(selectinload(Master.user), selectinload(Master.services))
-    )
+    return HTMLResponse(content=await render_business_dashboard(db, user, salon))
+
+
+@router.get("/business/my-salon", response_class=HTMLResponse)
+async def my_salon_page(
+    request: Request, 
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница редактирования своего салона."""
+    from app.web.pages.my_salon import render_my_salon_page
+    
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "business":
+        return RedirectResponse(url="/login?redirect=/business/my-salon", status_code=302)
+    
+    # Получаем салон владельца
+    result = await db.execute(select(Salon).where(Salon.owner_id == user.id))
+    salon = result.scalar_one_or_none()
+    
+    if not salon:
+        return RedirectResponse(url="/business/register-salon", status_code=302)
+    
+    return HTMLResponse(content=await render_my_salon_page(db, salon, user))
+
+
+@router.get("/business/register-salon", response_class=HTMLResponse)
+async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница регистрации салона."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.register_salon import render_register_salon_page
+    html = render_register_salon_page(user)
+    return HTMLResponse(content=html)
+
+
+@router.get("/salons/{salon_id}/book", response_class=HTMLResponse)
+async def book_service_page(salon_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница записи в салон."""
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url=f"/login?redirect=/salons/{salon_id}/book", status_code=302)
+    
+    # Получаем салон
+    result = await db.execute(select(Salon).where(Salon.id == salon_id))
+    salon = result.scalar_one_or_none()
+    if not salon:
+        return HTMLResponse(content="<h1>Салон не найден</h1>", status_code=404)
+    
+    # Получаем мастеров с услугами
+    masters_result = await db.execute(select(Master).where(Master.salon_id == salon_id, Master.is_active == True))
     masters = masters_result.scalars().all()
     
-    promos_result = await db.execute(
-        select(Promotion).where(Promotion.salon_id == salon_id, Promotion.is_active == True)
-    )
-    promotions = promos_result.scalars().all()
+    masters_options = ""
+    for m in masters:
+        user_res = await db.execute(select(User).where(User.id == m.user_id))
+        master_user = user_res.scalar_one_or_none()
+        name = master_user.full_name if master_user else "Мастер"
+        masters_options += f'<option value="{m.id}">{name} — {m.specialization}</option>'
     
-    return templates.TemplateResponse(
-        "salons/detail.html",
-        {
-            "request": request,
-            "salon": salon,
-            "masters": masters,
-            "promotions": promotions
-        }
-    )
-
-@router.get("/profile")
-async def profile(request: Request):
-    """Страница профиля пользователя"""
-    return templates.TemplateResponse(
-        "profile/index.html",
-        {"request": request}
-    )
-
-@router.get("/model")
-async def model_plans(request: Request):
-    """Страница подписки модели"""
-    return templates.TemplateResponse(
-        "model/plans.html",
-        {"request": request}
-    )
-
-@router.get("/business")
-async def business(request: Request):
-    """Страница для бизнеса"""
-    return templates.TemplateResponse(
-        "business/index.html",
-        {"request": request}
-    )
-
-@router.get("/bookings")
-async def bookings_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница 'Мои записи' — показывает записи с московским временем"""
+    html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Запись — {salon.name} — руми</title>
+    {get_base_styles()}
+</head>
+<body>
+    {render_header("salons", user)}
+    <div class="section-container" style="padding-top:2rem;max-width:500px;margin:0 auto">
+        <h1 class="text-display" style="font-size:1.75rem;margin-bottom:0.5rem">Запись в {salon.name}</h1>
+        <p class="text-muted" style="margin-bottom:2rem">Выберите мастера и услугу</p>
+        <form action="/api/v1/bookings" method="post">
+            <input type="hidden" name="salon_id" value="{salon_id}">
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Мастер</label>
+                <select name="master_id" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem" required>
+                    <option value="">Выберите мастера</option>
+                    {masters_options}
+                </select>
+            </div>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Услуга</label>
+                <select name="service_id" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem" required onchange="updatePriceAndTime(this)">
+                    <option value="">Сначала выберите мастера</option>
+                </select>
+            </div>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Дата и время</label>
+                <input type="datetime-local" name="start_time" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%">Записаться</button>
+        </form>
+    </div>
     
-    user_id = request.query_params.get("user_id")
-    
-    if user_id:
-        result = await db.execute(
-            select(Booking)
-            .where(Booking.client_id == int(user_id))
-            .order_by(Booking.start_time.asc())
-            .options(
-                selectinload(Booking.master).selectinload(Master.user),
-                selectinload(Booking.master).selectinload(Master.salon),
-                selectinload(Booking.service)
-            )
-        )
-    else:
-        result = await db.execute(
-            select(Booking)
-            .order_by(Booking.start_time.asc())
-            .options(
-                selectinload(Booking.master).selectinload(Master.user),
-                selectinload(Booking.master).selectinload(Master.salon),
-                selectinload(Booking.service)
-            )
-        )
-    
-    bookings = result.scalars().all()
-    
-    # Переводим время из UTC в MSK для отображения
-    for b in bookings:
-        if b.start_time and b.start_time.tzinfo is None:
-            b.start_time = b.start_time.replace(tzinfo=timezone.utc)
-        if b.end_time and b.end_time.tzinfo is None:
-            b.end_time = b.end_time.replace(tzinfo=timezone.utc)
-        if b.start_time and b.start_time.tzinfo:
-            b.start_time = b.start_time.astimezone(MSK)
-        if b.end_time and b.end_time.tzinfo:
-            b.end_time = b.end_time.astimezone(MSK)
-    
-    return templates.TemplateResponse(
-        "bookings/index.html",
-        {
-            "request": request,
-            "bookings": bookings,
-            "today_date": date_type.today(),
-            "timedelta": timedelta
-        }
-    )
+    <script>
+        // Функция для загрузки услуг мастера
+        document.querySelector('select[name="master_id"]').addEventListener('change', async function() {{
+            const masterId = this.value;
+            const serviceSelect = document.querySelector('select[name="service_id"]');
+            
+            if (!masterId) {{
+                serviceSelect.innerHTML = '<option value="">Сначала выберите мастера</option>';
+                return;
+            }}
+            
+            try {{
+                const response = await fetch(`/api/v1/masters/${{masterId}}/services`);
+                const services = await response.json();
+                
+                serviceSelect.innerHTML = '<option value="">Выберите услугу</option>';
+                services.forEach(service => {{
+                    serviceSelect.innerHTML += `<option value="${{service.id}}" data-price="${{service.price}}" data-duration="${{service.duration_minutes}}">${{service.name}} — ${{service.price}} ₽ (${{service.duration_minutes}} мин)</option>`;
+                }});
+            }} catch (error) {{
+                console.error('Ошибка загрузки услуг:', error);
+            }}
+        }});
+        
+        function updatePriceAndTime(select) {{
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption && selectedOption.dataset.price) {{
+                // Можно добавить отображение цены и времени, если нужно
+                console.log('Цена:', selectedOption.dataset.price);
+            }}
+        }}
+    </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
-@router.get("/favorites")
-async def favorites_page(request: Request):
-    """Страница 'Избранное'"""
-    return templates.TemplateResponse(
-        "favorites/index.html", 
-        {"request": request}
-    )
 
-@router.get("/settings")
-async def settings_page(request: Request):
-    """Страница 'Настройки'"""
-    return templates.TemplateResponse(
-        "settings/index.html", 
-        {"request": request}
-    )
-
-# ========== АВТОРИЗАЦИЯ ==========
-
-@router.get("/login")
+@router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    """Страница входа."""
+    redirect = request.query_params.get("redirect", "/")
+    
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — руми</title>
+{get_base_styles()}
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--color-surface-alt)">
+<div class="card" style="width:100%;max-width:400px;padding:2.5rem">
+    <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
+    <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Вход</h1>
+    <form action="/api/v1/auth/login-web" method="post">
+        <input type="hidden" name="redirect" value="{redirect}">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
+        <input type="tel" name="phone" placeholder="+7XXXXXXXXXX" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
+        <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <button type="submit" class="btn-primary" style="width:100%">Войти</button>
+    </form>
+    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/register">Регистрация</a> · <a href="/">На главную</a></div>
+</div>
+</body>
+</html>""")
 
-@router.get("/register")
+
+@router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
-    return templates.TemplateResponse("auth/register.html", {"request": request})
+    """Страница регистрации."""
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Регистрация — руми</title>
+{get_base_styles()}
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--color-surface-alt)">
+<div class="card" style="width:100%;max-width:400px;padding:2.5rem">
+    <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
+    <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Регистрация</h1>
+    <form action="/api/v1/auth/register-web" method="post">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
+        <input type="text" name="full_name" placeholder="Ваше имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
+        <input type="tel" name="phone" placeholder="+7XXXXXXXXXX" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
+        <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Роль</label>
+        <select name="role" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+            <option value="client">Клиент</option>
+            <option value="business">Владелец салона</option>
+            <option value="model">Модель</option>
+        </select>
+        <button type="submit" class="btn-primary" style="width:100%">Зарегистрироваться</button>
+    </form>
+    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/login">Вход</a> · <a href="/">На главную</a></div>
+</div>
+</body>
+</html>""")
 
-# ========== БРОНИРОВАНИЕ ==========
 
-@router.get("/book/{master_id}")
-async def book_service(request: Request, master_id: int, db: AsyncSession = Depends(get_db)):
-    """Выбор услуги мастера"""
-    result = await db.execute(
-        select(Master)
-        .where(Master.id == master_id, Master.is_active == True)
-        .options(selectinload(Master.user), selectinload(Master.services))
-    )
-    master = result.scalar_one_or_none()
-    
-    if not master:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
-    
-    salon_result = await db.execute(select(Salon).where(Salon.id == master.salon_id))
-    salon = salon_result.scalar_one()
-    
-    return templates.TemplateResponse(
-        "booking/service.html",
-        {"request": request, "master": master, "salon": salon}
-    )
+@router.get("/logout", response_class=HTMLResponse)
+async def logout_page():
+    """Выход из системы."""
+    response = RedirectResponse(url="/", status_code=302)
+    response.delete_cookie("access_token")
+    return response
 
-@router.get("/book/{master_id}/service/{service_id}")
-async def book_datetime(request: Request, master_id: int, service_id: int, db: AsyncSession = Depends(get_db)):
-    """Выбор даты и времени"""
-    master_result = await db.execute(
-        select(Master).where(Master.id == master_id).options(selectinload(Master.user))
-    )
-    master = master_result.scalar_one_or_none()
-    if not master:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
-    
-    service_result = await db.execute(select(Service).where(Service.id == service_id))
-    service = service_result.scalar_one_or_none()
-    if not service:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
-    
-    salon_result = await db.execute(select(Salon).where(Salon.id == master.salon_id))
-    salon = salon_result.scalar_one()
-    
-    return templates.TemplateResponse(
-        "booking/datetime.html",
-        {"request": request, "master": master, "service": service, "salon": salon}
-    )
 
-@router.get("/book/{master_id}/service/{service_id}/confirm")
-async def book_confirm_get(request: Request, master_id: int, service_id: int, date: str = "", time: str = "", db: AsyncSession = Depends(get_db)):
-    """Страница подтверждения"""
-    master_result = await db.execute(
-        select(Master).where(Master.id == master_id).options(selectinload(Master.user))
-    )
-    master = master_result.scalar_one_or_none()
-    if not master:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
-    
-    service_result = await db.execute(select(Service).where(Service.id == service_id))
-    service = service_result.scalar_one_or_none()
-    if not service:
-        return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
-    
-    salon_result = await db.execute(select(Salon).where(Salon.id == master.salon_id))
-    salon = salon_result.scalar_one()
-    
-    return templates.TemplateResponse(
-        "booking/confirm.html",
-        {
-            "request": request,
-            "master": master,
-            "service": service,
-            "salon": salon,
-            "date": date,
-            "time": time,
-            "success": False
-        }
-    )
+@router.get("/model", response_class=HTMLResponse)
+async def model_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница 'Стань моделью'."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.model import render_model_page
+    return HTMLResponse(content=render_model_page(user))
 
-@router.get("/master/schedule")
-async def master_schedule_page(request: Request):
-    """Страница расписания мастера"""
-    return templates.TemplateResponse(
-        "master/schedule.html",
-        {"request": request}
-    )
+
+@router.get("/model/checkout/{plan}", response_class=HTMLResponse)
+async def model_checkout_page(plan: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница оформления подписки."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.model_checkout import render_model_checkout
+    return HTMLResponse(content=render_model_checkout(plan, user))
+
+
+@router.get("/model/dashboard", response_class=HTMLResponse)
+async def model_dashboard_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Дашборд модели."""
+    user = await get_current_user_from_cookie(request, db)
+    from app.web.pages.model_dashboard import render_model_dashboard
+    return HTMLResponse(content=render_model_dashboard(user))
+
+
+@router.get("/{path:path}", response_class=HTMLResponse)
+async def not_found_page(request: Request, path: str):
+    """Страница 404 — для всех несуществующих маршрутов."""
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Страница не найдена — руми</title>
+    {get_base_styles()}
+    <style>
+        .notfound {{
+            text-align: center;
+            padding: 6rem 2rem;
+            min-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #FFF8F6, #F8C8DC33);
+        }}
+        .notfound-code {{
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }}
+        .notfound h1 {{
+            font-size: 2rem;
+            color: var(--color-heading);
+            margin-bottom: 0.75rem;
+        }}
+        .notfound p {{
+            color: var(--color-muted);
+            max-width: 28rem;
+            margin: 0 auto 2rem;
+            font-size: 1rem;
+            line-height: 1.6;
+        }}
+        .notfound .path {{
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--color-primary);
+            border: 1px solid var(--color-border);
+            margin-bottom: 1.5rem;
+        }}
+        .quick-links {{
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }}
+    </style>
+</head>
+<body>
+    <div class="notfound">
+        <div class="notfound-code">404</div>
+        <h1>Страница не найдена</h1>
+        <p>Такой страницы не существует. Возможно, она была удалена или вы набрали неправильный адрес.</p>
+        <div class="path">/{path}</div>
+        <div class="quick-links">
+            <a href="/" class="btn-primary">🏠 На главную</a>
+            <a href="/salons" class="btn-outline">💇 Найти салон</a>
+            <a href="/model" class="btn-outline">📸 Стать моделью</a>
+        </div>
+    </div>
+</body>
+</html>""", status_code=404)
+@router.get("/book", response_class=HTMLResponse)
+async def book_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница подтверждения записи."""
+    from urllib.parse import parse_qs
+    from app.models.models import Master, Service, User
+    
+    params = dict(request.query_params)
+    master_id = int(params.get("master_id", 0))
+    service_id = int(params.get("service_id", 0))
+    time_str = params.get("time", "")
+    
+    user = await get_current_user_from_cookie(request, db)
+    
+    # Получаем данные мастера и услуги
+    master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
+    service = (await db.execute(select(Service).where(Service.id == service_id))).scalar_one_or_none()
+    
+    if not master or not service:
+        return HTMLResponse(content="<h1>Ошибка: мастер или услуга не найдены</h1>", status_code=404)
+    
+    master_user = (await db.execute(select(User).where(User.id == master.user_id))).scalar_one_or_none()
+    master_name = master_user.full_name if master_user else "Мастер"
+    salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
+    salon_name = salon.name if salon else "Салон"
+    
+    html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Подтверждение записи — руми</title>
+    {get_base_styles()}
+</head>
+<body style="background:var(--color-surface-alt);min-height:100vh;display:flex;align-items:center;justify-content:center">
+<div class="card" style="max-width:500px;width:100%;padding:2rem">
+    <h2 style="margin-bottom:1.5rem">Подтверждение записи</h2>
+    
+    <div style="margin-bottom:1rem;padding:1rem;background:var(--color-surface-alt);border-radius:0.75rem">
+        <p><strong>🏢 Салон:</strong> {salon_name}</p>
+        <p><strong>💇 Мастер:</strong> {master_name}</p>
+        <p><strong>✂️ Услуга:</strong> {service.name}</p>
+        <p><strong>⏱ Длительность:</strong> {service.duration_minutes} мин</p>
+        <p><strong>📅 Время:</strong> {time_str.replace('T', ' ')}</p>
+        <p><strong>💰 Цена:</strong> <span style="font-size:1.25rem;font-weight:700;color:var(--color-primary)">{service.price} ₽</span></p>
+    </div>
+    
+    <form action="/api/v1/bookings/confirm" method="post">
+        <input type="hidden" name="master_id" value="{master_id}">
+        <input type="hidden" name="service_id" value="{service_id}">
+        <input type="hidden" name="start_time" value="{time_str}">
+        <button type="submit" class="btn-primary" style="width:100%;padding:1rem;font-size:1rem">Подтвердить запись</button>
+    </form>
+    
+    <a href="/salons/{master.salon_id}" style="display:block;text-align:center;margin-top:1rem;color:var(--color-muted);font-size:0.9rem">← Назад к салону</a>
+</div>
+</body>
+</html>"""
+    
+    return HTMLResponse(content=html)
