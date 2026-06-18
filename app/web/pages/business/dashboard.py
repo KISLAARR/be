@@ -18,6 +18,7 @@ from app.web.pages.business.tabs.employees import render_employees_tab
 from app.web.pages.business.tabs.services import render_services_tab
 from app.web.pages.business.tabs.finances import render_finances_tab
 from app.web.pages.business.tabs.chat import render_chat_tab
+from app.crm.tabs.clients import render_crm_tab
 
 
 async def render_business_dashboard(db: AsyncSession, user, salon: Salon) -> str:
@@ -63,7 +64,9 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon) -> str
     masters_tab_html = render_masters_tab(masters_rows)
     promos_tab_html = render_promos_tab(promotions)
     reviews_tab_html = await render_reviews_tab(db, reviews, salon)
-    
+    crm_html = await render_crm_tab(db, salon, masters, master_ids)
+
+
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -127,6 +130,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon) -> str
                 <button class="tab-btn" onclick="switchTab('masters')">👤 Мастера ({len(masters)})</button>
                 <button class="tab-btn" onclick="switchTab('promos')">🎉 Акции ({len(promotions)})</button>
                 <button class="tab-btn" onclick="switchTab('reviews')">💬 Отзывы ({len(reviews)})</button>
+                <button class="tab-btn" onclick="switchTab('crm')">👥 CRM</button>
             </div>
             
             {overview_html}
@@ -136,6 +140,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon) -> str
             {services_tab_html}
             {finances_html}
             {chat_html}
+            {crm_html}
             {masters_tab_html}
             {promos_tab_html}
             {reviews_tab_html}
