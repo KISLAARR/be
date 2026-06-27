@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Выбор услуги | {{ master.user.full_name if master.user else 'Мастер' }} | Руми{% endblock %}
+{% block content %}
+
+<section style="background: #f9fafb; padding: 16px 0;">
+    <div class="section-container">
+        <a href="/salons/{{ salon.id }}" style="color: #6B7280; text-decoration: none; font-size: 0.9rem;">← Назад к салону</a>
+    </div>
+</section>
+
+<section style="padding: 32px 0; background: white;">
+    <div class="section-container" style="max-width: 700px;">
+        
+        <!-- Хлебные крошки -->
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.875rem; margin-bottom: 24px; flex-wrap: wrap;">
+            <a href="/salons/{{ salon.id }}" style="color: #6B7280; text-decoration: none;">Выберите мастера</a>
+            <span style="color: #9ca3af;">›</span>
+            <span style="font-weight: 600;">{{ master.user.full_name if master.user else 'Мастер' }}</span>
+        </div>
+        
+        <!-- Карточка мастера -->
+        <div style="display: flex; align-items: center; gap: 16px; background: #f9fafb; border-radius: 12px; padding: 16px; margin-bottom: 28px;">
+            <div style="width: 64px; height: 64px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: #e5e7eb;">
+                {% if master.photo_url %}
+                <img src="{{ master.photo_url }}" alt="{{ master.user.full_name }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">👤</div>
+                {% endif %}
+            </div>
+            <div>
+                <p style="font-weight: 600;">{{ master.user.full_name if master.user else 'Имя не указано' }}</p>
+                <p style="color: #6B7280; font-size: 0.875rem;">{{ master.specialization }}</p>
+            </div>
+            <span style="margin-left: auto; color: #10b981;">✓</span>
+        </div>
+        
+        <!-- Список услуг -->
+        <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">Выберите услугу:</h2>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            {% for service in master.services %}
+            <a href="/book/{{ master.id }}/service/{{ service.id }}" 
+               style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px 20px; text-decoration: none; color: inherit; transition: all 0.2s;"
+               onmouseover="this.style.borderColor='#F28C6F'; this.style.boxShadow='0 4px 12px rgba(242,140,111,0.1)'"
+               onmouseout="this.style.borderColor='#e5e7eb'; this.style.boxShadow='none'">
+                <div>
+                    <span style="font-weight: 500;">{{ service.name }}</span>
+                    <span style="color: #6B7280; font-size: 0.8rem; margin-left: 10px;">{{ service.duration_minutes }} мин</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-weight: 600;">{{ service.price }} ₽</span>
+                    <span style="color: #9ca3af;">→</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        
+    </div>
+</section>
+{% endblock %}

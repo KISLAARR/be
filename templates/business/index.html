@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Для бизнеса | Руми{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<section style="position: relative; overflow: hidden; padding: 60px 0 80px; background: linear-gradient(135deg, #FFF8F6 0%, rgba(242,140,111,0.07) 50%, rgba(248,200,220,0.13) 100%);">
+    <div style="position: absolute; top: -80px; left: -80px; width: 300px; height: 300px; border-radius: 50%; background: rgba(242,140,111,0.12); filter: blur(60px);"></div>
+    <div style="position: absolute; bottom: -60px; right: -60px; width: 240px; height: 240px; border-radius: 50%; background: rgba(232,160,191,0.15); filter: blur(50px);"></div>
+    
+    <div class="section-container" style="position: relative; z-index: 10;">
+        <div class="mx-auto max-w-3xl text-center">
+            <div style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 8px 20px; background: rgba(242,140,111,0.1); margin-bottom: 24px;">
+                <span style="color: #F28C6F; font-size: 1rem;">💼</span>
+                <span style="font-size: 0.875rem; font-weight: 600; color: #F28C6F;">Для бизнеса</span>
+            </div>
+            
+            <h1 style="font-size: 3rem; font-weight: 800; line-height: 1.15; margin-bottom: 24px; color: #111827;">
+                Управляйте салоном <span style="color: #F28C6F;">легко</span>
+            </h1>
+            
+            <p style="color: #6B7280; font-size: 1.1rem; line-height: 1.6; max-width: 560px; margin: 0 auto 40px;">
+                Руми даёт всё для эффективного управления: расписание мастеров, аналитика доходов, привлечение клиентов и контроль над каждым аспектом вашего бизнеса.
+            </p>
+            
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;">
+                <a href="#pricing" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 14px 28px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF); box-shadow: 0 4px 15px rgba(242,140,111,0.3);">
+                    Подключить салон →
+                </a>
+                <a href="#features" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 14px 28px; font-size: 0.9rem; font-weight: 600; color: #111827; text-decoration: none; border: 2px solid #e5e7eb; background: white;">
+                    Возможности
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Возможности -->
+<section id="features" style="padding: 80px 0; background: white;">
+    <div class="section-container">
+        <div style="text-align: center; margin-bottom: 56px;">
+            <span style="display: inline-block; border-radius: 9999px; padding: 6px 16px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(242,140,111,0.1); color: #F28C6F; margin-bottom: 16px;">Возможности</span>
+            <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 12px;">Всё для вашего салона</h2>
+            <p style="color: #6B7280; max-width: 400px; margin: 0 auto;">От расписания до аналитики — управляйте бизнесом в одном месте</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; max-width: 960px; margin: 0 auto;">
+            
+            <!-- Функция 1 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">📅</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Управление расписанием</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Полный контроль над записями мастеров. Окна, отмены, переносы — всё в реальном времени.</p>
+            </div>
+            
+            <!-- Функция 2 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">📊</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Аналитика доходов</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Отслеживайте выручку, популярные услуги и эффективность каждого мастера.</p>
+            </div>
+            
+            <!-- Функция 3 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">👥</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Привлечение клиентов</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Ваш салон видят тысячи пользователей руми. Рейтинг и отзывы помогают выделиться.</p>
+            </div>
+            
+            <!-- Функция 4 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">🔒</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Проверенные клиенты</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Все пользователи верифицированы. Меньше отмен, больше лояльных клиентов.</p>
+            </div>
+            
+            <!-- Функция 5 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">⏱️</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Экономия времени</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Автоматические напоминания, управление очередью — рутина на автопилоте.</p>
+            </div>
+            
+            <!-- Функция 6 -->
+            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 32px 24px;">
+                <div style="font-size: 2rem; margin-bottom: 16px;">🚀</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Рост бизнеса</h3>
+                <p style="color: #6B7280; font-size: 0.9rem; line-height: 1.5;">Акции, программы лояльности, работа с несколькими филиалами из одного кабинета.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Тарифы -->
+<section id="pricing" style="padding: 80px 0; background: #f9fafb;">
+    <div class="section-container">
+        <div style="text-align: center; margin-bottom: 56px;">
+            <span style="display: inline-block; border-radius: 9999px; padding: 6px 16px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(242,140,111,0.1); color: #F28C6F; margin-bottom: 16px;">Тарифы</span>
+            <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 12px;">Простые и прозрачные цены</h2>
+            <p style="color: #6B7280; max-width: 400px; margin: 0 auto;">Выберите тариф под размер вашего салона</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto;">
+            
+            <!-- Лайт -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: white; border: 2px solid #e5e7eb;">
+                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 4px;">Лайт</h3>
+                <p style="color: #6B7280; font-size: 0.875rem; margin-bottom: 20px;">До 5 сотрудников</p>
+                <div style="margin-bottom: 24px;">
+                    <span style="font-size: 2.5rem; font-weight: 800; color: #F28C6F;">250 ₽</span>
+                    <span style="color: #6B7280; font-size: 0.875rem;">/сотрудник/мес</span>
+                </div>
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Управление расписанием</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Онлайн-запись клиентов</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Базовая аналитика</li>
+                </ul>
+                <a href="/business/checkout?plan=lite" style="display: flex; align-items: center; justify-content: center; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+                    Подключить →
+                </a>
+            </div>
+            
+            <!-- Бизнес (популярный) -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); color: white; position: relative; transform: scale(1.03);">
+                <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: white; border-radius: 9999px; padding: 4px 16px; font-size: 0.75rem; font-weight: 700; color: #F28C6F; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    Популярный
+                </div>
+                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 4px;">Бизнес</h3>
+                <p style="opacity: 0.85; font-size: 0.875rem; margin-bottom: 20px;">От 5 до 10 сотрудников</p>
+                <div style="margin-bottom: 24px;">
+                    <span style="font-size: 2.5rem; font-weight: 800;">3 500 ₽</span>
+                    <span style="opacity: 0.7; font-size: 0.875rem;">/мес</span>
+                </div>
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem;">✓ Всё из «Лайт»</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem;">✓ Расширенная аналитика</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem;">✓ Приоритет в выдаче</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem;">✓ Акции и программы лояльности</li>
+                </ul>
+                <a href="/business/checkout?plan=business" style="display: flex; align-items: center; justify-content: center; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: #F28C6F; text-decoration: none; background: white;">
+                    Подключить →
+                </a>
+            </div>
+            
+            <!-- Корпоративный -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: white; border: 2px solid #e5e7eb;">
+                <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 4px;">Корпоративный</h3>
+                <p style="color: #6B7280; font-size: 0.875rem; margin-bottom: 20px;">От 10 до 20 сотрудников</p>
+                <div style="margin-bottom: 24px;">
+                    <span style="font-size: 2.5rem; font-weight: 800; color: #F28C6F;">6 990 ₽</span>
+                    <span style="color: #6B7280; font-size: 0.875rem;">/мес</span>
+                </div>
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Всё из «Бизнес»</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Мульти-филиалы</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ VIP поддержка</li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">✓ Выделенный менеджер</li>
+                </ul>
+                <a href="/business/checkout?plan=corporate" style="display: flex; align-items: center; justify-content: center; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+                    Подключить →
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section style="padding: 80px 0; background: white;">
+    <div class="section-container">
+        <div style="background: linear-gradient(135deg, #F28C6F, #E8A0BF); border-radius: 24px; padding: 48px; text-align: center; color: white;">
+            <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 16px;">Готовы начать?</h2>
+            <p style="opacity: 0.9; margin-bottom: 32px; max-width: 500px; margin-left: auto; margin-right: auto;">Подключите свой салон к руми и получите доступ к тысячам клиентов. Первые 14 дней — бесплатно.</p>
+            <a href="/business/checkout?plan=business" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 14px 28px; font-size: 0.9rem; font-weight: 600; color: #F28C6F; text-decoration: none; background: white;">
+                Подключить салон →
+            </a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

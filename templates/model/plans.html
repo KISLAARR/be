@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Стань моделью | Руми{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<section style="position: relative; overflow: hidden; padding: 60px 0 80px; background: linear-gradient(135deg, #FFF8F6 0%, rgba(248,200,220,0.2) 50%, rgba(242,140,111,0.08) 100%);">
+    <div style="position: absolute; top: -80px; right: -80px; width: 300px; height: 300px; border-radius: 50%; background: rgba(242,140,111,0.15); filter: blur(60px);"></div>
+    <div style="position: absolute; bottom: -60px; left: -60px; width: 240px; height: 240px; border-radius: 50%; background: rgba(232,160,191,0.12); filter: blur(50px);"></div>
+    
+    <div class="section-container" style="position: relative; z-index: 10;">
+        <div class="mx-auto max-w-3xl text-center">
+            <div style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 8px 20px; background: rgba(242,140,111,0.1); margin-bottom: 24px;">
+                <span style="color: #F28C6F; font-size: 1rem;">📸</span>
+                <span style="font-size: 0.875rem; font-weight: 600; color: #F28C6F;">Подписка «Модель»</span>
+            </div>
+            
+            <h1 style="font-size: 3rem; font-weight: 800; line-height: 1.15; margin-bottom: 24px; color: #111827;">
+                Стань моделью в <span style="color: #F28C6F;">руми</span>
+            </h1>
+            
+            <p style="color: #6B7280; font-size: 1.1rem; line-height: 1.6; max-width: 560px; margin: 0 auto 40px;">
+                Получай услуги от лучших мастеров по сниженным ценам. Пробуй новые процедуры, помогай мастерам совершенствовать навыки и создавай образ мечты.
+            </p>
+            
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;">
+                <a href="#plans" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 14px 28px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF); box-shadow: 0 4px 15px rgba(242,140,111,0.3);">
+                    ✨ Смотреть тарифы
+                </a>
+                <a href="#how-it-works" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 14px 28px; font-size: 0.9rem; font-weight: 600; color: #111827; text-decoration: none; border: 2px solid #e5e7eb; background: white;">
+                    ❓ Как это работает?
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Тарифы -->
+<section id="plans" style="padding: 80px 0; background: white;">
+    <div class="section-container">
+        <div style="text-align: center; margin-bottom: 56px;">
+            <span style="display: inline-block; border-radius: 9999px; padding: 6px 16px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(242,140,111,0.1); color: #F28C6F; margin-bottom: 16px;">Тарифы</span>
+            <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 12px;">Выбери свой план</h2>
+            <p style="color: #6B7280; max-width: 400px; margin: 0 auto;">Три тарифа на любой бюджет — от пробного до безлимитного</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; max-width: 960px; margin: 0 auto;">
+            
+            <!-- Старт -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: white; border: 2px solid #e5e7eb;">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 1.25rem; font-weight: 700;">Старт</h3>
+                    <p style="color: #6B7280; font-size: 0.875rem; margin-top: 4px;">Для тех, кто хочет попробовать</p>
+                </div>
+                
+                <div style="margin-bottom: 28px;">
+                    <span style="font-size: 2.5rem; font-weight: 800; color: #F28C6F;">490 ₽</span>
+                    <span style="color: #6B7280; font-size: 0.875rem;">/мес</span>
+                </div>
+                
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> До 3 записей в месяц
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Скидка 30% на услуги
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Доступ к начинающим мастерам
+                    </li>
+                </ul>
+                
+                <a href="/model/checkout?plan=start" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+                    Оформить подписку
+                </a>
+            </div>
+            
+            <!-- Про (популярный) -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); color: white; position: relative; transform: scale(1.03);">
+                <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: white; border-radius: 9999px; padding: 4px 16px; font-size: 0.75rem; font-weight: 700; color: #F28C6F; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    Популярный
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 1.25rem; font-weight: 700;">Про</h3>
+                    <p style="opacity: 0.85; font-size: 0.875rem; margin-top: 4px;">Самый популярный выбор</p>
+                </div>
+                
+                <div style="margin-bottom: 28px;">
+                    <span style="font-size: 2.5rem; font-weight: 800;">990 ₽</span>
+                    <span style="opacity: 0.7; font-size: 0.875rem;">/мес</span>
+                </div>
+                
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; opacity: 0.95;">
+                        <span>✓</span> До 8 записей в месяц
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; opacity: 0.95;">
+                        <span>✓</span> Скидка 50% на все услуги
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; opacity: 0.95;">
+                        <span>✓</span> Приоритетная запись
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; opacity: 0.95;">
+                        <span>✓</span> Доступ к топ-мастерам
+                    </li>
+                </ul>
+                
+                <a href="/model/checkout?plan=pro" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: #F28C6F; text-decoration: none; background: white;">
+                    Оформить подписку
+                </a>
+            </div>
+            
+            <!-- Премиум -->
+            <div style="border-radius: 20px; padding: 32px 28px; background: white; border: 2px solid #e5e7eb;">
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 1.25rem; font-weight: 700;">Премиум</h3>
+                    <p style="color: #6B7280; font-size: 0.875rem; margin-top: 4px;">Максимум возможностей</p>
+                </div>
+                
+                <div style="margin-bottom: 28px;">
+                    <span style="font-size: 2.5rem; font-weight: 800; color: #F28C6F;">1 990 ₽</span>
+                    <span style="color: #6B7280; font-size: 0.875rem;">/мес</span>
+                </div>
+                
+                <ul style="list-style: none; padding: 0; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px;">
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Безлимитные записи
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Скидка до 70%
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Персональный менеджер
+                    </li>
+                    <li style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.875rem; color: #6B7280;">
+                        <span style="color: #F28C6F; font-weight: bold;">✓</span> Фотосессии для портфолио
+                    </li>
+                </ul>
+                
+                <a href="/model/checkout?plan=premium" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 9999px; padding: 14px; font-size: 0.9rem; font-weight: 600; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+                    Оформить подписку
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Как это работает -->
+<section id="how-it-works" style="padding: 80px 0; background: #f9fafb;">
+    <div class="section-container">
+        <div style="text-align: center; margin-bottom: 56px;">
+            <span style="display: inline-block; border-radius: 9999px; padding: 6px 16px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(242,140,111,0.1); color: #F28C6F; margin-bottom: 16px;">Процесс</span>
+            <h2 style="font-size: 2rem; font-weight: 700; margin-bottom: 12px;">4 простых шага</h2>
+            <p style="color: #6B7280; max-width: 400px; margin: 0 auto;">От регистрации до записи — всё просто и быстро</p>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto;">
+            <div style="text-align: center; padding: 24px;">
+                <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: white; font-size: 1.5rem;">1</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Зарегистрируйся</h3>
+                <p style="color: #6B7280; font-size: 0.875rem;">Создай аккаунт и заполни профиль</p>
+            </div>
+            <div style="text-align: center; padding: 24px;">
+                <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: white; font-size: 1.5rem;">2</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Выбери подписку</h3>
+                <p style="color: #6B7280; font-size: 0.875rem;">Тариф, который подходит тебе</p>
+            </div>
+            <div style="text-align: center; padding: 24px;">
+                <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: white; font-size: 1.5rem;">3</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Найди мастера</h3>
+                <p style="color: #6B7280; font-size: 0.875rem;">По рейтингу, отзывам и услугам</p>
+            </div>
+            <div style="text-align: center; padding: 24px;">
+                <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: white; font-size: 1.5rem;">4</div>
+                <h3 style="font-weight: 600; margin-bottom: 8px;">Запишись</h3>
+                <p style="color: #6B7280; font-size: 0.875rem;">Выбери время и получи услугу со скидкой</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

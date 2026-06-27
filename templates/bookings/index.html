@@ -1,0 +1,158 @@
+<!-- templates/bookings/index.html -->
+{% extends "base.html" %}
+{% block title %}Мои записи | Руми{% endblock %}
+{% block content %}
+
+<script>
+if (!localStorage.getItem('rumi_token')) {
+    localStorage.setItem('rumi_redirect_after_login', '/bookings');
+    window.location.href = '/login';
+}
+</script>
+
+<section style="background: #f9fafb; padding: 16px 0;">
+    <div class="section-container">
+        <a href="/" style="color: #6B7280; text-decoration: none; font-size: 0.9rem;">← Главная</a>
+    </div>
+</section>
+
+<section style="padding: 32px 0; background: white; min-height: 60vh;">
+    <div class="section-container">
+        <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">Мои записи</h1>
+        <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 24px;">Все ваши записи в салоны красоты</p>
+        
+        {% if bookings %}
+            {% set this_week = [] %}
+            {% set history = [] %}
+            
+            {% for booking in bookings %}
+                {% set booking_date = booking.start_time.date() %}
+                
+                {% if booking_date == today_date %}
+                    {% set today = booking %}
+                {% elif booking_date == (today_date + timedelta(days=1)) %}
+                    {% set tomorrow = booking %}
+                {% elif booking_date > today_date %}
+                    {% set _ = this_week.append(booking) %}
+                {% else %}
+                    {% set _ = history.append(booking) %}
+                {% endif %}
+            {% endfor %}
+            
+            <!-- СЕГОДНЯ -->
+            <div style="margin-bottom: 28px;">
+                <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: #F28C6F;">📅 Сегодня ({{ today_date.strftime('%d.%m.%Y') }})</h2>
+                {% set has_today = false %}
+                {% for booking in bookings %}
+                    {% if booking.start_time.date() == today_date %}
+                        {% set has_today = true %}
+                        {{ render_booking(booking) }}
+                    {% endif %}
+                {% endfor %}
+                {% if not has_today %}
+                    <p style="color: #9ca3af; font-size: 0.85rem; padding: 12px 0;">На сегодня записей нет</p>
+                {% endif %}
+            </div>
+            
+            <!-- ЗАВТРА -->
+            <div style="margin-bottom: 28px;">
+                <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: #F28C6F;">☀️ Завтра ({{ (today_date + timedelta(days=1)).strftime('%d.%m.%Y') }})</h2>
+                {% set has_tomorrow = false %}
+                {% for booking in bookings %}
+                    {% if booking.start_time.date() == (today_date + timedelta(days=1)) %}
+                        {% set has_tomorrow = true %}
+                        {{ render_booking(booking) }}
+                    {% endif %}
+                {% endfor %}
+                {% if not has_tomorrow %}
+                    <p style="color: #9ca3af; font-size: 0.85rem; padding: 12px 0;">На завтра записей нет</p>
+                {% endif %}
+            </div>
+            
+            <!-- БЛИЖАЙШИЕ -->
+            <div style="margin-bottom: 28px;">
+                <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: #F28C6F;">🗓️ Ближайшие</h2>
+                {% set has_upcoming = false %}
+                {% for booking in bookings %}
+                    {% if booking.start_time.date() > (today_date + timedelta(days=1)) %}
+                        {% set has_upcoming = true %}
+                        {{ render_booking(booking) }}
+                    {% endif %}
+                {% endfor %}
+                {% if not has_upcoming %}
+                    <p style="color: #9ca3af; font-size: 0.85rem; padding: 12px 0;">Ближайших записей нет</p>
+                {% endif %}
+            </div>
+            
+            <!-- ИСТОРИЯ -->
+            <div style="margin-bottom: 28px;">
+                <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: #9ca3af;">📦 История записей</h2>
+                {% set has_history = false %}
+                {% for booking in bookings %}
+                    {% if booking.start_time.date() < today_date %}
+                        {% set has_history = true %}
+                        {{ render_booking(booking) }}
+                    {% endif %}
+                {% endfor %}
+                {% if not has_history %}
+                    <p style="color: #9ca3af; font-size: 0.85rem; padding: 12px 0;">История записей пуста</p>
+                {% endif %}
+            </div>
+            
+        {% else %}
+        <div style="text-align: center; padding: 80px 20px;">
+            <div style="font-size: 4rem; margin-bottom: 16px; opacity: 0.3;">📅</div>
+            <h3 style="font-weight: 600; font-size: 1.1rem; margin-bottom: 8px;">Нет предстоящих записей</h3>
+            <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Выберите салон и запишитесь к мастеру — запись появится здесь</p>
+            <a href="/salons" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 10px 20px; font-size: 0.875rem; font-weight: 500; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+                Выбрать салон →
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% macro render_booking(booking) %}
+<div style="border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 12px;">
+    <div style="display: flex; flex-direction: row; flex-wrap: nowrap;">
+        
+        <!-- КОЛОНКА 1: Фото салона -->
+        <div style="width: 120px; min-height: 120px; flex-shrink: 0; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; opacity: 0.3; position: relative;">
+            💈
+        </div>
+        
+        <!-- КОЛОНКА 2: Информация о салоне и мастере -->
+        <div style="flex: 1; padding: 14px 18px; min-width: 200px; display: flex; flex-direction: column; justify-content: center;">
+            <a href="/salons/{{ booking.master.salon.id }}" style="font-weight: 600; font-size: 1rem; color: #111827; text-decoration: none; margin-bottom: 4px;">
+                {{ booking.master.salon.name }}
+            </a>
+            <p style="color: #6B7280; font-size: 0.8rem; margin-bottom: 2px;">
+                👤 {{ booking.master.user.full_name if booking.master.user else 'Мастер' }}
+            </p>
+            <p style="color: #6B7280; font-size: 0.8rem; margin-bottom: 0;">
+                ✂️ {{ booking.service.name }}
+            </p>
+        </div>
+        
+        <!-- КОЛОНКА 3: Цена -->
+        <div style="width: 100px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; border-left: 1px solid #f3f4f6;">
+            {{ booking.final_price }} ₽
+        </div>
+        
+        <!-- КОЛОНКА 4: Дата и время -->
+        <div style="width: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid #f3f4f6; padding: 10px;">
+            <span style="font-weight: 600; font-size: 0.9rem; color: #111827;">
+                📅 {{ booking.start_time.strftime('%d.%m.%Y') }}
+            </span>
+            <span style="color: #6B7280; font-size: 0.85rem; margin-top: 2px;">
+                🕐 {{ booking.start_time.strftime('%H:%M') }}
+            </span>
+            <span style="color: #9ca3af; font-size: 0.7rem; margin-top: 2px;">
+                {{ booking.service.duration_minutes }} мин
+            </span>
+        </div>
+        
+    </div>
+</div>
+{% endmacro %}

@@ -1,0 +1,13 @@
+venv/
+.venv/
+.DS_Store
+__pycache__/
+*.pyc 
+.env 
+.pytest_cache/ 
+.coverage
+htmlcov/
+alembic/versions/*.pyc
+# Приватные ключи JWT и любые PEM — никогда в git
+keys/
+*.pem
