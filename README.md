@@ -54,12 +54,41 @@ location ~ ^/api/v1/auth/(login|login-web)$ {
 }
 ```
 
-### SCA в CI (Shift Left)
-Добавить в пайплайн, чтобы новые CVE ловились автоматически:
+## DevSecOps-пайплайн (Shift Left)
+
+Проверки безопасности встроены в два слоя — на каждый коммит и на каждый push.
+
+### 1. pre-commit (локально, на `git commit`)
+Не пускает незашифрованные секреты и явные ошибки в репозиторий.
 ```bash
-pip install pip-audit && pip-audit
+pip install pre-commit
+pre-commit install            # активировать git-хук
+pre-commit run --all-files    # разовый прогон по всему репо
 ```
- 
+Хуки: Gitleaks (secret detection), detect-private-key, check-added-large-files,
+check-merge-conflict, check-yaml/json. Конфиг — [.pre-commit-config.yaml](.pre-commit-config.yaml),
+allowlist dev-плейсхолдеров — [.gitleaks.toml](.gitleaks.toml).
+
+### 2. GitHub Actions (на push / PR в main)
+Workflow [.github/workflows/devsecops.yml](.github/workflows/devsecops.yml), стратегия Defense in Depth:
+
+| Этап | Инструмент | Что проверяет |
+| :--- | :--- | :--- |
+| **Secrets** | Gitleaks | утёкшие ключи/токены (по всей истории) — блокирующий |
+| **SCA** | Trivy (fs) + pip-audit | известные CVE в зависимостях (`pip-audit` — gate) |
+| **SAST** | Semgrep + Bandit | опасные паттерны в коде (инъекции, слабая крипта и т.д.) |
+| **IaC** | Trivy config | мисконфиги в `docker-compose.yml` / Dockerfile |
+| **ASPM** | DefectDojo | централизованный сбор и дедупликация находок |
+
+Находки агрегируются в **DefectDojo** (как в `secure-ci-cd-pipeline`). Загрузка включается,
+только если заданы GitHub Secrets — иначе шаги пропускаются, пайплайн не падает:
+- `DEFECTDOJO_URL` — адрес инстанса (например, через ngrok);
+- `DEFECTDOJO_TOKEN` — API-токен.
+
+> Container scan (Trivy image) и DAST (OWASP ZAP) из референса не включены: у проекта пока нет
+> Dockerfile приложения, а DAST требует поднятого стенда с БД/Redis. Добавим, когда появится
+> образ приложения.
+
 ## API Endpoints 
 - GET /api/v1/users/ - список пользователей 
 - GET /api/v1/services/ - список услуг 

@@ -1,0 +1,209 @@
+name: DevSecOps-Pipeline
+
+# Проверки безопасности на каждый коммит (push в любую ветку) и на PR в main.
+# Стратегия Shift Left: Secrets → SCA → SAST → IaC. Находки агрегируются в DefectDojo (ASPM).
+on:
+  push:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  security-events: write   # для загрузки SARIF в GitHub Security (вкладка Code scanning)
+
+jobs:
+  # ---------------------------------------------------------------
+  # SECRET DETECTION — Gitleaks (блокирующий: секреты не должны попасть в репо)
+  # ---------------------------------------------------------------
+  secret-detection:
+    runs-on: ubuntu-latest
+    env:
+      DD_URL: ${{ secrets.DEFECTDOJO_URL }}
+      DD_TOKEN: ${{ secrets.DEFECTDOJO_TOKEN }}
+    steps:
+      - name: Checkout (вся история — historic scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        run: |
+          docker run -v "${{ github.workspace }}:/path" zricethezav/gitleaks:latest detect \
+            --source="/path" \
+            --config="/path/.gitleaks.toml" \
+            -v \
+            --report-format json \
+            --report-path="/path/gitleaks-report.json"
+
+      - name: Upload Gitleaks report to DefectDojo
+        if: ${{ always() && env.DD_URL != '' }}
+        run: |
+          curl -k -L -X POST "${DD_URL}/reimport-scan/" \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "active=true" -F "verified=true" \
+            -F "scan_type=Gitleaks Scan" \
+            -F "product_name=Beauty Platform" \
+            -F "engagement_name=be-CI" \
+            -F "file=@gitleaks-report.json" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "minimum_severity=Info" \
+            -F "close_old_findings=true" || true
+
+      - name: Save report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------
+  # SCA — Trivy (filesystem) + pip-audit по requirements.txt
+  # ---------------------------------------------------------------
+  sca:
+    runs-on: ubuntu-latest
+    env:
+      DD_URL: ${{ secrets.DEFECTDOJO_URL }}
+      DD_TOKEN: ${{ secrets.DEFECTDOJO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy SCA (vuln в зависимостях)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "json"
+          output: "trivy-sca.json"
+          severity: "CRITICAL,HIGH"
+          scanners: "vuln"
+
+      - name: pip-audit (gate — падает при известных CVE)
+        run: |
+          python -m pip install --quiet pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Upload Trivy SCA to DefectDojo
+        if: ${{ always() && env.DD_URL != '' }}
+        run: |
+          curl -k -L -X POST "${DD_URL}/reimport-scan/" \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "active=true" -F "verified=true" \
+            -F "scan_type=Trivy Scan" \
+            -F "product_name=Beauty Platform" \
+            -F "engagement_name=be-CI" \
+            -F "file=@trivy-sca.json" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "minimum_severity=Info" \
+            -F "close_old_findings=true" || true
+
+      - name: Save report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sca
+          path: trivy-sca.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------
+  # SAST — Semgrep + Bandit (статический анализ кода)
+  # ---------------------------------------------------------------
+  sast:
+    runs-on: ubuntu-latest
+    env:
+      DD_URL: ${{ secrets.DEFECTDOJO_URL }}
+      DD_TOKEN: ${{ secrets.DEFECTDOJO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/src" returntocorp/semgrep semgrep scan \
+            --config="p/python" --config="p/security-audit" \
+            --json --output=/src/semgrep-report.json || echo "Semgrep: найдены проблемы"
+
+      - name: Run Bandit
+        run: |
+          python -m pip install --quiet bandit
+          # -ll: только MEDIUM+; -x: исключаем окружение/скрипты; не валим пайплайн
+          bandit -r app -ll -x app/scripts -f json -o bandit-report.json || echo "Bandit: найдены проблемы"
+
+      - name: Upload Semgrep to DefectDojo
+        if: ${{ always() && env.DD_URL != '' }}
+        run: |
+          curl -k -L -X POST "${DD_URL}/reimport-scan/" \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "active=true" -F "verified=true" \
+            -F "scan_type=Semgrep JSON Report" \
+            -F "product_name=Beauty Platform" \
+            -F "engagement_name=be-CI" \
+            -F "file=@semgrep-report.json" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "minimum_severity=Info" \
+            -F "close_old_findings=true" || true
+
+      - name: Upload Bandit to DefectDojo
+        if: ${{ always() && env.DD_URL != '' }}
+        run: |
+          curl -k -L -X POST "${DD_URL}/reimport-scan/" \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "active=true" -F "verified=true" \
+            -F "scan_type=Bandit Scan" \
+            -F "product_name=Beauty Platform" \
+            -F "engagement_name=be-CI" \
+            -F "file=@bandit-report.json" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "minimum_severity=Info" \
+            -F "close_old_findings=true" || true
+
+      - name: Save report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-reports
+          path: |
+            semgrep-report.json
+            bandit-report.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------
+  # IaC / MISCONFIG — Trivy config (docker-compose.yml, Dockerfile при наличии)
+  # ---------------------------------------------------------------
+  iac-misconfig:
+    runs-on: ubuntu-latest
+    env:
+      DD_URL: ${{ secrets.DEFECTDOJO_URL }}
+      DD_TOKEN: ${{ secrets.DEFECTDOJO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy config (IaC misconfig)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "config"
+          scan-ref: "."
+          format: "json"
+          output: "trivy-config.json"
+          severity: "CRITICAL,HIGH,MEDIUM"
+
+      - name: Upload Trivy config to DefectDojo
+        if: ${{ always() && env.DD_URL != '' }}
+        run: |
+          curl -k -L -X POST "${DD_URL}/reimport-scan/" \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "active=true" -F "verified=true" \
+            -F "scan_type=Trivy Scan" \
+            -F "product_name=Beauty Platform" \
+            -F "engagement_name=be-CI" \
+            -F "file=@trivy-config.json" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "minimum_severity=Info" \
+            -F "close_old_findings=true" || true
+
+      - name: Save report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-config
+          path: trivy-config.json
+          if-no-files-found: ignore
