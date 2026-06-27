@@ -211,3 +211,21 @@ class Favorite(Base):
     user: Mapped["User"] = relationship(back_populates="favorites")
     salon: Mapped[Optional["Salon"]] = relationship()
     master: Mapped[Optional["Master"]] = relationship()
+
+# ========== Аудит действий администратора ==========
+class AdminAudit(Base):
+    __tablename__ = "admin_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))   # кто совершил действие
+    action: Mapped[str] = mapped_column(String(50), nullable=False)  # change_role, toggle_active, delete_user, …
+    target_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # user / salon / review
+    target_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # человекочитаемое описание
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    actor: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("ix_admin_audit_created", "created_at"),
+    )

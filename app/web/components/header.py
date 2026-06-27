@@ -5,7 +5,11 @@ def render_header(current_page: str = "home", user=None) -> str:
     
     # Блок авторизации
     if user:
+        admin_link = ""
+        if getattr(getattr(user, "role", None), "value", "") == "admin":
+            admin_link = '<a href="/admin" style="margin-right: 1rem; color: var(--color-primary); text-decoration: none; font-weight: 600;">🛡️ Админ</a>'
         auth_block = f"""
+        {admin_link}
         <a href="/profile" style="text-decoration: none; color: var(--color-heading); font-weight: 600;">
             👤 {user.full_name or 'Профиль'}
         </a>

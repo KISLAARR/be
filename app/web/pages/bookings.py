@@ -20,8 +20,10 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
     )
     bookings = bookings_result.scalars().all()
     
-    # Разделяем на предстоящие и завершённые
-    now = datetime.now(timezone.utc)
+    # Разделяем на предстоящие и завершённые.
+    # Брони хранятся naive (DateTime timezone=False) → сравниваем с naive now,
+    # иначе TypeError: can't compare offset-naive and offset-aware datetimes.
+    now = datetime.now()
     upcoming = [b for b in bookings if b.start_time > now and b.status not in [BookingStatus.CANCELLED, BookingStatus.COMPLETED]]
     completed = [b for b in bookings if b.status in [BookingStatus.COMPLETED, BookingStatus.CANCELLED] or b.start_time <= now]
     

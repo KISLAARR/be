@@ -135,6 +135,18 @@ async def my_salon_page(
     return HTMLResponse(content=await render_my_salon_page(db, salon, user))
 
 
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Админ-панель (только роль ADMIN)."""
+    from app.web.pages.admin_panel import render_admin_panel
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "admin" or not user.is_active:
+        return RedirectResponse(url="/login?redirect=/admin", status_code=302)
+
+    return HTMLResponse(content=await render_admin_panel(db, user, request.query_params))
+
+
 @router.get("/business/register-salon", response_class=HTMLResponse)
 async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
     """Страница регистрации салона."""
