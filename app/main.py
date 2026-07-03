@@ -1,4 +1,6 @@
 # app/main.py
+from contextlib import asynccontextmanager
+
 from geopy.distance import geodesic
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,7 @@ from app.db.session import get_db
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.middleware import SecurityHeadersMiddleware, CSRFOriginMiddleware
+from app.core.worker import close_arq_pool
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
@@ -29,10 +32,19 @@ from app.api.v1.endpoints import services
 from app.api.v1.endpoints import favorites
 from app.api.v1.endpoints import admin
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Фоновые задачи (ARQ): пул создаётся лениво при первом enqueue,
+    # здесь закрываем его на shutdown
+    await close_arq_pool()
+
+
 app = FastAPI(
     title="Beauty Platform API",
     description="API для платформы красоты Руми",
-    version="0.3.0"
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 # --- Rate limiting (slowapi) ---

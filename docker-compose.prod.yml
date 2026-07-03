@@ -52,6 +52,34 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Фоновые задачи (блок 06): тот же образ, вместо gunicorn — arq-воркер.
+  # Задачи и настройки: app/tasks.py + app/core/worker.py
+  arq-worker:
+    image: rumi-app:latest
+    env_file: .env
+    command: ["arq", "app.core.worker.WorkerSettings"]
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./keys:/app/keys:ro           # понадобятся задачам, работающим с БД/токенами
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # HEALTHCHECK из Dockerfile проверяет /health веб-приложения — для
+    # воркера заменяем на штатную проверку arq (health-ключ в Redis).
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.core.worker.WorkerSettings"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     ports:
