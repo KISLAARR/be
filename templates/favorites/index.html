@@ -9,21 +9,21 @@ if (!localStorage.getItem('rumi_token')) {
 }
 </script>
 
-<section style="background: #f9fafb; padding: 16px 0;">
+<section class="booking-nav-section">
     <div class="section-container">
-        <a href="/" style="color: #6B7280; text-decoration: none; font-size: 0.9rem;">← Главная</a>
+        <a href="/" class="booking-nav-link">← Главная</a>
     </div>
 </section>
 
-<section style="padding: 32px 0; background: white; min-height: 60vh;">
+<section style="padding: 32px 0; background: var(--color-surface); min-height: 60vh;">
     <div class="section-container">
         <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">Избранное</h1>
-        <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 24px;">
+        <p style="color: var(--color-muted); font-size: 0.9rem; margin-bottom: 24px;">
             Ваши любимые салоны (<span id="fav-count">0</span>)
         </p>
         
         <div id="favorites-list">
-            <p style="text-align: center; padding: 40px; color: #9ca3af;">Загрузка...</p>
+            <p style="text-align: center; padding: 40px; color: var(--color-muted);">Загрузка...</p>
         </div>
     </div>
 </section>
@@ -35,11 +35,11 @@ async function loadFavorites() {
     
     if (favIds.length === 0) {
         document.getElementById('favorites-list').innerHTML = `
-            <div style="text-align: center; padding: 80px 20px;">
-                <div style="font-size: 4rem; margin-bottom: 16px; opacity: 0.3;">❤️</div>
-                <h3 style="font-weight: 600; font-size: 1.1rem; margin-bottom: 8px;">Нет избранных салонов</h3>
-                <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 20px;">Нажмите на сердечко на карточке салона, чтобы добавить его в избранное</p>
-                <a href="/salons" style="display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; padding: 10px 20px; font-size: 0.875rem; font-weight: 500; color: white; text-decoration: none; background: linear-gradient(135deg, #F28C6F, #E8A0BF);">
+            <div class="empty-state-box">
+                <div class="empty-state-icon">❤️</div>
+                <h3 class="empty-state-title">Нет избранных салонов</h3>
+                <p class="empty-state-desc">Нажмите на сердечко на карточке салона, чтобы добавить его в избранное</p>
+                <a href="/salons" class="btn-gradient" style="display: inline-flex; align-items: center; gap: 8px;">
                     Найти салон →
                 </a>
             </div>
@@ -51,11 +51,10 @@ async function loadFavorites() {
         // Загружаем данные салонов через API
         const response = await fetch('/api/v1/salons');
         const allSalons = await response.json();
-        
         const favSalons = allSalons.filter(s => favIds.includes(s.id));
         
         if (favSalons.length === 0) {
-            document.getElementById('favorites-list').innerHTML = '<p style="text-align: center; padding: 40px;">Избранные салоны не найдены</p>';
+            document.getElementById('favorites-list').innerHTML = '<p style="text-align: center; padding: 40px; color: var(--color-muted);">Избранные салоны не найдены</p>';
             return;
         }
         
@@ -63,20 +62,20 @@ async function loadFavorites() {
         
         favSalons.forEach(salon => {
             html += `
-                <div style="border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-                    <div style="display: flex; flex-wrap: wrap;">
-                        <div style="width: 120px; height: 120px; flex-shrink: 0; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; opacity: 0.3;">💈</div>
-                        <div style="flex: 1; padding: 14px; min-width: 200px;">
-                            <a href="/salons/${salon.id}" style="font-weight: 600; font-size: 1rem; color: #111827; text-decoration: none;">
+                <div class="fav-card">
+                    <div class="fav-card-inner">
+                        <div class="fav-img">💈</div>
+                        <div class="fav-info">
+                            <a href="/salons/${salon.id}" style="font-weight: 600; font-size: 1rem; color: var(--color-heading); text-decoration: none;">
                                 ${salon.name}
                             </a>
-                            <p style="color: #6B7280; font-size: 0.8rem; margin-top: 4px;">📍 ${salon.address}</p>
+                            <p style="color: var(--color-muted); font-size: 0.8rem; margin-top: 4px;">📍 ${salon.address}</p>
                             <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px;">
                                 <span style="color: #fbbf24;">⭐</span>
                                 <span style="font-weight: 600; font-size: 0.9rem;">${salon.rating}</span>
-                                <span style="color: #6B7280; font-size: 0.8rem;">(${salon.reviews_count} отзывов)</span>
+                                <span style="color: var(--color-muted); font-size: 0.8rem;">(${salon.reviews_count} отзывов)</span>
                             </div>
-                            <button onclick="removeFavorite(${salon.id})" style="margin-top: 8px; border: 1px solid #fecaca; border-radius: 9999px; padding: 4px 14px; font-size: 0.75rem; color: #ef4444; background: white; cursor: pointer;">
+                            <button onclick="removeFavorite(${salon.id})" class="fav-remove-btn">
                                 ✕ Убрать из избранного
                             </button>
                         </div>
@@ -87,9 +86,9 @@ async function loadFavorites() {
         
         html += '</div>';
         document.getElementById('favorites-list').innerHTML = html;
-        
+
     } catch (e) {
-        document.getElementById('favorites-list').innerHTML = '<p style="text-align: center; padding: 40px;">Ошибка загрузки</p>';
+        document.getElementById('favorites-list').innerHTML = '<p style="text-align: center; padding: 40px; color: #ef4444;">Ошибка загрузки</p>';
     }
 }
 

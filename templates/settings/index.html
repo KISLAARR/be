@@ -1,8 +1,6 @@
 <!-- templates/settings/index.html -->
 {% extends "base.html" %}
-
 {% block title %}Настройки | Руми{% endblock %}
-
 {% block content %}
 
 <!-- Проверка авторизации -->
@@ -13,160 +11,129 @@ if (!localStorage.getItem('rumi_token')) {
 }
 </script>
 
-<section style="padding: 32px 0; background: #f9fafb; min-height: 80vh;">
+<section class="settings-section">
     <div class="section-container">
-        <div style="max-width: 700px; margin: 0 auto;">
+        <div class="settings-container">
             
-            <!-- Заголовок -->
-            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 32px;">
-                <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                    <span style="color: #F28C6F; font-size: 1.3rem;">⚙️</span>
-                </div>
+            <div class="settings-header">
+                <div class="settings-icon-box-lg">⚙️</div>
                 <div>
-                    <h1 style="font-size: 1.5rem; font-weight: 700;">Настройки</h1>
-                    <p style="color: #6B7280; font-size: 0.875rem;">Управляйте профилем и параметрами приложения</p>
+                    <h1 class="auth-title" style="margin-bottom: 0;">Настройки</h1>
+                    <p class="auth-subtitle">Управляйте профилем и параметрами приложения</p>
                 </div>
             </div>
             
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-icon-box">👤</div>
+                    <h2 class="settings-card-title">Профиль</h2>
+                </div>
+                <p class="settings-card-desc">Данные автоматически подставляются при записи в салон.</p>
                 
-                <!-- Профиль -->
-                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                            <span style="color: #F28C6F;">👤</span>
-                        </div>
-                        <h2 style="font-size: 1.125rem; font-weight: 600;">Профиль</h2>
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div>
+                        <label class="auth-label">Имя</label>
+                        <input type="text" id="settings-name" placeholder="Ваше имя" class="settings-input">
                     </div>
-                    <p style="color: #6B7280; font-size: 0.875rem; margin-bottom: 16px;">Данные автоматически подставляются при записи в салон.</p>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 14px;">
-                        <div>
-                            <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Имя</label>
-                            <input type="text" id="settings-name" placeholder="Ваше имя" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 14px; font-size: 0.875rem; outline: none; box-sizing: border-box;"
-                                   onfocus="this.style.borderColor='#F28C6F'" onblur="this.style.borderColor='#e5e7eb'">
-                        </div>
-                        <div>
-                            <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Телефон</label>
-                            <input type="tel" id="settings-phone" placeholder="+7 (999) 123-45-67" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 14px; font-size: 0.875rem; outline: none; box-sizing: border-box;"
-                                   onfocus="this.style.borderColor='#F28C6F'" onblur="this.style.borderColor='#e5e7eb'">
-                        </div>
-                        <div>
-                            <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 6px; display: block;">Email</label>
-                            <input type="email" id="settings-email" placeholder="email@example.com" style="width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 14px; font-size: 0.875rem; outline: none; box-sizing: border-box;"
-                                   onfocus="this.style.borderColor='#F28C6F'" onblur="this.style.borderColor='#e5e7eb'">
-                        </div>
-                        <button onclick="saveProfile()" style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #F28C6F, #E8A0BF); color: white; border: none; border-radius: 10px; padding: 10px 18px; font-size: 0.875rem; font-weight: 500; cursor: pointer;">
+                    <div>
+                        <label class="auth-label">Телефон</label>
+                        <input type="tel" id="settings-phone" placeholder="+7 (999) 123-45-67" class="settings-input">
+                    </div>
+                    <div>
+                        <label class="auth-label">Email</label>
+                        <input type="email" id="settings-email" placeholder="email@example.com" class="settings-input">
+                    </div>
+                    <div style="margin-top: 6px;">
+                        <button onclick="saveProfile()" class="settings-btn-primary">
                             💾 Сохранить
                         </button>
                     </div>
                 </div>
-                
-                <!-- Город -->
-                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                            <span style="color: #F28C6F;">📍</span>
-                        </div>
-                        <h2 style="font-size: 1.125rem; font-weight: 600;">Город</h2>
-                    </div>
-                    <p style="color: #6B7280; font-size: 0.875rem; margin-bottom: 16px;">Салоны будут отфильтрованы по выбранному городу.</p>
-                    
-                    <button style="display: flex; align-items: center; gap: 10px; width: 100%; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; background: white; cursor: pointer; font-size: 0.875rem; color: #111827;"
-                            onmouseover="this.style.borderColor='#F28C6F'" onmouseout="this.style.borderColor='#e5e7eb'">
-                        <span style="color: #F28C6F;">📍</span>
-                        <span style="flex: 1; text-align: left;">Все города</span>
-                        <span style="color: #9ca3af;">▼</span>
-                    </button>
-                </div>
-                
-                <!-- Тема -->
-                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                            <span style="color: #F28C6F;">☀️</span>
-                        </div>
-                        <h2 style="font-size: 1.125rem; font-weight: 600;">Тема оформления</h2>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                        <button onclick="setTheme('light', this)" 
-                                style="display: flex; align-items: center; gap: 12px; border: 2px solid #F28C6F; border-radius: 12px; padding: 16px; background: rgba(242,140,111,0.05); cursor: pointer; text-align: left;"
-                                id="light-theme-btn">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: #fef3c7; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">☀️</div>
-                            <div>
-                                <p style="font-weight: 600; font-size: 0.875rem;">Светлая</p>
-                                <p style="color: #6B7280; font-size: 0.75rem;">Классический светлый интерфейс</p>
-                            </div>
-                        </button>
-                        
-                        <button onclick="setTheme('dark', this)" 
-                                style="display: flex; align-items: center; gap: 12px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: white; cursor: pointer; text-align: left;"
-                                onmouseover="this.style.borderColor='#F28C6F'" onmouseout="this.style.borderColor='#e5e7eb'"
-                                id="dark-theme-btn">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: #1f2937; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">🌙</div>
-                            <div>
-                                <p style="font-weight: 600; font-size: 0.875rem;">Тёмная</p>
-                                <p style="color: #6B7280; font-size: 0.75rem;">Тёмный режим для комфорта глаз</p>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Уведомления -->
-                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                            <span style="color: #F28C6F;">🔔</span>
-                        </div>
-                        <h2 style="font-size: 1.125rem; font-weight: 600;">Уведомления</h2>
-                    </div>
-                    
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
-                        <div>
-                            <p style="font-weight: 500; font-size: 0.875rem;">Напоминания о записи</p>
-                            <p style="color: #6B7280; font-size: 0.75rem;">Напомним перед визитом в салон</p>
-                        </div>
-                        <button onclick="toggleNotifications(this)" 
-                                style="width: 48px; height: 28px; border-radius: 9999px; border: none; background: #F28C6F; cursor: pointer; position: relative; transition: background 0.2s;">
-                            <span style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></span>
-                        </button>
-                    </div>
-                    
-                    <div id="notification-options">
-                        <label style="font-weight: 500; font-size: 0.875rem; margin-bottom: 10px; display: block;">Когда напоминать</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button class="reminder-btn" onclick="selectReminder(this)" style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; background: white; cursor: pointer; font-size: 0.8rem; color: #6B7280;">За 30 минут</button>
-                            <button class="reminder-btn active" onclick="selectReminder(this)" style="border: 1px solid #F28C6F; border-radius: 10px; padding: 10px; background: rgba(242,140,111,0.05); cursor: pointer; font-size: 0.8rem; font-weight: 600; color: #F28C6F;">За 1 час</button>
-                            <button class="reminder-btn" onclick="selectReminder(this)" style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; background: white; cursor: pointer; font-size: 0.8rem; color: #6B7280;">За 2 часа</button>
-                            <button class="reminder-btn" onclick="selectReminder(this)" style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; background: white; cursor: pointer; font-size: 0.8rem; color: #6B7280;">За 1 день</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Очистка данных -->
-                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                        <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(242,140,111,0.1); display: flex; align-items: center; justify-content: center;">
-                            <span style="color: #F28C6F;">🗑️</span>
-                        </div>
-                        <h2 style="font-size: 1.125rem; font-weight: 600;">Очистка данных</h2>
-                    </div>
-                    <p style="color: #6B7280; font-size: 0.875rem; margin-bottom: 14px;">Удалит все сохранённые данные: записи, избранное, профиль и выбранный город.</p>
-                    
-                    <div style="display: flex; gap: 10px; margin-bottom: 16px;">
-                        <span style="background: #f3f4f6; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; color: #6B7280;">Записей: <span id="bookings-count">0</span></span>
-                        <span style="background: #f3f4f6; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; color: #6B7280;">Избранное: <span id="settings-fav-count">0</span></span>
-                    </div>
-                    
-                    <button onclick="clearAllData()" 
-                            style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid #fecaca; border-radius: 10px; padding: 10px 18px; background: white; color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer;"
-                            onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='white'">
-                        🗑️ Очистить все данные
-                    </button>
-                </div>
-                
             </div>
+            
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-icon-box">📍</div>
+                    <h2 class="settings-card-title">Город</h2>
+                </div>
+                <p class="settings-card-desc">Салоны будут отфильтрованы по выбранному городу.</p>
+                
+                <button class="settings-dropdown-btn">
+                    <span style="color: var(--color-primary);">📍</span>
+                    <span style="flex: 1; text-align: left;">Все города</span>
+                    <span style="color: var(--color-muted);">▼</span>
+                </button>
+            </div>
+            
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-icon-box">☀️</div>
+                    <h2 class="settings-card-title">Тема оформления</h2>
+                </div>
+                
+                <div class="settings-grid-2">
+                    <button onclick="setTheme('light', this)" class="settings-theme-btn active" id="light-theme-btn">
+                        <div class="settings-theme-icon" style="background: #fef3c7;">☀️</div>
+                        <div>
+                            <p style="font-weight: 600; font-size: 0.875rem;">Светлая</p>
+                            <p style="color: var(--color-muted); font-size: 0.75rem;">Классический светлый интерфейс</p>
+                        </div>
+                    </button>
+                    
+                    <button onclick="setTheme('dark', this)" class="settings-theme-btn" id="dark-theme-btn">
+                        <div class="settings-theme-icon" style="background: #1f2937;">🌙</div>
+                        <div>
+                            <p style="font-weight: 600; font-size: 0.875rem;">Тёмная</p>
+                            <p style="color: var(--color-muted); font-size: 0.75rem;">Тёмный режим для комфорта глаз</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-icon-box">🔔</div>
+                    <h2 class="settings-card-title">Уведомления</h2>
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div>
+                        <p style="font-weight: 500; font-size: 0.875rem;">Напоминания о записи</p>
+                        <p style="color: var(--color-muted); font-size: 0.75rem;">Напомним перед визитом в салон</p>
+                    </div>
+                    <button onclick="toggleNotifications(this)" class="settings-toggle active">
+                        <span class="settings-toggle-circle"></span>
+                    </button>
+                </div>
+                
+                <div id="notification-options">
+                    <label class="auth-label">Когда напоминать</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button class="settings-reminder-btn" onclick="selectReminder(this)">За 30 минут</button>
+                        <button class="settings-reminder-btn active" onclick="selectReminder(this)">За 1 час</button>
+                        <button class="settings-reminder-btn" onclick="selectReminder(this)">За 2 часа</button>
+                        <button class="settings-reminder-btn" onclick="selectReminder(this)">За 1 день</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <div class="settings-icon-box">🗑️</div>
+                    <h2 class="settings-card-title">Очистка данных</h2>
+                </div>
+                <p class="settings-card-desc">Удалит все сохранённые данные: записи, избранное, профиль и выбранный город.</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                    <span style="background: #f3f4f6; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; color: var(--color-muted);">Записей: <span id="bookings-count">0</span></span>
+                    <span style="background: #f3f4f6; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; color: var(--color-muted);">Избранное: <span id="settings-fav-count">0</span></span>
+                </div>
+                
+                <button onclick="clearAllData()" class="settings-btn-danger">
+                    🗑️ Очистить все данные
+                </button>
+            </div>
+            
         </div>
     </div>
 </section>
@@ -196,32 +163,30 @@ function saveProfile() {
 }
 
 function selectReminder(btn) {
-    document.querySelectorAll('.reminder-btn').forEach(b => {
-        b.style.border = '1px solid #e5e7eb';
-        b.style.background = 'white';
-        b.style.color = '#6B7280';
-        b.style.fontWeight = '400';
+    document.querySelectorAll('.settings-reminder-btn').forEach(b => {
         b.classList.remove('active');
     });
-    btn.style.border = '1px solid #F28C6F';
-    btn.style.background = 'rgba(242,140,111,0.05)';
-    btn.style.color = '#F28C6F';
-    btn.style.fontWeight = '600';
     btn.classList.add('active');
 }
 
 function toggleNotifications(btn) {
-    const circle = btn.querySelector('span');
     const options = document.getElementById('notification-options');
-    if (btn.style.background === 'rgb(229, 231, 235)' || btn.style.background === '#e5e7eb') {
-        btn.style.background = '#F28C6F';
-        circle.style.right = '2px';
+    btn.classList.toggle('active');
+    
+    if (btn.classList.contains('active')) {
         options.style.opacity = '1';
     } else {
-        btn.style.background = '#e5e7eb';
-        circle.style.right = '22px';
         options.style.opacity = '0.5';
     }
+}
+
+// Заглушка для функции темы
+function setTheme(theme, btn) {
+    document.querySelectorAll('.settings-theme-btn').forEach(b => {
+        b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    // Здесь должна быть логика сохранения темы
 }
 
 function clearAllData() {

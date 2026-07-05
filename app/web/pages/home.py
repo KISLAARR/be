@@ -1,4 +1,3 @@
-# app/web/pages/home.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.models import Salon
@@ -25,24 +24,20 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     salon_cards = ""
     for s in salons:
         salon_cards += f"""
-        <div class="card" style="text-align: center;">
-            <div style="width: 4rem; height: 4rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; font-weight: bold;">
-                {s.name[0]}
-            </div>
-            <h3 class="text-subtitle" style="font-size: 1.1rem;">{s.name}</h3>
-            <p class="text-muted" style="font-size: 0.85rem; margin: 0.5rem 0;">
-                📍 {s.address or 'Адрес не указан'}
-            </p>
-            <p style="font-weight: 600; color: var(--color-primary);">
+        <div class="card salon-card">
+            <div class="salon-avatar">{s.name[0]}</div>
+            <h3 class="text-subtitle salon-name">{s.name}</h3>
+            <p class="salon-address">📍 {s.address or 'Адрес не указан'}</p>
+            <p class="salon-rating">
                 ⭐ {s.rating or '0.0'} 
-                <span class="text-muted" style="font-weight: 400;">({s.reviews_count or 0} отзывов)</span>
+                <span class="salon-rating-count">({s.reviews_count or 0} отзывов)</span>
             </p>
-            <a href="/salons/{s.id}" class="btn-primary" style="margin-top: 1rem; font-size: 0.85rem; padding: 0.5rem 1rem;">Подробнее</a>
+            <a href="/salons/{s.id}" class="btn-primary salon-btn">Подробнее</a>
         </div>
         """
     
     if not salons:
-        salon_cards = '<p style="text-align: center; grid-column: 1 / -1;">Пока нет салонов. <a href="/register">Зарегистрируйтесь</a> как владелец, чтобы добавить первый салон!</p>'
+        salon_cards = '<p class="salon-empty">Пока нет салонов. <a href="/register">Зарегистрируйтесь</a> как владелец, чтобы добавить первый салон!</p>'
     
     html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -52,41 +47,40 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     <title>Руми — мастера и салоны красоты рядом</title>
     <meta name="description" content="Платформа для клиентов и бизнеса: находите лучших мастеров, становитесь моделью или управляйте своим салоном.">
     {get_base_styles()}
+    <!-- Убедись, что get_base_styles() возвращает <link rel="stylesheet" href="/static/css/pages.css"> -->
 </head>
 <body>
     {render_header("home", user)}
     {render_sidebar("home")}
 
-    <main style="margin-right: 16rem;">
+    <main class="home-main">
         <!-- Hero -->
-        <section style="position: relative; background: linear-gradient(135deg, #FFF8F6, #F8C8DC33, #F28C6F22); overflow: hidden; padding: 8rem 0 6rem 0;">
-            <div class="section-container" style="position: relative; z-index: 10;">
+        <section class="home-hero">
+            <div class="section-container home-hero-content">
                 <div class="badge" style="margin-bottom: 1rem;">Запись в пару кликов</div>
-                <h1 class="text-display" style="font-size: 6rem; line-height: 1.1;">Красота — рядом<br>с вами</h1>
-                <p style="font-size: 1.1rem; max-width: 32rem; margin-bottom: 2rem; color: var(--color-body);">Выберите услугу, салон и время — готово. Никаких звонков, всё онлайн.</p>
+                <h1 class="text-display home-hero-title">Красота — рядом<br>с вами</h1>
+                <p class="home-hero-subtitle">Выберите услугу, салон и время — готово. Никаких звонков, всё онлайн.</p>
                 
-                <a href="/salons" style="display: flex; align-items: center; gap: 0.75rem; background: white; border: 2px solid transparent; border-radius: 1rem; padding: 1rem 1.5rem; width: 100%; max-width: 40rem; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.08); text-decoration: none; transition: all 0.2s;">
-                    <div style="display: flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); border-radius: 50%; color: white; flex-shrink: 0;">
-                        🔍
+                <a href="/salons" class="home-search-bar">
+                    <div class="home-search-icon">🔍</div>
+                    <div class="home-search-info">
+                        <span class="home-search-title">Найти салон или услугу</span>
+                        <span class="home-search-desc">Маникюр, стрижка, окрашивание, брови...</span>
                     </div>
-                    <div style="flex: 1; text-align: left;">
-                        <span style="display: block; font-weight: 600; color: var(--color-heading); font-size: 1.1rem;">Найти салон или услугу</span>
-                        <span style="display: block; color: var(--color-muted); font-size: 0.875rem;">Маникюр, стрижка, окрашивание, брови...</span>
-                    </div>
-                    <div style="background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); color: white; padding: 0.75rem 1.5rem; border-radius: 2rem; font-weight: 600; font-size: 0.875rem;">Найти</div>
+                    <div class="home-search-btn">Найти</div>
                 </a>
                 
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem;">
+                <div class="home-hero-tags">
                     <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">✂️ Стрижка</a>
                     <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">💅 Маникюр</a>
                     <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">🎨 Окрашивание</a>
                     <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">✨ Брови</a>
                 </div>
                 
-                <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 2rem;">
-                    <span class="text-muted" style="font-size: 0.875rem;">📍 Салоны рядом с вами</span>
-                    <span class="text-muted" style="font-size: 0.875rem;">⚡ Запись за 30 секунд</span>
-                    <span class="text-muted" style="font-size: 0.875rem;">✅ Проверенные мастера</span>
+                <div class="home-hero-features">
+                    <span class="home-feature-item">📍 Салоны рядом с вами</span>
+                    <span class="home-feature-item">⚡ Запись за 30 секунд</span>
+                    <span class="home-feature-item">✅ Проверенные мастера</span>
                 </div>
             </div>
         </section>
@@ -94,29 +88,29 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
         <!-- Как записаться -->
         <section class="section-py bg-surface">
             <div class="section-container">
-                <div style="text-align: center; margin-bottom: 3rem;">
+                <div class="section-header">
                     <div class="badge">Просто как 1-2-3</div>
-                    <h2 class="text-display" style="font-size: 2.5rem; margin-top: 1rem;">Как записаться?</h2>
-                    <p class="text-body" style="max-width: 32rem; margin: 0.5rem auto 0;">Три простых шага — и вы записаны к лучшему мастеру</p>
+                    <h2 class="text-display section-title">Как записаться?</h2>
+                    <p class="text-body section-subtitle">Три простых шага — и вы записаны к лучшему мастеру</p>
                 </div>
-                <div class="grid-3" style="max-width: 48rem; margin: 0 auto;">
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">1</div>
+                <div class="steps-grid">
+                    <div class="card step-card">
+                        <div class="step-number">1</div>
                         <span class="badge" style="margin-bottom: 0.5rem;">Шаг 01</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Найдите салон</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Выберите салон или услугу рядом с вами. Фильтры, рейтинги и отзывы помогут.</p>
+                        <h3 class="text-subtitle step-title">Найдите салон</h3>
+                        <p class="step-desc">Выберите салон или услугу рядом с вами. Фильтры, рейтинги и отзывы помогут.</p>
                     </div>
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">2</div>
+                    <div class="card step-card">
+                        <div class="step-number">2</div>
                         <span class="badge" style="margin-bottom: 0.5rem;">Шаг 02</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Выберите время</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Посмотрите свободные окна у мастера и выберите удобное время.</p>
+                        <h3 class="text-subtitle step-title">Выберите время</h3>
+                        <p class="step-desc">Посмотрите свободные окна у мастера и выберите удобное время.</p>
                     </div>
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">3</div>
+                    <div class="card step-card">
+                        <div class="step-number">3</div>
                         <span class="badge" style="margin-bottom: 0.5rem;">Шаг 03</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Готово!</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Приходите в назначенное время. Напоминание придёт заранее.</p>
+                        <h3 class="text-subtitle step-title">Готово!</h3>
+                        <p class="step-desc">Приходите в назначенное время. Напоминание придёт заранее.</p>
                     </div>
                 </div>
             </div>
@@ -125,11 +119,11 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
         <!-- Популярные салоны -->
         <section class="section-py bg-surface-alt">
             <div class="section-container">
-                <div style="text-align: center; margin-bottom: 3rem;">
-                    <h2 class="text-display" style="font-size: 2.5rem;">Популярные салоны</h2>
-                    <p class="text-muted" style="max-width: 32rem; margin: 0.5rem auto 0;">Лучшие салоны красоты по отзывам пользователей руми</p>
+                <div class="section-header">
+                    <h2 class="text-display section-title">Популярные салоны</h2>
+                    <p class="text-muted section-subtitle">Лучшие салоны красоты по отзывам пользователей руми</p>
                 </div>
-                <div class="grid-3" style="max-width: 48rem; margin: 0 auto;">
+                <div class="salon-cards-grid">
                     {salon_cards}
                 </div>
                 <div style="text-align: center; margin-top: 2.5rem;">

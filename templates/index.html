@@ -1,24 +1,25 @@
 {% extends "base.html" %}
-
 {% block title %}Руми — мастера и салоны красоты рядом{% endblock %}
-
 {% block content %}
 
-<!-- Главная страница -->
-<div style="background: linear-gradient(135deg, #FFF8F6 0%, rgba(248, 200, 220, 0.2) 50%, rgba(242, 140, 111, 0.082) 100%); padding: 80px 0 100px; text-align: center;">
+<div class="hero-section">
     <div class="section-container">
-        <h1 style="font-size: 3rem; font-weight: 800;">Добро пожаловать в <span style="color: var(--color-primary);">руми.</span></h1>
-        <p style="font-size: 1.2rem; color: #6B7280; margin-top: 20px; max-width: 600px; margin-left: auto; margin-right: auto;">
+        
+        <h1 class="hero-title">Добро пожаловать в <span>руми.</span></h1>
+        
+        <p class="hero-subtitle">
             Находите лучших мастеров и салоны красоты рядом с вами. Записывайтесь онлайн за пару кликов.
         </p>
-        <div style="margin-top: 40px; display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-            <a href="/salons" class="btn-primary" style="background: linear-gradient(135deg, #F28C6F, #E8A0BF); padding: 14px 32px; border-radius: 9999px; color: white; text-decoration: none; font-weight: 600;">
+        
+        <div class="hero-buttons">
+            <a href="/salons" class="btn-gradient">
                 Найти салон
             </a>
-            <a href="/model" style="background: white; padding: 14px 32px; border-radius: 9999px; color: #111827; text-decoration: none; font-weight: 600; border: 1px solid #e5e7eb;">
+            <a href="/model" class="btn-outline">
                 Стать моделью
             </a>
         </div>
+        
     </div>
 </div>
 
