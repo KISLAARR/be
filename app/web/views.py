@@ -1,8 +1,5 @@
 # app/web/views.py
-<<<<<<< HEAD
-=======
 import html
->>>>>>> main
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,13 +251,6 @@ async def book_service_page(salon_id: int, request: Request, db: AsyncSession = 
     return HTMLResponse(content=html)
 
 
-<<<<<<< HEAD
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    """Страница входа."""
-    redirect = request.query_params.get("redirect", "/")
-    
-=======
 def _alert(msg: str) -> str:
     """Баннер-уведомление об ошибке вверху карточки (msg — фиксированный текст)."""
     if not msg:
@@ -310,7 +300,6 @@ async def login_page(request: Request):
     }
     banner = _alert(errors.get(q.get("error", ""), ""))
 
->>>>>>> main
     return HTMLResponse(content=f"""<!DOCTYPE html>
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — руми</title>
@@ -320,38 +309,22 @@ async def login_page(request: Request):
 <div class="card" style="width:100%;max-width:400px;padding:2.5rem">
     <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
     <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Вход</h1>
-<<<<<<< HEAD
-    <form action="/api/v1/auth/login-web" method="post">
-        <input type="hidden" name="redirect" value="{redirect}">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
-        <input type="tel" name="phone" placeholder="+7XXXXXXXXXX" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-=======
     {banner}
     <form action="/api/v1/auth/login-web" method="post">
         <input type="hidden" name="redirect" value="{redirect}">
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
         <input type="tel" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" inputmode="tel" class="phone-input" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
->>>>>>> main
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
         <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
         <button type="submit" class="btn-primary" style="width:100%">Войти</button>
     </form>
     <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/register">Регистрация</a> · <a href="/">На главную</a></div>
 </div>
-<<<<<<< HEAD
-=======
 """ + _PHONE_FORMAT_SCRIPT + """
->>>>>>> main
 </body>
 </html>""")
 
 
-<<<<<<< HEAD
-@router.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    """Страница регистрации."""
-    return HTMLResponse(content=f"""<!DOCTYPE html>
-=======
 # Живой индикатор требований к паролю (без интерполяции Python → raw-строка)
 _PASSWORD_HINT_SCRIPT = r"""<script>
 (function () {
@@ -399,7 +372,6 @@ async def register_page(request: Request):
     banner = _alert(errors.get(q.get("error", ""), ""))
 
     body = f"""<!DOCTYPE html>
->>>>>>> main
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Регистрация — руми</title>
 {get_base_styles()}
@@ -408,27 +380,6 @@ async def register_page(request: Request):
 <div class="card" style="width:100%;max-width:400px;padding:2.5rem">
     <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
     <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Регистрация</h1>
-<<<<<<< HEAD
-    <form action="/api/v1/auth/register-web" method="post">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
-        <input type="text" name="full_name" placeholder="Ваше имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
-        <input type="tel" name="phone" placeholder="+7XXXXXXXXXX" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
-        <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Роль</label>
-        <select name="role" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-            <option value="client">Клиент</option>
-            <option value="business">Владелец салона</option>
-            <option value="model">Модель</option>
-        </select>
-        <button type="submit" class="btn-primary" style="width:100%">Зарегистрироваться</button>
-    </form>
-    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/login">Вход</a> · <a href="/">На главную</a></div>
-</div>
-</body>
-</html>""")
-=======
     {banner}
     <form action="/api/v1/auth/register-web" method="post">
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
@@ -450,7 +401,6 @@ async def register_page(request: Request):
 """
     tail = _PHONE_FORMAT_SCRIPT + _PASSWORD_HINT_SCRIPT + "\n</body>\n</html>"
     return HTMLResponse(content=body + tail)
->>>>>>> main
 
 
 @router.get("/logout", response_class=HTMLResponse)

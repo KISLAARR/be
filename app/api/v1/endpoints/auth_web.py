@@ -1,23 +1,9 @@
 # app/api/v1/endpoints/auth_web.py
-<<<<<<< HEAD
-=======
 from urllib.parse import quote
-
->>>>>>> main
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-<<<<<<< HEAD
-from jose import jwt
-from datetime import datetime, timedelta
-import hashlib
-
-from app.db.session import get_db
-from app.models.models import User, UserRole
-from app.core.config import settings
-=======
-
 from app.db.session import get_db
 from app.models.models import User, UserRole
 from app.schemas.user import try_normalize_phone
@@ -35,12 +21,10 @@ from app.core.limiter import (
     register_login_failure,
     reset_login_failures,
 )
->>>>>>> main
 
 router = APIRouter()
 
 
-<<<<<<< HEAD
 def create_access_token(user_id: int) -> str:
     """Создаёт JWT-токен."""
     expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -63,7 +47,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 @router.post("/auth/login-web")
-=======
 def _safe_redirect(target: str) -> str:
     """Разрешаем только внутренние пути (защита от open redirect)."""
     if not target or not target.startswith("/") or target.startswith("//"):
@@ -87,42 +70,12 @@ def _set_auth_cookie(response: RedirectResponse, user_id: int) -> None:
 
 @router.post("/auth/login-web")
 @limiter.limit("5/minute")  # лимит по IP
->>>>>>> main
+
 async def login_web(
     request: Request,
     phone: str = Form(...),
     password: str = Form(...),
     redirect: str = Form("/"),
-<<<<<<< HEAD
-    db: AsyncSession = Depends(get_db)
-):
-    """Вход через веб-форму."""
-    
-    # Ищем пользователя по телефону
-    result = await db.execute(select(User).where(User.phone == phone))
-    user = result.scalar_one_or_none()
-    
-    # Проверяем пароль
-    if not user or not verify_password(password, user.hashed_password):
-        return RedirectResponse(url=f"/login?error=1&redirect={redirect}", status_code=302)
-    
-    # Создаём JWT-токен
-    token = create_access_token(user.id)
-    
-    # Создаём ответ с редиректом
-    response = RedirectResponse(url=redirect, status_code=302)
-    
-    # Устанавливаем куку
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,    # JS не может прочитать куку
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",   # Кука работает при переходах между страницами
-        path="/"          # Кука доступна на всех страницах сайта
-    )
-    
-=======
     db: AsyncSession = Depends(get_db),
 ):
     """Вход через веб-форму."""
@@ -159,7 +112,6 @@ async def login_web(
 
     response = RedirectResponse(url=redirect, status_code=302)
     _set_auth_cookie(response, user.id)
->>>>>>> main
     return response
 
 
@@ -169,30 +121,6 @@ async def register_web(
     phone: str = Form(...),
     password: str = Form(...),
     full_name: str = Form(""),
-<<<<<<< HEAD
-    role: str = Form("client"),
-    db: AsyncSession = Depends(get_db)
-):
-    """Регистрация через веб-форму."""
-    
-    # Проверяем, что пользователь не существует
-    existing = await db.execute(select(User).where(User.phone == phone))
-    if existing.scalar_one_or_none():
-        return RedirectResponse(url="/register?error=phone_exists", status_code=302)
-    
-    # Создаём пользователя
-    user_role = UserRole.BUSINESS if role == "business" else UserRole.CLIENT
-    
-    # Хешируем пароль
-    hashed = hashlib.sha256(password.encode()).hexdigest()
-    
-    user = User(
-        phone=phone,
-        full_name=full_name,
-        hashed_password=hashed,
-        role=user_role,
-        is_active=True
-=======
     db: AsyncSession = Depends(get_db),
 ):
     """Регистрация через веб-форму. Роль всегда CLIENT (назначает сервер)."""
@@ -220,35 +148,11 @@ async def register_web(
         hashed_password=get_password_hash(password),  # Argon2id, не sha256
         role=UserRole.CLIENT,                         # без выбора роли из формы
         is_active=True,
->>>>>>> main
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
-<<<<<<< HEAD
-    
-    # Создаём токен
-    token = create_access_token(user.id)
-    
-    # Перенаправляем в зависимости от роли
-    if user_role == UserRole.BUSINESS:
-        redirect_url = "/business/dashboard"
-    else:
-        redirect_url = "/profile"
-    
-    response = RedirectResponse(url=redirect_url, status_code=302)
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        path="/"
-    )
-    return response
-=======
 
     response = RedirectResponse(url="/profile", status_code=302)
     _set_auth_cookie(response, user.id)
     return response
->>>>>>> main

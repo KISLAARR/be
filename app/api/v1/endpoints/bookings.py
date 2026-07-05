@@ -320,37 +320,7 @@ async def confirm_booking_web(
     await db.commit()
     return RedirectResponse(url="/bookings?success=1", status_code=302)
 
-<<<<<<< HEAD
-@router.post("/reviews/create")
-async def create_review_web(
-    request: Request,
-    master_id: int = Form(...),
-    salon_id: int = Form(...),
-    rating: int = Form(...),
-    comment: str = Form(""),
-    db: AsyncSession = Depends(get_db)
-):
-    from app.web.auth import get_current_user_from_cookie
-    user = await get_current_user_from_cookie(request, db)
-    if not user:
-        return RedirectResponse(url="/login", status_code=302)
-    if rating < 1 or rating > 5:
-        return HTMLResponse(content="<h1>Оценка должна быть от 1 до 5</h1>", status_code=400)
-    review = Review(client_id=user.id, master_id=master_id, salon_id=salon_id, rating=rating, comment=comment)
-    db.add(review)
-    master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
-    if master:
-        avg_result = await db.execute(select(func.avg(Review.rating)).where(Review.master_id == master_id))
-        master.rating = round(float(avg_result.scalar() or 0.0), 1)
-    salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one_or_none()
-    if salon:
-        salon.reviews_count = (salon.reviews_count or 0) + 1
-        avg_result = await db.execute(select(func.avg(Review.rating)).where(Review.salon_id == salon_id))
-        salon.rating = round(float(avg_result.scalar() or 0.0), 1)
-    await db.commit()
-    return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
-=======
 # Создание отзыва вынесено в единый эндпоинт reviews.py (через ReviewService).
 # Прежний дублирующий create_review_web здесь удалён — он не проверял
 # завершённость записи и позволял накручивать рейтинг.
->>>>>>> main
+

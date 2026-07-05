@@ -66,7 +66,6 @@ app.add_middleware(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFOriginMiddleware)
 
->>>>>>> main
 # 1. Статические файлы — ПЕРВЫМИ!
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
