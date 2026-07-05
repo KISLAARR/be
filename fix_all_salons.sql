@@ -1,1 +1,0 @@
-UPDATE salons SET working_hours = '{"mon":"10:00-21:00","tue":"10:00-21:00","wed":"10:00-21:00","thu":"10:00-21:00","fri":"10:00-21:00","sat":"11:00-19:00","sun":"closed"}' WHERE working_hours IS NULL;
