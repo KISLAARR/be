@@ -1,9 +1,16 @@
 # app/main.py
+
+from contextlib import asynccontextmanager
+
 from geopy.distance import geodesic
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
 from app.api.v1.endpoints import users
 from app.api.v1.endpoints import bookings
 from app.web.views import router as web_router
@@ -11,6 +18,11 @@ from app.api.v1.endpoints import master as master_endpoints
 
 from fastapi.staticfiles import StaticFiles
 from app.db.session import get_db
+from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.middleware import SecurityHeadersMiddleware, CSRFOriginMiddleware
+from app.core.worker import close_arq_pool
+
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
@@ -21,12 +33,40 @@ from app.api.v1.endpoints import reviews
 from app.api.v1.endpoints import services
 from app.api.v1.endpoints import favorites
 
+from app.api.v1.endpoints import admin
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    # Фоновые задачи (ARQ): пул создаётся лениво при первом enqueue,
+    # здесь закрываем его на shutdown
+    await close_arq_pool()
+
+
 app = FastAPI(
     title="Beauty Platform API",
     description="API для платформы красоты Руми",
-    version="0.3.0"
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
+# --- Rate limiting (slowapi) ---
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- Middleware безопасности ---
+# CORS: явный список origin'ов (FastAPI не закрывает это по умолчанию)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CSRFOriginMiddleware)
+
+>>>>>>> main
 # 1. Статические файлы — ПЕРВЫМИ!
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -40,13 +80,18 @@ app.include_router(master_endpoints.router, prefix="/api/v1/master", tags=["mast
 app.include_router(reviews.router, prefix="/api/v1", tags=["reviews"])
 app.include_router(services.router, prefix="/api/v1", tags=["services"])
 app.include_router(favorites.router, prefix="/api/v1", tags=["favorites"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+
+# Healthcheck — регистрируем ДО веб-роутера, иначе его перехватывает
+# catch-all страниц (`/{path:path}`) и /health отдаёт 404.
+@app.get("/health", include_in_schema=False)
+async def health_check():
+    return {"status": "ok"}
+
 
 # 3. Веб-роутер (страницы) — ПОСЛЕ API
 app.include_router(web_router, include_in_schema=False)
 
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
 
 @app.get("/api/v1/salons", response_model=List[SalonResponse])
 async def get_salons(db: AsyncSession = Depends(get_db)):

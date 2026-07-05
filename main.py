@@ -1,6 +1,6 @@
 # main.py 
 from fastapi import FastAPI 
-from app.api.v1.api_router import api_router
+from app.api.v1 import api_router 
  
 app = FastAPI(title="Beauty Platform API", version="1.0.0") 
  

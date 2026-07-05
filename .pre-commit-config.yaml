@@ -1,0 +1,23 @@
+# Локальные проверки безопасности на каждый `git commit` (Shift Left).
+# Установка: pip install pre-commit && pre-commit install
+# Прогнать по всему репозиторию: pre-commit run --all-files
+#
+# Фокус pre-commit — не пустить незашифрованные секреты и явные ошибки в коммит.
+# Тяжёлые сканеры (SAST/SCA/IaC) — в CI (.github/workflows/devsecops.yml).
+repos:
+  # Базовая гигиена и защита от утечки ключей
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key          # приватные ключи (в т.ч. RS256) не в git
+      - id: check-added-large-files     # не коммитить тяжёлые артефакты
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  # Secret Detection — главная проверка pre-commit фазы
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks                    # использует .gitleaks.toml из корня

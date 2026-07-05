@@ -1,17 +1,60 @@
 # app/schemas/user.py
-from pydantic import BaseModel, EmailStr, Field
+
+import re
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from app.models.models import UserRole, SubscriptionTier
+
+PHONE_RE = re.compile(r"^\+7\d{10}$")
+
+
+def _normalize_phone(value: str) -> str:
+    """Приводит телефон к формату +7XXXXXXXXXX, иначе ValueError."""
+    digits = re.sub(r"[^\d+]", "", value or "")
+    if digits.startswith("8") and len(digits) == 11:
+        digits = "+7" + digits[1:]
+    elif digits.startswith("7") and len(digits) == 11:
+        digits = "+" + digits
+    if not PHONE_RE.match(digits):
+        raise ValueError("Телефон должен быть в формате +7XXXXXXXXXX")
+    return digits
+
+
+def try_normalize_phone(value: str) -> Optional[str]:
+    """Нормализация без исключения: вернёт +7XXXXXXXXXX или None для веб-форм."""
+    try:
+        return _normalize_phone(value)
+    except ValueError:
+        return None
+
 
 class UserBase(BaseModel):
     phone: str
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
 
-class UserCreate(UserBase):
-    password: str = Field(..., min_length=6)
-    role: UserRole = UserRole.CLIENT
+
+class RegisterRequest(BaseModel):
+    """Регистрация. Роль НЕ принимается от клиента — всегда CLIENT на сервере."""
+    phone: str
+    password: str
+    full_name: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def _check_phone(cls, v: str) -> str:
+        return _normalize_phone(v)
+
+
+class LoginRequest(BaseModel):
+    phone: str
+    password: str
+
+    @field_validator("phone")
+    @classmethod
+    def _check_phone(cls, v: str) -> str:
+        return _normalize_phone(v)
 
 class UserResponse(UserBase):
     id: int

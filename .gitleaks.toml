@@ -1,0 +1,17 @@
+# Конфиг Gitleaks: дефолтные правила + allowlist для заведомо НЕ-секретов
+# (dev-плейсхолдеры, примеры в .env.example). Реальные секреты — в .env (gitignore).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Dev-плейсхолдеры и примеры, не настоящие секреты"
+paths = [
+  '''\.env\.example''',
+  '''README\.md''',
+  '''smoke_test\.sh''',
+]
+regexes = [
+  '''Seedpass1''',              # единый dev-пароль сидов (app/scripts/seed_data.py)
+  '''local_dev_pass''',         # дефолт пароля БД для локалки в smoke_test.sh
+  '''CHANGE_ME[A-Za-z0-9_]*''', # плейсхолдеры в .env.example
+]

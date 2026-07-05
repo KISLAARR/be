@@ -320,6 +320,7 @@ async def confirm_booking_web(
     await db.commit()
     return RedirectResponse(url="/bookings?success=1", status_code=302)
 
+<<<<<<< HEAD
 @router.post("/reviews/create")
 async def create_review_web(
     request: Request,
@@ -348,3 +349,8 @@ async def create_review_web(
         salon.rating = round(float(avg_result.scalar() or 0.0), 1)
     await db.commit()
     return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
+=======
+# Создание отзыва вынесено в единый эндпоинт reviews.py (через ReviewService).
+# Прежний дублирующий create_review_web здесь удалён — он не проверял
+# завершённость записи и позволял накручивать рейтинг.
+>>>>>>> main

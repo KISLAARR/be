@@ -1,19 +1,36 @@
 # app/api/v1/endpoints/master.py
+<<<<<<< HEAD
+=======
+from urllib.parse import quote
+
+>>>>>>> main
 from fastapi import APIRouter, Depends, HTTPException, Request, Form, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+<<<<<<< HEAD
 import hashlib
+=======
+import secrets
+>>>>>>> main
 
 from app.db.session import get_db
 from app.models.models import User, Master, Booking, Salon, UserRole, BookingStatus
 from app.api.deps import get_current_user, require_role
+<<<<<<< HEAD
+=======
+from app.core.security import get_password_hash
+>>>>>>> main
 
 router = APIRouter()
 
 @router.get("/schedule")
 async def get_my_schedule(
+<<<<<<< HEAD
     current_user: User = Depends(require_role([UserRole.MASTER])),
+=======
+    current_user: User = Depends(require_role(UserRole.MASTER)),
+>>>>>>> main
     db: AsyncSession = Depends(get_db)
 ):
     """Получить своё расписание (только для MASTER)"""
@@ -73,6 +90,10 @@ async def create_master_web(
         return RedirectResponse(url="/business/register-salon", status_code=302)
     
     # Проверяем, нет ли уже мастера с таким телефоном
+<<<<<<< HEAD
+=======
+    temp_password = None
+>>>>>>> main
     existing_user = (await db.execute(select(User).where(User.phone == phone))).scalar_one_or_none()
     if existing_user:
         # Если пользователь уже есть, просто создаём профиль мастера
@@ -81,11 +102,21 @@ async def create_master_web(
             return RedirectResponse(url="/business/my-salon?error=master_exists", status_code=302)
         master_user = existing_user
     else:
+<<<<<<< HEAD
         # Создаём нового пользователя-мастера
         master_user = User(
             phone=phone,
             full_name=full_name,
             hashed_password=hashlib.sha256("master123".encode()).hexdigest(),
+=======
+        # Уникальный случайный временный пароль (не общий "master123").
+        # Показываем владельцу один раз; мастер обязан сменить его при входе.
+        temp_password = secrets.token_urlsafe(9)
+        master_user = User(
+            phone=phone,
+            full_name=full_name,
+            hashed_password=get_password_hash(temp_password),
+>>>>>>> main
             role=UserRole.MASTER,
             is_active=True
         )
@@ -102,7 +133,17 @@ async def create_master_web(
     )
     db.add(master)
     await db.commit()
+<<<<<<< HEAD
     
+=======
+
+    # Показываем временный пароль владельцу один раз (для передачи мастеру)
+    if temp_password:
+        return RedirectResponse(
+            url=f"/business/my-salon?added=1&temp_pw={quote(temp_password)}",
+            status_code=302,
+        )
+>>>>>>> main
     return RedirectResponse(url="/business/my-salon?added=1", status_code=302)
 
 

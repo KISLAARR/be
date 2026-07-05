@@ -128,6 +128,7 @@ async def update_password_form(
     db: AsyncSession = Depends(get_db)
 ):
     """Обновление пароля через форму (веб-интерфейс)."""
+<<<<<<< HEAD
     import hashlib
     from app.web.auth import get_current_user_from_cookie
     
@@ -158,6 +159,35 @@ async def update_password_form(
     
     # Обновляем пароль
     user.hashed_password = hashlib.sha256(new_password.encode()).hexdigest()
+=======
+    from app.web.auth import get_current_user_from_cookie
+    from app.core.security import (
+        verify_password,
+        get_password_hash,
+        validate_password_strength,
+    )
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Проверяем текущий пароль через единый интерфейс (Argon2id + legacy)
+    if not verify_password(current_password, user.hashed_password):
+        return RedirectResponse(url="/profile?error=wrong_password", status_code=302)
+
+    # Проверяем совпадение паролей
+    if new_password != confirm_password:
+        return RedirectResponse(url="/profile?error=password_mismatch", status_code=302)
+
+    # Политика сложности пароля
+    try:
+        validate_password_strength(new_password)
+    except ValueError:
+        return RedirectResponse(url="/profile?error=password_too_short", status_code=302)
+
+    # Обновляем пароль (Argon2id)
+    user.hashed_password = get_password_hash(new_password)
+>>>>>>> main
     await db.commit()
     
     return RedirectResponse(

@@ -1,12 +1,38 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-sqlalchemy==2.0.51
-alembic==1.18.5
-psycopg2-binary==2.9.10 
-python-dotenv==1.0.0
-pydantic==2.10.4          
-python-multipart==0.0.6
+# Зафиксировано по факту собранного окружения (Python 3.11) + pip-audit: 0 CVE.
+# ВАЖНО: требуется Python >= 3.10 — на 3.9 фиксы starlette/fastapi недоступны.
+
+# Веб-фреймворк и сервер
+fastapi==0.138.1
+starlette==1.3.1              # SCA: auth-bypass (Host) / SSRF закрыты
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0              # прод-запуск: gunicorn -k uvicorn.workers.UvicornWorker
+python-multipart==0.0.32      # SCA: было 0.0.6 (path traversal / param pollution)
+
+# Конфигурация / валидация (согласованные версии — чинит прежний ResolutionImpossible)
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0        # требуется для EmailStr (раньше отсутствовал)
+python-dotenv==1.2.2          # SCA: symlink overwrite закрыт
+
+# БД: async-драйвер asyncpg (psycopg2-binary убран — не использовался)
+SQLAlchemy==2.0.36
+greenlet==3.1.1               # требуется SQLAlchemy для async-режима
+alembic==1.14.0
+asyncpg==0.30.0
+
+# Аутентификация
+PyJWT==2.13.0                 # вместо python-jose (algorithm confusion / заброшенность)
+cryptography==49.0.0          # RS256: подпись/проверка JWT и генерация ключей
 passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
-python-dateutil==2.8.2
-tzdata
+argon2-cffi==23.1.0           # Argon2id как основная схема хеширования
+
+# Rate limiting
+slowapi==0.1.9
+redis==5.2.1
+
+# Прочее
+geopy==2.4.1                  # геопоиск салонов (раньше отсутствовал в requirements)
+tzdata==2026.2
+
+# Фоновые задачи: очередь на Redis (async-native, один event-loop с FastAPI)
+arq==0.28.0

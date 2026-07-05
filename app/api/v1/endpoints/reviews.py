@@ -2,10 +2,16 @@
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+<<<<<<< HEAD
 from sqlalchemy import select, func
 
 from app.db.session import get_db
 from app.models.models import Review, Salon, Master
+=======
+
+from app.db.session import get_db
+from app.services.review_service import ReviewService, ReviewError
+>>>>>>> main
 
 router = APIRouter()
 
@@ -17,6 +23,7 @@ async def create_review_web(
     salon_id: int = Form(...),
     rating: int = Form(...),
     comment: str = Form(""),
+<<<<<<< HEAD
     db: AsyncSession = Depends(get_db)
 ):
     """Создание отзыва с пересчётом рейтинга."""
@@ -62,3 +69,27 @@ async def create_review_web(
     await db.commit()
     
     return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
+=======
+    db: AsyncSession = Depends(get_db),
+):
+    """Создание отзыва. Вся проверка прав/состояния — в ReviewService."""
+    from app.web.auth import get_current_user_from_cookie
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    try:
+        await ReviewService.create_review(
+            db,
+            client_id=user.id,
+            master_id=master_id,
+            salon_id=salon_id,
+            rating=rating,
+            comment=comment,
+        )
+    except ReviewError as e:
+        return HTMLResponse(content=f"<h1>{e.message}</h1>", status_code=e.status)
+
+    return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
+>>>>>>> main

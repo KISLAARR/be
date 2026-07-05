@@ -56,6 +56,7 @@ if (!localStorage.getItem('rumi_token')) {
             <!-- ЗАВТРА -->
             <div style="margin-bottom: 28px;">
                 <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">☀️ Завтра ({{ (today_date + timedelta(days=1)).strftime('%d.%m.%Y') }})</h2>
+
                 {% set has_tomorrow = false %}
                 {% for booking in bookings %}
                     {% if booking.start_time.date() == (today_date + timedelta(days=1)) %}
@@ -71,6 +72,7 @@ if (!localStorage.getItem('rumi_token')) {
             <!-- БЛИЖАЙШИЕ -->
             <div style="margin-bottom: 28px;">
                 <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--color-primary);">🗓️ Ближайшие</h2>
+
                 {% set has_upcoming = false %}
                 {% for booking in bookings %}
                     {% if booking.start_time.date() > (today_date + timedelta(days=1)) %}
@@ -79,6 +81,7 @@ if (!localStorage.getItem('rumi_token')) {
                     {% endif %}
                 {% endfor %}
                 {% if not has_upcoming %}
+
                     <p style="color: var(--color-muted); font-size: 0.85rem; padding: 12px 0;">Ближайших записей нет</p>
                 {% endif %}
             </div>
@@ -86,6 +89,7 @@ if (!localStorage.getItem('rumi_token')) {
             <!-- ИСТОРИЯ -->
             <div style="margin-bottom: 28px;">
                 <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 12px; color: var(--color-muted);">📦 История записей</h2>
+
                 {% set has_history = false %}
                 {% for booking in bookings %}
                     {% if booking.start_time.date() < today_date %}

@@ -1,4 +1,8 @@
 # app/web/views.py
+<<<<<<< HEAD
+=======
+import html
+>>>>>>> main
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,6 +138,18 @@ async def my_salon_page(
     return HTMLResponse(content=await render_my_salon_page(db, salon, user))
 
 
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Админ-панель (только роль ADMIN)."""
+    from app.web.pages.admin_panel import render_admin_panel
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "admin" or not user.is_active:
+        return RedirectResponse(url="/login?redirect=/admin", status_code=302)
+
+    return HTMLResponse(content=await render_admin_panel(db, user, request.query_params))
+
+
 @router.get("/business/register-salon", response_class=HTMLResponse)
 async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
     """Страница регистрации салона."""
@@ -238,11 +254,63 @@ async def book_service_page(salon_id: int, request: Request, db: AsyncSession = 
     return HTMLResponse(content=html)
 
 
+<<<<<<< HEAD
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Страница входа."""
     redirect = request.query_params.get("redirect", "/")
     
+=======
+def _alert(msg: str) -> str:
+    """Баннер-уведомление об ошибке вверху карточки (msg — фиксированный текст)."""
+    if not msg:
+        return ""
+    return (
+        '<div style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;'
+        'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem">'
+        f'{msg}</div>'
+    )
+
+
+# Маска ввода телефона: 8…→+7, разбивка на блоки +7 (XXX) XXX-XX-XX.
+# Без интерполяции Python → raw-строка. Сервер всё равно канонизирует значение.
+_PHONE_FORMAT_SCRIPT = r"""<script>
+(function () {
+  function format(value) {
+    var d = (value || '').replace(/\D/g, '');
+    if (!d) return '';                                 // пусто → поле можно очистить полностью
+    if (d[0] === '8') d = '7' + d.slice(1);            // 8… → 7…
+    else if (d[0] !== '7') d = '7' + d;                // ввели без кода → подставляем 7
+    d = d.slice(0, 11);                                // 7 + 10 цифр
+    var r = d.slice(1), out = '+7';
+    if (r.length)      out += ' (' + r.slice(0, 3);
+    if (r.length >= 3) out += ') ' + r.slice(3, 6);
+    if (r.length >= 6) out += '-' + r.slice(6, 8);
+    if (r.length >= 8) out += '-' + r.slice(8, 10);
+    // без хвостовых разделителей — иначе backspace «застревает» на ) или -
+    return out.replace(/[\s()\-]+$/, '');
+  }
+  document.querySelectorAll('.phone-input').forEach(function (inp) {
+    inp.addEventListener('input', function () { inp.value = format(inp.value); });
+    if (inp.value) inp.value = format(inp.value);       // отформатировать префилл
+  });
+})();
+</script>"""
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Страница входа."""
+    q = request.query_params
+    redirect = html.escape(q.get("redirect", "/"), quote=True)
+    phone = html.escape(q.get("phone", ""), quote=True)
+    errors = {
+        "1": "Неверный телефон или пароль",
+        "locked": "Слишком много попыток входа. Попробуйте через 15 минут.",
+    }
+    banner = _alert(errors.get(q.get("error", ""), ""))
+
+>>>>>>> main
     return HTMLResponse(content=f"""<!DOCTYPE html>
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — руми</title>
@@ -252,24 +320,86 @@ async def login_page(request: Request):
 <div class="card" style="width:100%;max-width:400px;padding:2.5rem">
     <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
     <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Вход</h1>
+<<<<<<< HEAD
     <form action="/api/v1/auth/login-web" method="post">
         <input type="hidden" name="redirect" value="{redirect}">
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
         <input type="tel" name="phone" placeholder="+7XXXXXXXXXX" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+=======
+    {banner}
+    <form action="/api/v1/auth/login-web" method="post">
+        <input type="hidden" name="redirect" value="{redirect}">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
+        <input type="tel" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" inputmode="tel" class="phone-input" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+>>>>>>> main
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
         <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
         <button type="submit" class="btn-primary" style="width:100%">Войти</button>
     </form>
     <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/register">Регистрация</a> · <a href="/">На главную</a></div>
 </div>
+<<<<<<< HEAD
+=======
+""" + _PHONE_FORMAT_SCRIPT + """
+>>>>>>> main
 </body>
 </html>""")
+
+
+<<<<<<< HEAD
+@router.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """Страница регистрации."""
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+=======
+# Живой индикатор требований к паролю (без интерполяции Python → raw-строка)
+_PASSWORD_HINT_SCRIPT = r"""<script>
+(function () {
+  var pw = document.getElementById('pw');
+  var btn = document.getElementById('submitBtn');
+  if (!pw || !btn) return;
+  var rules = {
+    len:   function (v) { return v.length >= 8; },
+    lower: function (v) { return /[a-zа-яё]/.test(v); },
+    upper: function (v) { return /[A-ZА-ЯЁ]/.test(v); },
+    digit: function (v) { return /[0-9]/.test(v); }
+  };
+  function update() {
+    var v = pw.value, all = true;
+    Object.keys(rules).forEach(function (k) {
+      var ok = rules[k](v);
+      all = all && ok;
+      var li = document.querySelector('[data-rule="' + k + '"]');
+      if (li) {
+        li.querySelector('.m').textContent = ok ? '✓' : '✗';
+        li.style.color = ok ? '#16A34A' : 'var(--color-muted)';
+      }
+    });
+    btn.disabled = !all;
+    btn.style.opacity = all ? '1' : '0.6';
+    btn.style.cursor = all ? 'pointer' : 'not-allowed';
+  }
+  pw.addEventListener('input', update);
+  update();
+})();
+</script>"""
 
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Страница регистрации."""
-    return HTMLResponse(content=f"""<!DOCTYPE html>
+    q = request.query_params
+    phone = html.escape(q.get("phone", ""), quote=True)
+    full_name = html.escape(q.get("full_name", ""), quote=True)
+    errors = {
+        "phone_exists": "Пользователь с таким телефоном уже зарегистрирован",
+        "weak_password": "Пароль не отвечает требованиям сложности",
+        "bad_phone": "Неверный формат телефона. Пример: +7 (999) 123-45-67",
+    }
+    banner = _alert(errors.get(q.get("error", ""), ""))
+
+    body = f"""<!DOCTYPE html>
+>>>>>>> main
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Регистрация — руми</title>
 {get_base_styles()}
@@ -278,6 +408,7 @@ async def register_page(request: Request):
 <div class="card" style="width:100%;max-width:400px;padding:2.5rem">
     <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
     <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Регистрация</h1>
+<<<<<<< HEAD
     <form action="/api/v1/auth/register-web" method="post">
         <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
         <input type="text" name="full_name" placeholder="Ваше имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
@@ -297,6 +428,29 @@ async def register_page(request: Request):
 </div>
 </body>
 </html>""")
+=======
+    {banner}
+    <form action="/api/v1/auth/register-web" method="post">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
+        <input type="text" name="full_name" value="{full_name}" placeholder="Ваше имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
+        <input type="tel" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" inputmode="tel" class="phone-input" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
+        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
+        <input type="password" id="pw" name="password" required minlength="8" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:0.5rem">
+        <ul style="list-style:none;padding:0;margin:0 0 1rem;font-size:0.75rem;color:var(--color-muted)">
+            <li data-rule="len"><span class="m">✗</span> Минимум 8 символов</li>
+            <li data-rule="lower"><span class="m">✗</span> Строчная буква</li>
+            <li data-rule="upper"><span class="m">✗</span> Заглавная буква</li>
+            <li data-rule="digit"><span class="m">✗</span> Цифра</li>
+        </ul>
+        <button type="submit" id="submitBtn" class="btn-primary" style="width:100%">Зарегистрироваться</button>
+    </form>
+    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/login">Вход</a> · <a href="/">На главную</a></div>
+</div>
+"""
+    tail = _PHONE_FORMAT_SCRIPT + _PASSWORD_HINT_SCRIPT + "\n</body>\n</html>"
+    return HTMLResponse(content=body + tail)
+>>>>>>> main
 
 
 @router.get("/logout", response_class=HTMLResponse)

@@ -66,12 +66,12 @@
                     Записаться
                 </button>
             </form>
-            
+
             <a href="/book/{{ master.id }}/service/{{ service.id }}" class="btn-outline" style="display: block; width: 100%; padding: 12px; margin-top: 10px; text-align: center; font-size: 0.875rem;">
                 Отменить
             </a>
         </div>
-        
+
         <div id="success-box" class="confirm-success-box" style="display: none;">
             </div>
         
@@ -89,7 +89,7 @@ async function handleBooking(event) {
         window.location.href = '/login';
         return;
     }
-    
+
     const form = document.getElementById('booking-form');
     const btn = document.getElementById('submit-btn');
     
