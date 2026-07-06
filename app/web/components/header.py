@@ -1,8 +1,7 @@
 # app/web/components/header.py
 def render_header(current_page: str = "home", user=None) -> str:
-    """Улучшенный хедер по референсу top."""
+    """Хедер с обновлёнными стилями и поведением."""
     
-    # Auth blocks
     if user:
         auth_block = f"""
         <a href="/profile" id="user-greeting" class="auth-link">
@@ -25,10 +24,10 @@ def render_header(current_page: str = "home", user=None) -> str:
             
             <ul id="header-menu">
                 <li><a class="header-menu-link {'active' if current_page == 'home' else ''}" href="/">Главная</a></li>
-                <li><a class="header-menu-link" href="/salons">Салоны</a></li>
-                <li><a class="header-menu-link" href="/business">Для бизнеса</a></li>
-                <li><a class="header-menu-link" href="/offer">Предложения</a></li>
-                <li><a class="header-menu-link" href="/about">Манифест</a></li>
+                <li><a class="header-menu-link {'active' if current_page == 'salons' else ''}" href="/salons">Салоны</a></li>
+                <li><a class="header-menu-link {'active' if current_page == 'business' else ''}" href="/business">Для бизнеса</a></li>
+                <li><a class="header-menu-link {'active' if current_page == 'offer' else ''}" href="/offer">Предложения</a></li>
+                <li><a class="header-menu-link {'active' if current_page == 'about' else ''}" href="/about">Манифест</a></li>
             </ul>
             
             <div id="header-auth">
@@ -58,7 +57,6 @@ def render_header(current_page: str = "home", user=None) -> str:
 
     <script>
     (function() {{
-        // Мобильное меню
         const menuBtn = document.getElementById('mobile-menu-btn');
         const dropdown = document.getElementById('mobile-dropdown');
         
@@ -66,22 +64,6 @@ def render_header(current_page: str = "home", user=None) -> str:
             menuBtn.addEventListener('click', function() {{
                 dropdown.classList.toggle('active');
             }});
-        }}
-
-        // Client-side auth fallback (если сервер не передал user)
-        const token = localStorage.getItem('rumi_token');
-        const userName = localStorage.getItem('rumi_user_name');
-        
-        if (token && userName) {{
-            const loginBtn = document.getElementById('login-btn');
-            const greeting = document.getElementById('user-greeting');
-            if (loginBtn) loginBtn.style.display = 'none';
-            if (greeting) greeting.style.display = 'inline-flex';
-            
-            const mobileLoginBtn = document.getElementById('mobile-login-btn');
-            const mobileGreeting = document.getElementById('mobile-user-greeting');
-            if (mobileLoginBtn) mobileLoginBtn.style.display = 'none';
-            if (mobileGreeting) mobileGreeting.style.display = 'inline-flex';
         }}
     }})();
     </script>

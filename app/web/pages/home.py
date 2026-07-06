@@ -55,7 +55,7 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     {render_header("home", user)}
     {render_sidebar("home")}
 
-    <main class="home-main">
+    <main class="home-main { 'lg:pr-64' if user else '' }">
         <!-- Hero -->
         <section class="home-hero">
             <div class="section-container home-hero-content">
