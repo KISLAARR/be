@@ -1,0 +1,27 @@
+{
+  "name": "be",
+  "version": "1.0.0",
+  "description": "> Требуется **Python ≥ 3.10** (на 3.9 не устанавливаются security-фиксы starlette/fastapi).",
+  "main": "index.js",
+  "scripts": {
+  "dev": "vite",
+  "build": "vite build",
+  "watch": "vite build --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KISLAARR/be.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/KISLAARR/be/issues"
+  },
+  "homepage": "https://github.com/KISLAARR/be#readme",
+  "devDependencies": {
+    "vite": "^8.1.3"
+  }
+}
+

@@ -6,7 +6,6 @@ def get_base_styles() -> str:
     Костыль чтобы не переписывать все упоминания. 
     """
     return """
-    <link rel="stylesheet" href="/static/css/global.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/pages.css">
+    <link rel="stylesheet" href="/static/src/css/main.css">
+    <script src="/static/dist/main.js" defer></script>
     """

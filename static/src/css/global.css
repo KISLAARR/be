@@ -1,0 +1,54 @@
+/* static/css/global.css */
+@import 'design-tokens.css';
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-body);
+    background: var(--color-background);
+    color: var(--color-heading);
+    line-height: 1.6;
+}
+
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.section-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.section-py {
+    padding: 80px 0;
+}
+
+.text-display {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-heading);
+}
+
+.text-subtitle {
+    font-weight: 600;
+    color: var(--color-heading);
+}
+
+.text-body { color: var(--color-body); }
+.text-muted { color: var(--color-muted); }
+.text-label { font-weight: 600; color: var(--color-heading); }
+
+.bg-surface { background: var(--color-surface); }
+.bg-surface-alt { background: var(--color-surface-alt); }

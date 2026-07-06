@@ -1,0 +1,13 @@
+/* static/src/css/main.css */
+
+/* Глобальные переменные для стилей */
+@import './design-tokens.css';
+
+/* Глобальные стили */
+@import './global.css';
+
+/* Компоненты */
+@import './components.css';
+
+/* Стили страниц */
+@import './pages.css';
