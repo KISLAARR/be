@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import List
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Корень проекта (…/be) — чтобы пути к ключам и .env не зависели от cwd
@@ -49,17 +49,46 @@ class Settings(BaseSettings):
     # SQL-эхо в логи. В проде ДОЛЖНО быть False (иначе параметры запросов утекают).
     SQL_ECHO: bool = False
 
-    # --- OTP-сервис (подтверждение телефона при регистрации) ---
-    # Базовый URL отдельного микросервиса otp-service (см. его README про деплой на Amvera).
-    OTP_SERVICE_URL: str = "http://localhost:8000"
-    OTP_SERVICE_API_KEY: str = "change_me"
+    # --- OTP (подтверждение телефона при регистрации) ---
+    # Код и его состояние живут только в Redis (TTL) — своей БД не нужно.
     OTP_METHOD: str = "flash_call"  # flash_call (дешевле) или sms
+    OTP_LENGTH: int = 4
+    OTP_TTL_MINUTES: int = 5
+    MAX_VERIFY_ATTEMPTS: int = 3
 
-    # Временный рубильник: пока нет официального подключения SMS/otp-service,
-    # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp_client
-    # возвращает фиктивный request_id и считает любой код верным). Код-путь
-    # с otp-service остаётся нетронутым — включится обратно простой сменой флага.
+    # Провайдер отправки: mock (код никуда не уходит, виден в dev_code ответа
+    # и в логах) или live (SMSC.ru, резерв SMS.ru — см. app/services/sms_provider.py).
+    SMS_MODE: str = "mock"
+    SMSC_LOGIN: str = ""
+    SMSC_PASSWORD: str = ""
+    SMSC_SENDER_ID: str = ""
+    SMSRU_API_ID: str = ""
+
+    # Временный рубильник: пока нет официального подключения SMS-провайдера,
+    # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py
+    # возвращает фиктивный request_id и считает любой код верным).
     OTP_ENABLED: bool = True
+
+    # Выключенный OTP в production = регистрация без подтверждения телефона.
+    # Чтобы рубильник не дожил до релиза незамеченным, в production такое
+    # состояние надо подтверждать явно вторым флагом — иначе приложение
+    # не стартует (та же логика, что принудительный COOKIE_SECURE).
+    OTP_DISABLED_ACK: bool = False
+
+    @model_validator(mode="after")
+    def _otp_guard_in_prod(self) -> "Settings":
+        # model_validator (не field_validator): должен срабатывать и на дефолтах
+        if (
+            self.ENVIRONMENT == "production"
+            and not self.OTP_ENABLED
+            and not self.OTP_DISABLED_ACK
+        ):
+            raise ValueError(
+                "OTP_ENABLED=false в production: любой код подтверждения будет "
+                "принят. Если это осознанно (SMS-провайдер ещё не подключён), "
+                "задайте OTP_DISABLED_ACK=true; иначе включите OTP_ENABLED."
+            )
+        return self
 
     @field_validator("COOKIE_SECURE")
     @classmethod

@@ -23,7 +23,7 @@ from app.core.limiter import (
     register_login_failure,
     reset_login_failures,
 )
-from app.services import otp_client
+from app.services import otp
 
 router = APIRouter()
 
@@ -128,8 +128,8 @@ async def register_web(
         return RedirectResponse(url=f"/register?error=no_code&{keep}", status_code=302)
 
     try:
-        code_valid = await otp_client.verify_code(request_id, code, norm_phone)
-    except otp_client.OTPServiceError:
+        code_valid = await otp.verify_code(request_id, code, norm_phone)
+    except otp.OTPError:
         return RedirectResponse(url=f"/register?error=otp_unavailable&{keep}", status_code=302)
 
     if not code_valid:

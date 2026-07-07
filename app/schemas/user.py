@@ -48,7 +48,7 @@ class RegisterRequest(BaseModel):
     """Регистрация. Роль НЕ принимается от клиента — всегда CLIENT на сервере.
 
     request_id/code — результат SendCodeRequest, подтверждают, что телефон
-    реально принадлежит пользователю (проверяются в otp-service).
+    реально принадлежит пользователю (проверяются в app.services.otp).
     """
     phone: str
     password: str

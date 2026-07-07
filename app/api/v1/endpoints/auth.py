@@ -16,10 +16,11 @@ from app.core.security import (
 from app.core.limiter import (
     limiter,
     is_account_locked,
+    otp_send_allowed,
     register_login_failure,
     reset_login_failures,
 )
-from app.services import otp_client
+from app.services import otp
 
 router = APIRouter()
 
@@ -39,9 +40,17 @@ async def send_register_code(
             detail="Пользователь с таким номером уже зарегистрирован",
         )
 
+    # Второй лимит поверх IP-шного slowapi: по самому номеру, против
+    # распределённого SMS-бомбинга одного телефона с разных IP
+    if not await otp_send_allowed(data.phone):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много запросов кода на этот номер, попробуйте позже",
+        )
+
     try:
-        result = await otp_client.send_code(data.phone)
-    except otp_client.OTPServiceError as e:
+        result = await otp.send_code(data.phone)
+    except otp.OTPError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     return result
@@ -58,7 +67,7 @@ async def register(
     escalation). BUSINESS/MASTER назначаются отдельным модерируемым процессом.
 
     Требует предварительного вызова /register/send-code — телефон должен
-    быть подтверждён кодом (request_id/code проверяются в otp-service).
+    быть подтверждён кодом (request_id/code проверяются в app.services.otp).
     """
     try:
         validate_password_strength(data.password)
@@ -73,8 +82,8 @@ async def register(
         )
 
     try:
-        code_valid = await otp_client.verify_code(data.request_id, data.code, data.phone)
-    except otp_client.OTPServiceError as e:
+        code_valid = await otp.verify_code(data.request_id, data.code, data.phone)
+    except otp.OTPError as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     if not code_valid:

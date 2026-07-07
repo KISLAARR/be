@@ -72,3 +72,28 @@ async def reset_login_failures(phone: str) -> None:
         await get_redis().delete(_fail_key(phone))
     except Exception:
         pass
+
+
+# --- Лимит отправки OTP-кодов по номеру телефона ---
+# slowapi на /register/send-code режет по IP; этот счётчик закрывает
+# распределённый SMS-бомбинг одного номера с многих IP (и расход денег
+# на flash-call). Fail-open при недоступном Redis — как и локаут выше.
+OTP_SEND_LIMIT = 5
+OTP_SEND_WINDOW_SECONDS = 60 * 60  # не более 5 кодов на номер в час
+
+
+def _otp_send_key(phone: str) -> str:
+    return f"otp_send:{phone}"
+
+
+async def otp_send_allowed(phone: str) -> bool:
+    """True, если на этот номер ещё можно отправить код подтверждения."""
+    try:
+        r = get_redis()
+        key = _otp_send_key(phone)
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, OTP_SEND_WINDOW_SECONDS)
+    except Exception:
+        return True
+    return count <= OTP_SEND_LIMIT

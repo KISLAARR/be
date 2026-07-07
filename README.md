@@ -29,38 +29,31 @@ alembic upgrade head              # миграции
 uvicorn app.main:app --reload
 ```
 
-> SMS-подтверждение телефона (otp-service) пока официально не подключено —
+> SMS-подтверждение телефона (SMSC.ru/SMS.ru) пока официально не подключено —
 > `OTP_ENABLED=false` в `.env.example` временно пропускает проверку кода при
-> регистрации. Когда otp-service будет развёрнут — поставить `OTP_ENABLED=true`.
+> регистрации (в `production` это состояние нужно подтвердить явно, см.
+> `OTP_DISABLED_ACK` там же). Код и его состояние живут в Redis (TTL) —
+> `app/services/otp.py` + `app/services/sms_provider.py`, отдельного сервиса
+> для этого не заводим. Когда провайдер будет настроен — `SMS_MODE=live`,
+> `OTP_ENABLED=true`.
 
 Dev-данные (`python -m app.scripts.seed_data`) создаются с паролем `Seedpass1`.
 
 ## Прод-деплой (Timeweb, один VPS)
 
-Стек: `app` (gunicorn) + `arq-worker` + `otp` (микросервис otp-service,
-подтверждение телефона по SMS/flash-call) + `redis` + `caddy` (авто-HTTPS).
-PostgreSQL — **управляемая БД Timeweb**, не контейнер: два логических
-БД (`beauty_platform`, `otp_service`) на одном кластере, бэкапы уже
-включены на стороне Timeweb.
-
-otp-service должен быть склонирован рядом (сосед этого репозитория):
-
-```
-/opt/beauty_platform/
-/opt/otp-service/
-```
+Стек: `app` (gunicorn) + `arq-worker` + `redis` + `caddy` (авто-HTTPS).
+PostgreSQL — **управляемая БД Timeweb**, не контейнер; бэкапы уже
+включены на стороне Timeweb. Подтверждение телефона (SMS/flash-call через
+SMSC.ru, резерв SMS.ru) — часть самого приложения (Redis TTL), отдельного
+сервиса/БД под это не поднимаем.
 
 Запуск:
 ```bash
-cp .env.example .env              # SECRET_KEY, POSTGRES_* (хост управляемой БД!), DOMAIN, OTP_SERVICE_API_KEY
+cp .env.example .env              # SECRET_KEY, POSTGRES_* (хост управляемой БД!), DOMAIN
 python -m app.scripts.gen_keys
 docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
 docker compose -f docker-compose.prod.yml up -d --build
 ```
-
-`OTP_SERVICE_API_KEY` в `.env` этого репозитория должен совпадать с
-`API_KEY` в `otp-service/.env` — это общий секрет для внутреннего вызова
-(сервис `otp` не публикуется в интернет, см. его README).
 
 ### Бэкапы в S3 (доп. подстраховка)
 
