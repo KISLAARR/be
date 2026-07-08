@@ -49,8 +49,8 @@ async def render_master_detail(db: AsyncSession, master_id: int, user=None) -> s
     {get_base_styles()}
 </head>
 <body>
-    {render_header("salons", user)}
-    {render_sidebar("salons")}
+    {render_header("salons")}
+    {render_sidebar("salons", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

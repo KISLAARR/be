@@ -108,8 +108,8 @@ async def render_favorites_page(db: AsyncSession, user) -> str:
     </style>
 </head>
 <body>
-    {render_header("favorites", user)}
-    {render_sidebar("favorites")}
+    {render_header("favorites")}
+    {render_sidebar("favorites", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

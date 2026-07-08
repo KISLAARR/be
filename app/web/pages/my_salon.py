@@ -104,8 +104,8 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
     </style>
 </head>
 <body>
-    {render_header("business", user)}
-    {render_sidebar("business")}
+    {render_header("business")}
+    {render_sidebar("business", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

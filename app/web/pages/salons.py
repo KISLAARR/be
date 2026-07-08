@@ -350,8 +350,8 @@ async def render_salons_page(db: AsyncSession, user=None) -> str:
     </style>
 </head>
 <body>
-    {render_header("salons", user)}
-    {render_sidebar("salons")}
+    {render_header("salons")}
+    {render_sidebar("salons", user)}
     
     <main style="margin-right: 16rem;">
         <section class="section-py bg-surface-alt">

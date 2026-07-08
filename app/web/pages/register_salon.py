@@ -16,8 +16,8 @@ def render_register_salon_page(user=None) -> str:
     {get_base_styles()}
 </head>
 <body>
-    {render_header("business", user)}
-    {render_sidebar("business")}
+    {render_header("business")}
+    {render_sidebar("business", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

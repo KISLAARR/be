@@ -223,8 +223,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     </style>
 </head>
 <body>
-    {render_header("salons", user)}
-    {render_sidebar("salons")}
+    {render_header("salons")}
+    {render_sidebar("salons", user)}
     
     <main style="margin-right: 16rem;">
         <div class="salon-hero">

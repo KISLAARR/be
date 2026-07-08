@@ -16,8 +16,8 @@ def render_settings_page(user=None) -> str:
     {get_base_styles()}
 </head>
 <body>
-    {render_header("settings", user)}
-    {render_sidebar("settings")}
+    {render_header("settings")}
+    {render_sidebar("settings", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

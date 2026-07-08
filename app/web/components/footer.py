@@ -1,7 +1,6 @@
 # app/web/components/footer.py
 
 def render_footer() -> str:
-    """Возвращает актуальный структурированный HTML-подвал сайта руми."""
     return """
     <footer class="comp-footer">
         <div class="section-container footer-top-section">

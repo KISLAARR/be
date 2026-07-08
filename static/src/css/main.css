@@ -10,4 +10,7 @@
 @import './components.css';
 
 /* Стили страниц */
-@import './pages.css';
+@import './home.css';
+@import './login-register.css';
+@import './about.css';
+@import './business.css';
