@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# backup_to_s3.sh — дамп обеих БД (beauty_platform + otp_service) в S3 (VK Cloud).
+# backup_to_s3.sh — дамп БД beauty_platform в S3 (VK Cloud).
+# (БД otp_service больше нет — OTP свёрнут внутрь приложения, коммит c482669)
 # Требует на хосте: pg_dump (postgresql-client) и aws-cli.
 # Настройка cron (ежедневно в 03:00):
 #   0 3 * * * cd /opt/beauty_platform && ./backup_to_s3.sh >> /var/log/db_backup.log 2>&1
@@ -32,6 +33,5 @@ dump_and_upload() {
 }
 
 dump_and_upload "beauty_platform"
-dump_and_upload "otp_service"
 
 echo "[backup] готово: $STAMP"

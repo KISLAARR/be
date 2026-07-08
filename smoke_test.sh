@@ -4,8 +4,8 @@
 #          ./smoke_test.sh --audit    (+ pip-audit, медленнее, нужен venv)
 #
 # Требует: запущенные app (127.0.0.1:8000), beauty_db, beauty_redis,
-# а также otp-service с SMS_MODE=mock (регистрация подтверждает телефон
-# кодом — в mock-режиме otp-service отдаёт код прямо в ответе для тестов).
+# приложение с OTP_ENABLED=true и SMS_MODE=mock (регистрация подтверждает
+# телефон кодом — в mock-режиме код виден в поле dev_code ответа send-code).
 
 B="${BASE_URL:-http://127.0.0.1:8000}"
 DBPASS="$(grep -E '^POSTGRES_PASSWORD=' .env 2>/dev/null | cut -d= -f2)"
@@ -28,8 +28,8 @@ section(){ echo; echo "── $1"; }
 code()  { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 reset_limits(){ docker exec beauty_redis redis-cli flushall >/dev/null 2>&1; }
 
-# Регистрация теперь требует подтверждения телефона кодом из otp-service.
-# В mock-режиме (SMS_MODE=mock) otp-service возвращает код прямо в ответе
+# Регистрация теперь требует подтверждения телефона кодом (app/services/otp.py).
+# В mock-режиме (SMS_MODE=mock, не production) код приходит прямо в ответе
 # (поле dev_code) — только для тестов/локальной разработки.
 get_code() {
   local resp

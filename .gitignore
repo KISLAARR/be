@@ -14,3 +14,5 @@ keys/
 
 # локальный оверрайд портов (не коммитить)
 docker-compose.override.yml
+.env.staging
+keys-staging/

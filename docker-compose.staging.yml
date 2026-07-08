@@ -1,0 +1,94 @@
+# Staging-стек: тот же состав, что прод, но БД — СВОЙ контейнер Postgres
+# (изоляция: эксперименты и миграции staging физически не могут задеть
+# управляемый прод-инстанс Timeweb; данные — сиды, терять не жалко).
+# Конфиг — из .env.staging (см. .env.staging.example).
+# Вход снаружи — через edge-Caddy (хост {$STAGING_DOMAIN}, закрыт basic_auth).
+#
+# Запуск (обычно через ./deploy.sh staging):
+#   docker compose -p rumi-staging -f docker-compose.staging.yml --env-file .env.staging up -d
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: rumi-staging-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-beauty_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-beauty_platform}
+    volumes:
+      - pgdata_staging:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-beauty_user} -d ${POSTGRES_DB:-beauty_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: rumi-staging-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: rumi-app:staging
+    container_name: rumi-staging-app
+    env_file: .env.staging
+    environment:
+      # ENVIRONMENT=production сознательно: staging должен вести себя как прод
+      # (secure-cookie, HSTS, guard'ы). Отличия — только в .env.staging.
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: '["https://${STAGING_DOMAIN:-staging.localhost}"]'
+      WEB_CONCURRENCY: "2"
+    volumes:
+      - ./keys-staging:/app/keys:ro   # у staging СВОИ RS256-ключи (не боевые!)
+    networks:
+      - default
+      - edge                          # виден edge-Caddy как rumi-staging-app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  arq-worker:
+    image: rumi-app:staging
+    container_name: rumi-staging-arq
+    env_file: .env.staging
+    command: ["arq", "app.core.worker.WorkerSettings"]
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./keys-staging:/app/keys:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "arq", "--check", "app.core.worker.WorkerSettings"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  pgdata_staging:

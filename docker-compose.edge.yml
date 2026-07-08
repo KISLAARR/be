@@ -1,0 +1,39 @@
+# Edge-слой: единственный Caddy на 80/443, проксирует ОБА стека (prod и
+# staging) через внешнюю docker-сеть `edge`. Вынесен из прод-стека, чтобы
+# стеки рестартовались независимо и staging не тянул за собой прод.
+#
+# Сеть создаётся один раз: docker network create edge  (deploy.sh делает сам)
+# Запуск:  docker compose -p rumi-edge -f docker-compose.edge.yml up -d
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: rumi-edge-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # До появления домена: DOMAIN=localhost (или IP сервера) -> Caddy
+      # выдаст самоподписанный сертификат (tls internal). С доменом -> Let's Encrypt.
+      DOMAIN: ${DOMAIN:-localhost}
+      STAGING_DOMAIN: ${STAGING_DOMAIN:-staging.localhost}
+      # basic_auth на staging-хост: bcrypt-хеш пароля. Сгенерировать свой:
+      #   docker run --rm caddy:2-alpine caddy hash-password --plaintext 'ПАРОЛЬ'
+      # Дефолт ниже ($$ = экранированный $) — ВРЕМЕННЫЙ (пароль rumi-staging-2026),
+      # ЗАМЕНИТЬ через STAGING_BASIC_AUTH_HASH в .env при настройке сервера (runbook).
+      STAGING_BASIC_AUTH_USER: ${STAGING_BASIC_AUTH_USER:-staging}
+      STAGING_BASIC_AUTH_HASH: ${STAGING_BASIC_AUTH_HASH:-$$2b$$14$$OYJEa/yJFwZfb0y.NCjN9.QgeFcDHaVplLqJUbvuC//XJoPYRo3hi}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    restart: unless-stopped
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

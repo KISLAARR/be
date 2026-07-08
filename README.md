@@ -39,21 +39,28 @@ uvicorn app.main:app --reload
 
 Dev-данные (`python -m app.scripts.seed_data`) создаются с паролем `Seedpass1`.
 
-## Прод-деплой (Timeweb, один VPS)
+## Прод-деплой (Timeweb, один VPS, два стека)
 
-Стек: `app` (gunicorn) + `arq-worker` + `redis` + `caddy` (авто-HTTPS).
-PostgreSQL — **управляемая БД Timeweb**, не контейнер; бэкапы уже
-включены на стороне Timeweb. Подтверждение телефона (SMS/flash-call через
-SMSC.ru, резерв SMS.ru) — часть самого приложения (Redis TTL), отдельного
-сервиса/БД под это не поднимаем.
+На сервере живут **три compose-проекта**: `rumi-prod` (docker-compose.prod.yml:
+app + arq-worker + redis; PostgreSQL — **управляемая БД Timeweb**), `rumi-staging`
+(docker-compose.staging.yml: то же + свой контейнер Postgres, конфиг из
+`.env.staging`) и `rumi-edge` (docker-compose.edge.yml: один Caddy на 80/443,
+проксирует оба стека через внешнюю docker-сеть `edge`; staging закрыт basic_auth).
+Подтверждение телефона (SMS/flash-call через SMSC.ru, резерв SMS.ru) — часть
+самого приложения (Redis TTL), отдельного сервиса/БД под это не поднимаем.
 
-Запуск:
+**Полная инструкция первого запуска — [server/RUNBOOK.md](server/RUNBOOK.md)**
+(первичная настройка хоста — `server/bootstrap.sh`: deploy-user, SSH-hardening,
+ufw, fail2ban). Коротко:
 ```bash
-cp .env.example .env              # SECRET_KEY, POSTGRES_* (хост управляемой БД!), DOMAIN
-python -m app.scripts.gen_keys
-docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
-docker compose -f docker-compose.prod.yml up -d --build
+sudo bash server/bootstrap.sh '<публичный ssh-ключ>'   # один раз, под root
+cp .env.example .env && cp .env.staging.example .env.staging   # заполнить, chmod 600
+python -m app.scripts.gen_keys                # прод-ключи; для staging — отдельная пара
+./deploy.sh staging && ./deploy.sh prod       # build + миграции + up + health-check
 ```
+Staging обновляется автоматически по пушу в main (`.github/workflows/deploy-staging.yml`,
+нужны secrets `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY`); прод — только руками
+`./deploy.sh prod`. Откат: `docker tag rumi-app:prod-prev rumi-app:prod && ./deploy.sh prod --no-pull --no-build`.
 
 ### Бэкапы в S3 (доп. подстраховка)
 

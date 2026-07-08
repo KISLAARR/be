@@ -1,14 +1,42 @@
-# Caddy: авто-HTTPS (Let's Encrypt) для {$DOMAIN}, reverse-proxy на app:8000.
-# Для локальной проверки DOMAIN=localhost → Caddy выдаст локальный самоподписанный
-# сертификат (tls internal). Для прода DOMAIN=<реальный домен> → Let's Encrypt.
+# Edge-Caddy: два хоста — прод и staging, оба через docker-сеть `edge`
+# (см. docker-compose.edge.yml). До появления домена DOMAIN=localhost/IP →
+# Caddy выдаёт самоподписанный сертификат (tls internal); с реальным доменом
+# Let's Encrypt получается и продлевается автоматически.
+
+# ── Прод ─────────────────────────────────────────────────────────
 {$DOMAIN:localhost} {
     encode gzip
-    reverse_proxy app:8000
+    reverse_proxy rumi-prod-app:8000
 
     # Доп. защита заголовками на уровне прокси (в приложении они тоже есть)
     header {
         -Server
         Referrer-Policy "strict-origin-when-cross-origin"
         X-Content-Type-Options "nosniff"
+    }
+}
+
+# ── Staging ──────────────────────────────────────────────────────
+# Закрыт basic_auth: тестовый стенд не должен быть виден интернету
+# (и поисковикам) без пароля. Дефолтные креды staging / rumi-staging-2026 —
+# ВРЕМЕННЫЕ, при настройке сервера заменить хеш в .env (STAGING_BASIC_AUTH_HASH):
+#   docker run --rm caddy:2-alpine caddy hash-password --plaintext 'НОВЫЙ_ПАРОЛЬ'
+{$STAGING_DOMAIN:staging.localhost} {
+    encode gzip
+
+    # Значения приходят из docker-compose.edge.yml (там же дефолты; Caddy-дефолт
+    # в {$VAR:...} не сработал бы — compose передаёт переменную пустой строкой)
+    basic_auth {
+        {$STAGING_BASIC_AUTH_USER} {$STAGING_BASIC_AUTH_HASH}
+    }
+
+    reverse_proxy rumi-staging-app:8000
+
+    header {
+        -Server
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Content-Type-Options "nosniff"
+        # staging не должен индексироваться, даже если basic_auth однажды снимут
+        X-Robots-Tag "noindex, nofollow"
     }
 }
