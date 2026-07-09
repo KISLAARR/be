@@ -8,16 +8,16 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # Креды основной БД — из .env этого репозитория
-PGHOST="$(grep -E '^POSTGRES_HOST=' .env | cut -d= -f2)"
-PGPORT="$(grep -E '^POSTGRES_PORT=' .env | cut -d= -f2)"
-PGUSER="$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2)"
-export PGPASSWORD="$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2)"
+PGHOST="$(grep -E '^POSTGRES_HOST=' .env | cut -d= -f2-)"
+PGPORT="$(grep -E '^POSTGRES_PORT=' .env | cut -d= -f2-)"
+PGUSER="$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)"
+export PGPASSWORD="$(grep -E '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
 
 # S3 (VK Cloud через панель Timeweb) — из .env этого репозитория
-S3_ENDPOINT="$(grep -E '^S3_ENDPOINT=' .env | cut -d= -f2)"
-S3_BUCKET="$(grep -E '^S3_BUCKET=' .env | cut -d= -f2)"
-export AWS_ACCESS_KEY_ID="$(grep -E '^S3_ACCESS_KEY=' .env | cut -d= -f2)"
-export AWS_SECRET_ACCESS_KEY="$(grep -E '^S3_SECRET_KEY=' .env | cut -d= -f2)"
+S3_ENDPOINT="$(grep -E '^S3_ENDPOINT=' .env | cut -d= -f2-)"
+S3_BUCKET="$(grep -E '^S3_BUCKET=' .env | cut -d= -f2-)"
+export AWS_ACCESS_KEY_ID="$(grep -E '^S3_ACCESS_KEY=' .env | cut -d= -f2-)"
+export AWS_SECRET_ACCESS_KEY="$(grep -E '^S3_SECRET_KEY=' .env | cut -d= -f2-)"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
 TMPDIR="$(mktemp -d)"

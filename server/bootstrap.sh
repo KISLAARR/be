@@ -18,7 +18,8 @@ APP_DIR="/opt/rumi"
 echo "[1/7] Пакеты (ufw, fail2ban, unattended-upgrades, git)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -yq ufw fail2ban unattended-upgrades ca-certificates curl git
+apt-get install -yq ufw fail2ban unattended-upgrades ca-certificates curl git \
+    python3-venv postgresql-client awscli   # venv — для gen_keys, клиент+aws — для backup_to_s3.sh
 
 echo "[2/7] Docker + compose-plugin..."
 if ! command -v docker >/dev/null 2>&1; then
