@@ -19,7 +19,14 @@ echo "[1/7] Пакеты (ufw, fail2ban, unattended-upgrades, git)..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -yq ufw fail2ban unattended-upgrades ca-certificates curl git \
-    python3-venv postgresql-client awscli   # venv — для gen_keys, клиент+aws — для backup_to_s3.sh
+    python3-venv postgresql-client          # venv — для gen_keys, pg_dump — для backup_to_s3.sh
+# aws-cli для backup_to_s3.sh: в Ubuntu 24.04 нет ни в apt, ни snap на образе
+# Timeweb — ставим pip'ом в отдельный venv
+if ! command -v aws >/dev/null 2>&1; then
+    python3 -m venv /opt/awscli-venv
+    /opt/awscli-venv/bin/pip install --quiet --upgrade pip awscli
+    ln -sf /opt/awscli-venv/bin/aws /usr/local/bin/aws
+fi
 
 echo "[2/7] Docker + compose-plugin..."
 if ! command -v docker >/dev/null 2>&1; then
