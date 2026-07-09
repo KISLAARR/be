@@ -19,7 +19,8 @@ cp .env.example .env && cp .env.staging.example .env.staging
 chmod 600 .env .env.staging
 # в .env:  новый SECRET_KEY (openssl rand -hex 32), креды managed-БД из панели
 #          Timeweb, DOMAIN (до домена — IP сервера), STAGING_BASIC_AUTH_HASH
-#          (docker run --rm caddy:2-alpine caddy hash-password --plaintext '...')
+#          (docker run --rm caddy:2-alpine caddy hash-password --plaintext '...';
+#           в хеше КАЖДЫЙ $ удвоить до $$ — compose интерполирует $ в .env)
 # в .env.staging:  свой SECRET_KEY и пароль БД (НЕ прод-значения)
 # пароль managed-БД сменить в панели Timeweb (ротация)
 
