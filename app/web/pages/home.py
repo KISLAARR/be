@@ -65,7 +65,11 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     <main class="home-main">
         <!-- Hero секция -->
         <section class="home-hero">
-            <div class="section-container relative z-10">
+        
+            <img src="/static/images/flower-home.png" alt="" class="home-hero-bg-img">
+            <div class="home-hero-gradient"></div>
+
+            <div class="section-container">
                 <div class="home-hero-content">
                     <h1 class="home-hero-title text-display">
                         Красота — это просто<span class="dot-primary">.</span>
@@ -106,9 +110,6 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
                         </a>
                     </div>
                 </div>
-            </div>
-            <div class="hero-decorative-bg" aria-hidden="true">
-                {HERO_DECORATIVE_SVG}
             </div>
         </section>
 

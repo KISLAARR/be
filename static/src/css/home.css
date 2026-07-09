@@ -11,17 +11,51 @@
 /* ---------- HERO СЕКЦИЯ ---------- */
 .home-hero {
     position: relative;
-    background: linear-gradient(135deg, #FFF8F6, #F8C8DC33, #F28C6F22);
+    background: var(--color-surface); 
     overflow: hidden;
     min-height: 100vh;
     display: flex;
     align-items: center;
 }
 
-.home-hero-content {
+.home-hero .section-container {
+    max-width: 100%;
+    padding: 0 20px;
+    margin: 0;
+}
+
+.home-hero-bg-img {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: auto;
+    object-fit: cover;
+    object-position: right center;
+    z-index: 1;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+}
+
+.home-hero-gradient {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #FFF8F6, #F8C8DC33, #F28C6F22);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.home-hero-content {
+    position: relative;
+    width: 100%;
+    z-index: 3;
     padding-top: 12vh;
     padding-bottom: 12vh; 
+    padding-left: 0;
 }
 
 @media (max-width: 768px) {
@@ -36,12 +70,16 @@
     line-height: 1.05;
     margin-bottom: 1.25rem;
 }
+
 @media (min-width: 640px) {
     .home-hero-title { font-size: 3.75rem; }
 }
+
 @media (min-width: 1024px) {
     .home-hero-title { font-size: 4.5rem; }
+    .home-hero-content { padding-left: 8%; }
 }
+
 .home-hero-title .dot-primary {
     color: var(--color-primary);
 }
@@ -53,6 +91,7 @@
 }
 @media (min-width: 640px) {
     .home-hero-subtitle { font-size: 1.125rem; }
+    .home-hero-content { padding-left: 4%; }
 }
 
 .home-search-card {
@@ -157,36 +196,6 @@
 
 .home-hero {
     position: relative;
-}
-
-.hero-decorative-bg {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    width: 350px;
-    max-width: 40vw;
-    height: auto;
-    opacity: 0.3;
-    pointer-events: none;
-    z-index: 1;
-}
-
-@media (max-width: 768px) {
-    .hero-decorative-bg {
-        width: 200px;
-        opacity: 0.2;
-        right: -20px;
-        bottom: -20px;
-    }
-}
-
-@media (max-width: 480px) {
-    .hero-decorative-bg {
-        width: 150px;
-        right: -30px;
-        bottom: -30px;
-        opacity: 0.15;
-    }
 }
 
 .home-tag {

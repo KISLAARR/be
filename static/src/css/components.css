@@ -64,14 +64,14 @@
     left: 0;
     width: 100%;
     z-index: 100;
-    background: transparent !important;   
+    background: transparent !important;
     border-bottom: none !important;
-    pointer-events: none;             
+    pointer-events: none;
 }
 
 #header-nav {
     display: flex;
-    justify-content: space-between; 
+    justify-content: space-between;
     align-items: center;
     max-width: 1440px;
     margin: 0 auto;
@@ -81,18 +81,44 @@
     pointer-events: none;
 }
 
+/* --- МАГИЯ ФОНА ЛОГОТИПА --- */
+#header-logo-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%; /* Занимаем всю высоту шапки (60px) */
+    padding: 0 2.5rem 0 0; /* Отступ справа, чтобы текст не наехал на скос */
+    z-index: 1;
+    pointer-events: auto;
+}
+
+#header-logo-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    bottom: -10px;
+    left: -3000px;
+    right: 0;
+    background: var(--color-surface);
+    z-index: -1;
+    transform-origin: top right;
+    transform: skewX(15deg);
+    border-bottom-right-radius: 1.5rem;
+    box-shadow: 6px 8px 24px rgba(0, 0, 0, 0.15);
+}
+
 #header-logo {
     font-family: var(--font-heading);
-    font-size: 3rem;               
+    font-size: 2.625rem;
     font-weight: 800;
     color: var(--color-primary);
     text-decoration: none;
     letter-spacing: -0.02em;
     transition: opacity 0.2s;
-    background: transparent !important; 
-    backdrop-filter: none !important;
-    pointer-events: auto;              
-    padding: 0;                         
+    display: inline-block;
+    padding: 0;
+    margin: 0;
+    background: transparent !important;
 }
 
 #header-logo:hover {

@@ -159,13 +159,13 @@ async def admin_page(request: Request, db: AsyncSession = Depends(get_db)):
     return HTMLResponse(content=await render_admin_panel(db, user, request.query_params))
 
 
-@router.get("/business/register-salon", response_class=HTMLResponse)
-async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница регистрации салона."""
-    user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.register_salon import render_register_salon_page
-    html = render_register_salon_page(user)
-    return HTMLResponse(content=html)
+# @router.get("/business/register-salon", response_class=HTMLResponse)
+# async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
+#     """Страница регистрации салона."""
+#     user = await get_current_user_from_cookie(request, db)
+#     from app.web.pages.register_salon import render_register_salon_page
+#     html = render_register_salon_page(user)
+#     return HTMLResponse(content=html)
 
 
 @router.get("/salons/{salon_id}/book", response_class=HTMLResponse)

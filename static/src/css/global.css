@@ -12,6 +12,8 @@ body {
     background: var(--color-background);
     color: var(--color-heading);
     line-height: 1.6;
+    letter-spacing: 0.02em;
+    word-spacing: 0.02em;
 }
 
 .app-layout {
