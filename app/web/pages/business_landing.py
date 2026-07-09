@@ -31,7 +31,7 @@ def render_business_landing_page(user=None) -> str:
     <title>Для бизнеса | Руми</title>
     <meta name="description" content="Управляйте своим салоном красоты легко — расписание, аналитика, клиенты.">
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/css/business.css">
+    <link rel="stylesheet" href="/static/src/css/business-landing.css">
 </head>
 <body>
     {render_header("business")}
@@ -101,7 +101,7 @@ def render_business_landing_page(user=None) -> str:
                 </div>
             </div>
         </section>
-
+    
         <!-- Как подключить -->
         <section id="how-it-works" class="section-py business-how section-gradient-down">
             <div class="section-container">
@@ -229,7 +229,7 @@ def render_business_landing_page(user=None) -> str:
                     </div>
                 </div>
                 <div class="pricing-footer">
-                    Более 20 сотрудников? <a href="/business/checkout/?plan=custom" class="text-link">Запросите индивидуальный тариф</a>
+                    Более 20 сотрудников? <a href="/business/checkout?plan=custom" class="text-link">Запросите индивидуальный тариф</a>
                 </div>
             </div>
         </section>

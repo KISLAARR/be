@@ -49,6 +49,18 @@ TARIFFS = {
             "Расширенная отчётность",
             "Выделенный менеджер"
         ]
+    },
+    "custom": {
+        "id": "custom",
+        "name": "Индивидуальный",
+        "description": "Более 20 сотрудников",
+        "price": "По запросу",
+        "period": "",
+        "features": [
+            "Всё из тарифа «Корпоративный»",
+            "Индивидуальные условия",
+            "Персональный SLA"
+        ]
     }
 }
 
@@ -66,7 +78,6 @@ def render_business_checkout_page(plan: str = "business", user=None) -> str:
     <title>Подключение салона | Руми</title>
     <meta name="description" content="Подключите свой салон к платформе Руми">
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/css/checkout.css">
 </head>
 <body>
     {render_header("business")}
@@ -90,6 +101,7 @@ def render_business_checkout_page(plan: str = "business", user=None) -> str:
                         <button class="tariff-btn" data-plan="lite">Лайт</button>
                         <button class="tariff-btn active" data-plan="business">Бизнес</button>
                         <button class="tariff-btn" data-plan="corporate">Корпоративный</button>
+                        <button class="tariff-btn" data-plan="custom">Индивидуальный</button>
                     </div>
 
                     <div class="checkout-grid">

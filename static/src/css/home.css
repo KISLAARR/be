@@ -1052,6 +1052,7 @@
 .business-cta {
     text-align: left;
     margin-top: 2.5rem;
+    background: transparent !important;
 }
 
 .business-btn {

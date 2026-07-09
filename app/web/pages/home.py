@@ -10,7 +10,6 @@ from app.web.components.icons import (
     ICON_SEARCH,
     ICON_SCISSORS,
     ICON_SPARKLES,
-    HERO_DECORATIVE_SVG,
     ICON_PERCENT,
     ICON_STORE,
     ICON_ARROW_RIGHT,

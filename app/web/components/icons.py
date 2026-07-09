@@ -54,49 +54,6 @@ ICON_CHECK_SMALL = (
     '<path d="M20 6 9 17l-5-5"></path></svg>'
 )
 
-# Декоративная графика для hero-секции
-HERO_DECORATIVE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" width="100%" height="100%" id="beauty-bg-elements">
-  <g transform="translate(100, 120) rotate(-25)">
-    <rect x="10" y="40" width="30" height="50" rx="4" fill="#F3EBF1" stroke="#A3629B" stroke-width="3" />
-    <rect x="15" y="25" width="20" height="15" fill="none" stroke="#A3629B" stroke-width="3" />
-    <path d="M 15 25 L 15 5 L 35 15 L 35 25 Z" fill="#A3629B" stroke="#A3629B" stroke-width="3" stroke-linejoin="round" />
-    <line x1="10" y1="55" x2="40" y2="55" stroke="#A3629B" stroke-width="2" />
-  </g>
-  <g transform="translate(380, 90) rotate(35)">
-    <circle cx="30" cy="120" r="16" fill="none" stroke="#A3629B" stroke-width="3" />
-    <circle cx="65" cy="120" r="16" fill="none" stroke="#A3629B" stroke-width="3" />
-    <path d="M 30 104 L 55 20 C 55 20, 52 40, 45 65" fill="none" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <path d="M 65 104 L 40 20 C 40 20, 43 40, 50 65" fill="none" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <circle cx="47.5" cy="75" r="4" fill="#A3629B" />
-  </g>
-  <g transform="translate(60, 320) rotate(15)">
-    <path d="M 10 15 L 210 15 C 215 15, 215 25, 210 25 L 10 25 C 5 25, 5 15, 10 15 Z" fill="#A3629B" />
-    <line x1="25" y1="25" x2="25" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="45" y1="25" x2="45" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="65" y1="25" x2="65" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="85" y1="25" x2="85" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="105" y1="25" x2="105" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="125" y1="25" x2="125" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="145" y1="25" x2="145" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="165" y1="25" x2="165" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="185" y1="25" x2="185" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-    <line x1="195" y1="25" x2="195" y2="60" stroke="#A3629B" stroke-width="3" stroke-linecap="round" />
-  </g>
-  <g transform="translate(340, 260) rotate(-10)">
-    <rect x="10" y="10" width="130" height="90" rx="8" fill="#F3EBF1" stroke="#A3629B" stroke-width="3" />
-    <circle cx="40" cy="38" r="14" fill="none" stroke="#A3629B" stroke-width="2" />
-    <circle cx="40" cy="38" r="10" fill="#A3629B" opacity="0.3" />
-    <circle cx="80" cy="38" r="14" fill="none" stroke="#A3629B" stroke-width="2" />
-    <circle cx="80" cy="38" r="10" fill="#A3629B" />
-    <circle cx="40" cy="72" r="14" fill="none" stroke="#A3629B" stroke-width="2" />
-    <circle cx="40" cy="72" r="10" fill="#A3629B" />
-    <circle cx="80" cy="72" r="14" fill="none" stroke="#A3629B" stroke-width="2" />
-    <circle cx="80" cy="72" r="10" fill="#F3EBF1" stroke="#A3629B" stroke-width="1" />
-    <rect x="112" y="25" width="10" height="60" rx="2" fill="none" stroke="#A3629B" stroke-width="2" />
-    <line x1="112" y1="35" x2="122" y2="35" stroke="#A3629B" stroke-width="2" />
-  </g>
-</svg>"""
-
 ICON_PERCENT = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" '
     'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
