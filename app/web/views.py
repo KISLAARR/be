@@ -8,13 +8,15 @@ from app.db.session import get_db
 from app.models.models import Salon, User, Master, Service as ServiceModel
 from app.web.pages.home import render_home_page
 from app.web.pages.login import render_login_page         
-from app.web.pages.register import render_register_page   
+from app.web.pages.register import render_register_page
+from app.web.pages.model_landing import render_model_landing_page
+from app.web.pages.model_checkout import render_model_checkout_page   
+from app.web.pages.about import render_about_page
+from app.web.pages.business_landing import render_business_landing_page
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.styles import get_base_styles
 from app.web.components.sidebar import render_sidebar
-from app.web.pages.about import render_about_page
-from app.web.pages.business_landing import render_business_landing_page
 from app.web.auth import get_current_user_from_cookie
 
 
@@ -301,19 +303,21 @@ async def about_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/model", response_class=HTMLResponse)
-async def model_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница 'Стань моделью'."""
+async def model_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница «Стань моделью»."""
     user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.model import render_model_page
-    return HTMLResponse(content=render_model_page(user))
+    return HTMLResponse(content=render_model_landing_page(user))
 
 
-@router.get("/model/checkout/{plan}", response_class=HTMLResponse)
-async def model_checkout_page(plan: str, request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница оформления подписки."""
+@router.get("/model/checkout", response_class=HTMLResponse)
+async def model_checkout_page(
+    request: Request,
+    plan: str = "start",
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница оформления подписки модели."""
     user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.model_checkout import render_model_checkout
-    return HTMLResponse(content=render_model_checkout(plan, user))
+    return HTMLResponse(content=render_model_checkout_page(plan, user))
 
 
 @router.get("/model/dashboard", response_class=HTMLResponse)
