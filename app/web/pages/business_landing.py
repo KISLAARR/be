@@ -178,7 +178,7 @@ def render_business_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Онлайн-запись клиентов</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Базовая аналитика</span></li>
                         </ul>
-                        <a href="/business/checkout/?plan=lite" class="plan-btn">
+                        <a href="/business/checkout?plan=lite" class="plan-btn">
                             Подключить
                             {ICON_ARROW_RIGHT}
                         </a>
@@ -200,7 +200,7 @@ def render_business_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Акции и программы лояльности</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Персональная поддержка</span></li>
                         </ul>
-                        <a href="/business/checkout/?plan=business" class="plan-btn">
+                        <a href="/business/checkout?plan=business" class="plan-btn">
                             Подключить
                             {ICON_ARROW_RIGHT}
                         </a>
@@ -222,7 +222,7 @@ def render_business_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Расширенная отчётность</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Выделенный менеджер</span></li>
                         </ul>
-                        <a href="/business/checkout/?plan=corporate" class="plan-btn">
+                        <a href="/business/checkout?plan=corporate" class="plan-btn">
                             Подключить
                             {ICON_ARROW_RIGHT}
                         </a>
@@ -244,7 +244,7 @@ def render_business_landing_page(user=None) -> str:
                         <div class="cta-text">
                             <h2>Готовы начать?</h2>
                             <p>Подключите свой салон к руми и получите доступ к тысячам клиентов. Первые 14 дней — бесплатно.</p>
-                            <a href="/business/checkout/?plan=business" class="cta-btn">
+                            <a href="/business/checkout?plan=business" class="cta-btn">
                                 Подключить салон
                                 {ICON_ARROW_RIGHT}
                             </a>

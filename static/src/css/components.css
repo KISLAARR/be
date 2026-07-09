@@ -236,26 +236,63 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.625rem 0.75rem;
-    border-radius: 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--color-muted);
     text-decoration: none;
-    transition: background-color 0.2s, color 0.2s;
+    transition: color 0.2s;
     background: transparent;
     border: none;
     width: 100%;
     text-align: left;
     cursor: pointer;
+    position: relative;
+    z-index: 1;
 }
 
-.sidebar-link:hover {
-    background-color: var(--color-surface-alt);
-    color: var(--color-heading);
+.sidebar-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 30px; /* Увеличили отступ, чтобы блок спрятался под ::after */
+    bottom: 0;
+    background: transparent;
+    border-radius: 12px 0 0 12px;
+    transition: background 0.2s ease;
+    z-index: -1;
+    pointer-events: none;
 }
 
+.sidebar-link::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: calc(100% - 40px); /* Ваше новое значение */
+    right: 10px; /* Отступили 10px от правого края (было 0) */
+    bottom: 0;
+    background: transparent;
+    border-radius: 0 12px 12px 0;
+    transform: skewX(15deg);
+    transform-origin: top right;
+    transition: background 0.2s ease;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* Синхронно меняем фон у обеих частей при hover и active */
+.sidebar-link:hover::before,
+.sidebar-link:hover::after {
+    background: var(--color-surface-alt);
+}
+
+.sidebar-link.active::before,
+.sidebar-link.active::after {
+    background: var(--color-accent-light);
+}
+
+.sidebar-link:hover,
 .sidebar-link.active {
-    background-color: var(--color-accent-light);
     color: var(--color-heading);
 }
 
