@@ -24,7 +24,11 @@ chmod 600 .env .env.staging
 # в .env.staging:  свой SECRET_KEY и пароль БД (НЕ прод-значения)
 # пароль managed-БД сменить в панели Timeweb (ротация)
 
-# RS256-ключи: прод и staging — РАЗНЫЕ пары
+# RS256-ключи: прод и staging — РАЗНЫЕ пары.
+# ВАЖНО: контейнер работает под пользователем app (uid 999) — после генерации
+# отдать ключи ему, иначе 500 при выпуске JWT (PermissionError):
+#   docker run --rm -u 0 -v /opt/rumi/be/keys:/k rumi-app:prod sh -c 'chown -R 999 /k && chmod 600 /k/*.pem'
+#   (то же для keys-staging с образом rumi-app:staging)
 python3 -m venv /tmp/genkeys && /tmp/genkeys/bin/pip install cryptography
 SECRET_KEY=x POSTGRES_PASSWORD=x /tmp/genkeys/bin/python -m app.scripts.gen_keys   # → ./keys (прод)
 mkdir keys-staging && mv keys/jwt_*.pem keys-staging/ && \
