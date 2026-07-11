@@ -7,6 +7,8 @@ useDefault = true
 description = "Dev-плейсхолдеры и примеры, не настоящие секреты"
 paths = [
   '''\.env\.example''',
+  '''\.env\.staging\.example''',
+  '''tests/.*''',            # фикстуры тестов: заведомо фейковые ключи/пароли
   '''README\.md''',
   '''smoke_test\.sh''',
 ]
