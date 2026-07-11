@@ -27,8 +27,8 @@ def render_register_page(request: Request) -> str:
     banner = _alert(errors.get(q.get("error", ""), ""))
 
     scripts = """
-    <script src="/static/js/phone-mask.js"></script>
-    <script src="/static/js/password-validator.js"></script>
+    <script src="/static/src/js/phone-mask.js"></script>
+    <script src="/static/src/js/password-validator.js"></script>
     """
 
     return f"""<!DOCTYPE html>
@@ -38,7 +38,7 @@ def render_register_page(request: Request) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Регистрация — руми</title>
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/css/login-register.css">
+    <link rel="stylesheet" href="/static/src/css/login-register.css">
 </head>
 <body class="auth-page">
     <div class="auth-card">

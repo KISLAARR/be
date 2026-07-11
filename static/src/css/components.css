@@ -425,7 +425,7 @@
 
 /* components/footer.py */
 .comp-footer {
-    background-color: var(--color-heading);
+    background: linear-gradient(135deg, #1a1a2e 0%, #3a2540 60%, #9e5f96 100%);
     color: var(--color-on-dark-muted);
     position: relative;
     overflow: hidden;

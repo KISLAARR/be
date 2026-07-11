@@ -215,7 +215,7 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
             document.getElementById('submit-note').textContent = 'Мы свяжемся с вами в ближайшее время.';
         }});
     </script>
-    <script src="/static/js/phone-mask.js"></script>
+    <script src="/static/src/js/phone-mask.js"></script>
 </body>
 </html>"""
     return html

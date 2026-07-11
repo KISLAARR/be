@@ -417,7 +417,7 @@
     height: 1.75rem;
 }
 
-.step-number {
+.model-step-number {
     display: inline-flex;
     margin: 0 auto 0.75rem;
     height: 2rem;

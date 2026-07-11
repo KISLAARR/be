@@ -305,7 +305,7 @@
     height: 1.25rem;
 }
 
-.how-step .step-icon .step-number {
+.how-step .step-icon .how-step-number {
     font-size: 0.7rem;
     font-weight: 700;
     color: var(--color-primary);

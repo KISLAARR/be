@@ -6,6 +6,7 @@ from app.web.components.icons import (
     ICON_GIFT,
     ICON_FILE_TEXT,
     ICON_USER,
+    ICON_MODEL,
 )
 
 def render_sidebar(current_page: str = "home", user=None) -> str:
@@ -56,6 +57,9 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     </a>
                     <a class="sidebar-link {is_active('business')}" href="/business">
                         {ICON_BRIEFCASE} Для бизнеса
+                    </a>
+                    <a class="sidebar-link {is_active('model')}" href="/model">
+                        {ICON_MODEL} Стать моделью
                     </a>
                     <a class="sidebar-link {is_active('offer')}" href="/offer">
                         {ICON_GIFT} Предложение

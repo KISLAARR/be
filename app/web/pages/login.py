@@ -28,7 +28,7 @@ def render_login_page(request: Request) -> str:
 
     # Подключаем JS-файлы (маска телефона)
     scripts = """
-    <script src="/static/js/phone-mask.js"></script>
+    <script src="/static/src/js/phone-mask.js"></script>
     """
 
     return f"""<!DOCTYPE html>
@@ -38,7 +38,7 @@ def render_login_page(request: Request) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Вход — руми</title>
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/css/login-register.css">
+    <link rel="stylesheet" href="/static/src/css/login-register.css">
 </head>
 <body class="auth-page">
     <div class="auth-card">

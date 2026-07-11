@@ -124,7 +124,7 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
                     </p>
                 </div>
 
-                <!-- Сам блок с 4 шагами -->
+                <!-- Блок с 4 шагами -->
                 <div class="steps-block">
                     <div class="steps-grid">
                         <!-- 01 -->

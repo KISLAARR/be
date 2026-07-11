@@ -182,7 +182,7 @@ def render_model_landing_page(user=None) -> str:
                         <div class="step-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-plus h-7 w-7 text-white" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" x2="19" y1="8" y2="14"></line><line x1="22" x2="16" y1="11" y2="11"></line></svg>
                         </div>
-                        <div class="step-number">1</div>
+                        <div class="model-step-number">1</div>
                         <h3>Зарегистрируйся</h3>
                         <p>Создай аккаунт в руми и заполни профиль — расскажи о себе, загрузи фото.</p>
                     </div>
@@ -190,7 +190,7 @@ def render_model_landing_page(user=None) -> str:
                         <div class="step-icon">
                             {ICON_SPARKLES}
                         </div>
-                        <div class="step-number">2</div>
+                        <div class="model-step-number">2</div>
                         <h3>Выбери подписку</h3>
                         <p>Выбери тариф, который подходит именно тебе — от Старт до Премиум.</p>
                     </div>
@@ -198,7 +198,7 @@ def render_model_landing_page(user=None) -> str:
                         <div class="step-icon">
                             {ICON_SEARCH}
                         </div>
-                        <div class="step-number">3</div>
+                        <div class="model-step-number">3</div>
                         <h3>Найди мастера</h3>
                         <p>Ищи мастеров по рейтингу, отзывам и услугам. Фильтруй по расстоянию.</p>
                     </div>
@@ -206,7 +206,7 @@ def render_model_landing_page(user=None) -> str:
                         <div class="step-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-check h-7 w-7 text-white" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="m9 16 2 2 4-4"></path></svg>
                         </div>
-                        <div class="step-number">4</div>
+                        <div class="model-step-number">4</div>
                         <h3>Запишись на приём</h3>
                         <p>Выбери удобное время и получи услугу со скидкой. Мастер уже ждёт!</p>
                     </div>

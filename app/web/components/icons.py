@@ -144,6 +144,15 @@ ICON_USER = (
     '</svg>'
 )
 
+ICON_MODEL = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="lucide lucide-camera" aria-hidden="true">'
+    '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>'
+    '<circle cx="12" cy="13" r="3"></circle>'
+    '</svg>'
+)
+
 # Иконка бургер-меню 28x28
 ICON_MENU = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" '
@@ -289,5 +298,33 @@ ICON_CALENDAR_CHECK = (
     '<rect width="18" height="18" x="3" y="4" rx="2"></rect>'
     '<path d="M3 10h18"></path>'
     '<path d="m9 16 2 2 4-4"></path>'
+    '</svg>'
+)
+
+# Иконки для страницы "Предложение"
+ICON_ZAP = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="lucide lucide-zap" aria-hidden="true">'
+    '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>'
+    '</svg>'
+)
+
+ICON_CIRCLE_X = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="lucide lucide-circle-x" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="10"></circle>'
+    '<path d="m15 9-6 6"></path>'
+    '<path d="m9 9 6 6"></path>'
+    '</svg>'
+)
+
+ICON_CREDIT_CARD = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="lucide lucide-credit-card" aria-hidden="true">'
+    '<rect width="20" height="14" x="2" y="5" rx="2"></rect>'
+    '<line x1="2" x2="22" y1="10" y2="10"></line>'
     '</svg>'
 )

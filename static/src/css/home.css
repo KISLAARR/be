@@ -35,7 +35,7 @@
     z-index: 1;
     pointer-events: none;
     mix-blend-mode: multiply;
-    opacity: 0.3;
+    opacity: 0.35;
 }
 
 .home-hero-gradient {
@@ -312,6 +312,11 @@
     border: 1px solid var(--color-border);
     border-radius: 1rem;
     overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.steps-block:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
 .steps-grid {
@@ -341,10 +346,6 @@
     .step-item {
         padding: 2.5rem;
     }
-}
-
-.step-item:hover {
-    background: var(--color-surface-alt);
 }
 
 .step-number {
@@ -786,7 +787,6 @@
     }
 }
 
-/* Сетка карточек — без разделителей */
 .model-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -795,6 +795,11 @@
     border-radius: 1rem;
     overflow: hidden;
     background: var(--color-surface);
+    transition: box-shadow 0.3s ease;
+}
+
+.model-grid:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
 @media (min-width: 768px) {
@@ -982,6 +987,11 @@
     border-radius: 1rem;
     overflow: hidden;
     background: var(--color-surface);
+    transition: box-shadow 0.3s ease;
+}
+
+.business-grid:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
 @media (min-width: 768px) {

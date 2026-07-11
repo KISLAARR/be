@@ -46,7 +46,8 @@ def render_footer() -> str:
             </div>
             <div class="footer-meta footer-meta-flex">
                 <span>© 2026 руми. Все права защищены.</span>
-                <span>4 клика · 30 секунд · 0 звонков</span>
+                <span>Some text?
+                </span>
             </div>
         </div>
     </footer>

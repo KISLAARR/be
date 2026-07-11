@@ -10,6 +10,7 @@
 @import './components.css';
 
 /* Стили страниц */
+@import './about.css';
 @import './home.css';
 @import './login-register.css';
 @import './about.css';
@@ -17,3 +18,4 @@
 @import './business-checkout.css';
 @import './model-landing.css';
 @import './model-checkout.css';
+@import './offer-landing.css';

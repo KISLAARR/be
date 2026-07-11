@@ -114,7 +114,7 @@ def render_business_landing_page(user=None) -> str:
                     <div class="how-step">
                         <div class="step-icon">
                             <div class="icon-circle">{ICON_BUILDING2}</div>
-                            <span class="step-number">Шаг 1</span>
+                            <span class="how-step-number">Шаг 1</span>
                         </div>
                         <div class="step-content">
                             <h3>Зарегистрируйте салон</h3>
@@ -124,7 +124,7 @@ def render_business_landing_page(user=None) -> str:
                     <div class="how-step">
                         <div class="step-icon">
                             <div class="icon-circle">{ICON_SETTINGS}</div>
-                            <span class="step-number">Шаг 2</span>
+                            <span class="how-step-number">Шаг 2</span>
                         </div>
                         <div class="step-content">
                             <h3>Настройте расписание</h3>
@@ -134,7 +134,7 @@ def render_business_landing_page(user=None) -> str:
                     <div class="how-step">
                         <div class="step-icon">
                             <div class="icon-circle">{ICON_MEGAPHONE}</div>
-                            <span class="step-number">Шаг 3</span>
+                            <span class="how-step-number">Шаг 3</span>
                         </div>
                         <div class="step-content">
                             <h3>Привлекайте клиентов</h3>
@@ -144,7 +144,7 @@ def render_business_landing_page(user=None) -> str:
                     <div class="how-step">
                         <div class="step-icon">
                             <div class="icon-circle">{ICON_ROCKET}</div>
-                            <span class="step-number">Шаг 4</span>
+                            <span class="how-step-number">Шаг 4</span>
                         </div>
                         <div class="step-content">
                             <h3>Развивайте бизнес</h3>
