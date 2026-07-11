@@ -7,11 +7,19 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.models.models import Salon, User, Master, Service as ServiceModel
 from app.web.pages.home import render_home_page
+from app.web.pages.login import render_login_page         
+from app.web.pages.register import render_register_page
+from app.web.pages.model_landing import render_model_landing_page
+from app.web.pages.model_checkout import render_model_checkout_page   
+from app.web.pages.about import render_about_page
+from app.web.pages.business_landing import render_business_landing_page
+from app.web.pages.offer_landing import render_offer_landing_page
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.styles import get_base_styles
 from app.web.components.sidebar import render_sidebar
 from app.web.auth import get_current_user_from_cookie
+
 
 router = APIRouter()
 
@@ -92,6 +100,13 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
     return HTMLResponse(content=render_settings_page(user))
 
 
+@router.get("/business", response_class=HTMLResponse)
+async def business_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница «Для бизнеса» (лендинг)."""
+    user = await get_current_user_from_cookie(request, db)
+    return HTMLResponse(content=render_business_landing_page(user))
+
+
 @router.get("/business/dashboard", response_class=HTMLResponse)
 async def business_dashboard_page(
     request: Request, 
@@ -111,6 +126,18 @@ async def business_dashboard_page(
         return RedirectResponse(url="/business/register-salon", status_code=302)
     
     return HTMLResponse(content=await render_business_dashboard(db, user, salon))
+
+
+@router.get("/business/register-salon", response_class=HTMLResponse)
+async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Анкета регистрации салона. Маршрут потерялся при редизайне, хотя
+    страница и редиректы на неё остались — возвращаем."""
+    from app.web.pages.register_salon import render_register_salon_page
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "business":
+        return RedirectResponse(url="/login?redirect=/business/register-salon", status_code=302)
+    return HTMLResponse(content=render_register_salon_page(user))
 
 
 @router.get("/business/my-salon", response_class=HTMLResponse)
@@ -147,13 +174,12 @@ async def admin_page(request: Request, db: AsyncSession = Depends(get_db)):
     return HTMLResponse(content=await render_admin_panel(db, user, request.query_params))
 
 
-@router.get("/business/register-salon", response_class=HTMLResponse)
-async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница регистрации салона."""
+@router.get("/business/checkout", response_class=HTMLResponse)
+async def business_checkout_page(request: Request, db: AsyncSession = Depends(get_db)):
+    plan = request.query_params.get("plan", "business")
     user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.register_salon import render_register_salon_page
-    html = render_register_salon_page(user)
-    return HTMLResponse(content=html)
+    from app.web.pages.business_checkout import render_business_checkout_page
+    return HTMLResponse(content=render_business_checkout_page(plan, user))
 
 
 @router.get("/salons/{salon_id}/book", response_class=HTMLResponse)
@@ -188,7 +214,7 @@ async def book_service_page(salon_id: int, request: Request, db: AsyncSession = 
     {get_base_styles()}
 </head>
 <body>
-    {render_header("salons", user)}
+    {render_header("salons")}
     <div class="section-container" style="padding-top:2rem;max-width:500px;margin:0 auto">
         <h1 class="text-display" style="font-size:1.75rem;margin-bottom:0.5rem">Запись в {salon.name}</h1>
         <p class="text-muted" style="margin-bottom:2rem">Выберите мастера и услугу</p>
@@ -262,197 +288,16 @@ def _alert(msg: str) -> str:
     )
 
 
-# Маска ввода телефона: 8…→+7, разбивка на блоки +7 (XXX) XXX-XX-XX.
-# Без интерполяции Python → raw-строка. Сервер всё равно канонизирует значение.
-_PHONE_FORMAT_SCRIPT = r"""<script>
-(function () {
-  function format(value) {
-    var d = (value || '').replace(/\D/g, '');
-    if (!d) return '';                                 // пусто → поле можно очистить полностью
-    if (d[0] === '8') d = '7' + d.slice(1);            // 8… → 7…
-    else if (d[0] !== '7') d = '7' + d;                // ввели без кода → подставляем 7
-    d = d.slice(0, 11);                                // 7 + 10 цифр
-    var r = d.slice(1), out = '+7';
-    if (r.length)      out += ' (' + r.slice(0, 3);
-    if (r.length >= 3) out += ') ' + r.slice(3, 6);
-    if (r.length >= 6) out += '-' + r.slice(6, 8);
-    if (r.length >= 8) out += '-' + r.slice(8, 10);
-    // без хвостовых разделителей — иначе backspace «застревает» на ) или -
-    return out.replace(/[\s()\-]+$/, '');
-  }
-  document.querySelectorAll('.phone-input').forEach(function (inp) {
-    inp.addEventListener('input', function () { inp.value = format(inp.value); });
-    if (inp.value) inp.value = format(inp.value);       // отформатировать префилл
-  });
-})();
-</script>"""
-
-
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Страница входа."""
-    q = request.query_params
-    redirect = html.escape(q.get("redirect", "/"), quote=True)
-    phone = html.escape(q.get("phone", ""), quote=True)
-    errors = {
-        "1": "Неверный телефон или пароль",
-        "locked": "Слишком много попыток входа. Попробуйте через 15 минут.",
-    }
-    banner = _alert(errors.get(q.get("error", ""), ""))
-
-    return HTMLResponse(content=f"""<!DOCTYPE html>
-<html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход — руми</title>
-{get_base_styles()}
-</head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--color-surface-alt)">
-<div class="card" style="width:100%;max-width:400px;padding:2.5rem">
-    <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
-    <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Вход</h1>
-    {banner}
-    <form action="/api/v1/auth/login-web" method="post">
-        <input type="hidden" name="redirect" value="{redirect}">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
-        <input type="tel" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" inputmode="tel" class="phone-input" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
-        <input type="password" name="password" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <button type="submit" class="btn-primary" style="width:100%">Войти</button>
-    </form>
-    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/register">Регистрация</a> · <a href="/">На главную</a></div>
-</div>
-""" + _PHONE_FORMAT_SCRIPT + """
-</body>
-</html>""")
-
-
-# Живой индикатор требований к паролю (без интерполяции Python → raw-строка)
-_PASSWORD_HINT_SCRIPT = r"""<script>
-(function () {
-  var pw = document.getElementById('pw');
-  var btn = document.getElementById('submitBtn');
-  if (!pw || !btn) return;
-  var rules = {
-    len:   function (v) { return v.length >= 8; },
-    lower: function (v) { return /[a-zа-яё]/.test(v); },
-    upper: function (v) { return /[A-ZА-ЯЁ]/.test(v); },
-    digit: function (v) { return /[0-9]/.test(v); }
-  };
-  function update() {
-    var v = pw.value, all = true;
-    Object.keys(rules).forEach(function (k) {
-      var ok = rules[k](v);
-      all = all && ok;
-      var li = document.querySelector('[data-rule="' + k + '"]');
-      if (li) {
-        li.querySelector('.m').textContent = ok ? '✓' : '✗';
-        li.style.color = ok ? '#16A34A' : 'var(--color-muted)';
-      }
-    });
-    btn.disabled = !all;
-    btn.style.opacity = all ? '1' : '0.6';
-    btn.style.cursor = all ? 'pointer' : 'not-allowed';
-  }
-  pw.addEventListener('input', update);
-  update();
-})();
-</script>"""
+    return HTMLResponse(content=render_login_page(request))
 
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Страница регистрации."""
-    q = request.query_params
-    phone = html.escape(q.get("phone", ""), quote=True)
-    full_name = html.escape(q.get("full_name", ""), quote=True)
-    errors = {
-        "phone_exists": "Пользователь с таким телефоном уже зарегистрирован",
-        "weak_password": "Пароль не отвечает требованиям сложности",
-        "bad_phone": "Неверный формат телефона. Пример: +7 (999) 123-45-67",
-        "no_code": "Получите код подтверждения на телефон перед регистрацией",
-        "bad_code": "Неверный или истёкший код подтверждения",
-        "otp_unavailable": "Сервис отправки кода временно недоступен, попробуйте позже",
-    }
-    banner = _alert(errors.get(q.get("error", ""), ""))
-
-    body = f"""<!DOCTYPE html>
-<html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Регистрация — руми</title>
-{get_base_styles()}
-</head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--color-surface-alt)">
-<div class="card" style="width:100%;max-width:400px;padding:2.5rem">
-    <div style="text-align:center;margin-bottom:1.5rem;font-size:1.5rem;font-weight:800"><span style="color:var(--color-primary)">руми.</span></div>
-    <h1 style="font-size:1.5rem;color:var(--color-heading);text-align:center;margin-bottom:1.5rem">Регистрация</h1>
-    {banner}
-    <form action="/api/v1/auth/register-web" method="post" id="registerForm">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Имя</label>
-        <input type="text" name="full_name" value="{full_name}" placeholder="Ваше имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:1rem">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Телефон</label>
-        <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
-            <input type="tel" id="phone" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" inputmode="tel" class="phone-input" required style="flex:1;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem">
-            <button type="button" id="sendCodeBtn" style="white-space:nowrap;padding:0 1rem;border:1px solid var(--color-primary);border-radius:0.5rem;background:white;color:var(--color-primary);font-size:0.8rem;font-weight:500;cursor:pointer">Получить код</button>
-        </div>
-        <div id="codeGroup" style="display:none;margin-bottom:1rem">
-            <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Код из SMS / звонка</label>
-            <input type="text" id="code" name="code" placeholder="1234" inputmode="numeric" autocomplete="one-time-code" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem">
-            <p id="codeHint" style="font-size:0.75rem;color:var(--color-muted);margin-top:0.375rem"></p>
-        </div>
-        <input type="hidden" id="request_id" name="request_id" value="">
-        <label style="display:block;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem;color:var(--color-heading)">Пароль</label>
-        <input type="password" id="pw" name="password" required minlength="8" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.875rem;margin-bottom:0.5rem">
-        <ul style="list-style:none;padding:0;margin:0 0 1rem;font-size:0.75rem;color:var(--color-muted)">
-            <li data-rule="len"><span class="m">✗</span> Минимум 8 символов</li>
-            <li data-rule="lower"><span class="m">✗</span> Строчная буква</li>
-            <li data-rule="upper"><span class="m">✗</span> Заглавная буква</li>
-            <li data-rule="digit"><span class="m">✗</span> Цифра</li>
-        </ul>
-        <button type="submit" id="submitBtn" class="btn-primary" style="width:100%">Зарегистрироваться</button>
-    </form>
-    <div style="text-align:center;margin-top:1rem;font-size:0.875rem"><a href="/login">Вход</a> · <a href="/">На главную</a></div>
-</div>
-<script>
-(function() {{
-  var btn = document.getElementById('sendCodeBtn');
-  btn.addEventListener('click', async function() {{
-    var phone = document.getElementById('phone').value;
-    if (!phone) {{ alert('Сначала введите номер телефона'); return; }}
-    btn.disabled = true;
-    btn.textContent = 'Отправляем...';
-    try {{
-      var res = await fetch('/api/v1/auth/register/send-code', {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/json' }},
-        body: JSON.stringify({{ phone: phone }})
-      }});
-      var data = await res.json();
-      if (res.ok) {{
-        document.getElementById('request_id').value = data.request_id;
-        document.getElementById('codeGroup').style.display = 'block';
-        document.getElementById('codeHint').textContent = 'Код отправлен на ' + data.masked_phone;
-        btn.textContent = 'Отправить ещё раз';
-      }} else {{
-        alert(data.detail || 'Не удалось отправить код');
-        btn.textContent = 'Получить код';
-      }}
-    }} catch (e) {{
-      alert('Ошибка соединения с сервером');
-      btn.textContent = 'Получить код';
-    }} finally {{
-      btn.disabled = false;
-    }}
-  }});
-
-  document.getElementById('registerForm').addEventListener('submit', function(e) {{
-    if (!document.getElementById('request_id').value) {{
-      e.preventDefault();
-      alert('Сначала получите и введите код из SMS/звонка');
-    }}
-  }});
-}})();
-</script>
-"""
-    tail = _PHONE_FORMAT_SCRIPT + _PASSWORD_HINT_SCRIPT + "\n</body>\n</html>"
-    return HTMLResponse(content=body + tail)
+    return HTMLResponse(content=render_register_page(request))
 
 
 @router.get("/logout", response_class=HTMLResponse)
@@ -463,20 +308,29 @@ async def logout_page():
     return response
 
 
+@router.get("/about", response_class=HTMLResponse)
+async def about_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница «Манифест»."""
+    user = await get_current_user_from_cookie(request, db)
+    return HTMLResponse(content=render_about_page(user))
+
+
 @router.get("/model", response_class=HTMLResponse)
-async def model_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница 'Стань моделью'."""
+async def model_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница «Стань моделью»."""
     user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.model import render_model_page
-    return HTMLResponse(content=render_model_page(user))
+    return HTMLResponse(content=render_model_landing_page(user))
 
 
-@router.get("/model/checkout/{plan}", response_class=HTMLResponse)
-async def model_checkout_page(plan: str, request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница оформления подписки."""
+@router.get("/model/checkout", response_class=HTMLResponse)
+async def model_checkout_page(
+    request: Request,
+    plan: str = "start",
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница оформления подписки модели."""
     user = await get_current_user_from_cookie(request, db)
-    from app.web.pages.model_checkout import render_model_checkout
-    return HTMLResponse(content=render_model_checkout(plan, user))
+    return HTMLResponse(content=render_model_checkout_page(plan, user))
 
 
 @router.get("/model/dashboard", response_class=HTMLResponse)
@@ -485,6 +339,13 @@ async def model_dashboard_page(request: Request, db: AsyncSession = Depends(get_
     user = await get_current_user_from_cookie(request, db)
     from app.web.pages.model_dashboard import render_model_dashboard
     return HTMLResponse(content=render_model_dashboard(user))
+
+
+@router.get("/offer", response_class=HTMLResponse)
+async def offer_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница «Коммерческое предложение»."""
+    user = await get_current_user_from_cookie(request, db)
+    return HTMLResponse(content=render_offer_landing_page(user))
 
 
 @router.get("/book", response_class=HTMLResponse)

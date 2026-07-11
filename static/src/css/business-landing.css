@@ -1,0 +1,640 @@
+/* static/css/business.css */
+
+/* ---------- Hero секция ---------- */
+.business-hero {
+    padding-top: 3rem;
+    padding-bottom: 5rem;
+    background: var(--color-surface);
+    position: relative;
+    overflow: hidden;
+}
+
+.business-hero::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to top, #FFF8F6, #F8C8DC33, #F28C6F22);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.business-hero .section-container {
+    position: relative;
+    z-index: 10;
+    padding-top: 70px;
+}
+
+.business-hero-content {
+    max-width: 48rem;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.business-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    border-radius: 9999px;
+    background: rgba(192, 129, 184, 0.12);
+    color: var(--color-primary);
+    margin-bottom: 1.5rem;
+}
+
+.business-hero-badge svg {
+    color: var(--color-primary);
+    width: 1rem;
+    height: 1rem;
+}
+
+.business-hero-title {
+    font-family: var(--font-heading);
+    font-size: 2.25rem;
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+    color: var(--color-heading);
+}
+
+@media (min-width: 1024px) {
+    .business-hero-title {
+        font-size: 3.75rem;
+    }
+}
+
+.business-hero-title .highlight {
+    color: var(--color-primary);
+}
+
+.business-hero-subtitle {
+    font-family: var(--font-body);
+    font-size: 1.125rem;
+    line-height: 1.625;
+    color: var(--color-muted);
+    max-width: 36rem;
+    margin: 0 auto 2.5rem;
+}
+
+.business-hero-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+@media (min-width: 640px) {
+    .business-hero-buttons {
+        flex-direction: row;
+        justify-content: center;
+    }
+}
+
+.business-hero-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent-hover));
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    text-decoration: none;
+    transition: transform 0.2s;
+}
+
+.business-hero-btn-primary:hover {
+    transform: scale(1.05);
+}
+
+.business-hero-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    border: 1px solid var(--color-border);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.business-hero-btn-secondary:hover {
+    background: var(--color-surface-alt);
+}
+
+/* ---------- Секция "Возможности" ---------- */
+.business-features {
+    background: var(--color-surface);
+}
+
+/* ГРАДИЕНТ снизу вверх */
+.section-gradient-up {
+    background: linear-gradient(to top, #FFF8F6, #F8C8DC33, #F28C6F22);
+    position: relative;
+}
+
+.section-header-center {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.section-header-center .badge {
+    display: inline-block;
+    padding: 0.375rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(192, 129, 184, 0.12);
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+}
+
+.section-header-center h2 {
+    font-family: var(--font-heading);
+    font-size: 1.875rem;
+    margin-top: 1rem;
+    color: var(--color-heading);
+    margin-bottom: 0.5rem;
+}
+
+@media (min-width: 1024px) {
+    .section-header-center h2 {
+        font-size: 2.25rem;
+    }
+}
+
+.section-header-center p {
+    font-family: var(--font-body);
+    color: var(--color-muted);
+    max-width: 32rem;
+    margin: 0 auto;
+}
+
+.features-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+@media (min-width: 768px) {
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .features-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.feature-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    padding: 2rem;
+    transition: all 0.2s;
+}
+
+.feature-card:hover {
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    transform: translateY(-4px);
+}
+
+.feature-card .icon-wrapper {
+    display: flex;
+    height: 3rem;
+    width: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background: rgba(192, 129, 184, 0.12);
+    margin-bottom: 1.25rem;
+}
+
+.feature-card .icon-wrapper svg {
+    color: var(--color-primary);
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.feature-card h3 {
+    font-family: var(--font-heading);
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    margin-bottom: 0.75rem;
+}
+
+.feature-card p {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    line-height: 1.625;
+    color: var(--color-muted);
+}
+
+/* ---------- Секция "Как подключить салон" ---------- */
+.business-how {
+    background: var(--color-background);
+}
+
+/* ГРАДИЕНТ сверху вниз, внизу белый */
+.section-gradient-down {
+    background: linear-gradient(to bottom, #FFF8F6, #F8C8DC33, var(--color-surface));
+    position: relative;
+}
+
+.how-steps {
+    max-width: 48rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.how-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    padding: 1rem 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.how-step:hover {
+    box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.08);
+    border-color: var(--color-primary);
+}
+
+.how-step .step-icon {
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.how-step .step-icon .icon-circle {
+    display: flex;
+    height: 3rem;
+    width: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent-hover));
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.how-step .step-icon .icon-circle svg {
+    color: #fff;
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.how-step .step-icon .how-step-number {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: 0.02em;
+}
+
+.how-step .step-content h3 {
+    font-family: var(--font-heading);
+    font-size: 1.125rem; 
+    font-weight: 600;
+    color: var(--color-heading);
+    margin-bottom: 0.25rem;
+}
+
+.how-step .step-content p {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--color-muted);
+    margin: 0;
+}
+
+/* ---------- Секция "Тарифы" ---------- */
+.business-pricing {
+    background: var(--color-surface);
+}
+
+.pricing-grid {
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+    .pricing-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.pricing-card {
+    position: relative;
+    padding: 2rem;
+    border-radius: 1.5rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.pricing-card:hover {
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    transform: translateY(-4px);
+}
+
+.pricing-card.popular {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent-hover));
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 10px 15px -3px rgba(192, 129, 184, 0.3);
+}
+
+.pricing-card.popular:hover {
+    box-shadow: 0 15px 35px -10px rgba(192, 129, 184, 0.4);
+    transform: translateY(-4px);
+}
+
+.pricing-card.popular .popular-badge {
+    position: absolute;
+    top: -0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    color: var(--color-primary);
+    padding: 0.25rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.pricing-card .plan-name {
+    font-family: var(--font-heading);
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-heading);
+}
+
+.pricing-card.popular .plan-name {
+    color: #fff;
+}
+
+.pricing-card .plan-sub {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+    margin-top: 0.25rem;
+}
+
+.pricing-card.popular .plan-sub {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.pricing-card .plan-price {
+    margin-top: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.pricing-card .plan-price .amount {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.pricing-card.popular .plan-price .amount {
+    color: #fff;
+}
+
+.pricing-card .plan-price .period {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+}
+
+.pricing-card.popular .plan-price .period {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.pricing-card .plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.pricing-card .plan-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.pricing-card .plan-features li svg {
+    color: var(--color-primary);
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.pricing-card.popular .plan-features li svg {
+    color: #fff;
+}
+
+.pricing-card .plan-features li span {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+}
+
+.pricing-card.popular .plan-features li span {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.pricing-card .plan-btn {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent-hover));
+    color: #fff;
+    transition: transform 0.2s;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.pricing-card .plan-btn:hover {
+    transform: scale(1.05);
+}
+
+.pricing-card.popular .plan-btn {
+    background: #fff;
+    color: var(--color-primary);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-card.popular .plan-btn:hover {
+    transform: scale(1.05);
+}
+
+.pricing-footer {
+    text-align: center;
+    margin-top: 2.5rem;
+    font-size: 0.875rem;
+    color: var(--color-muted);
+}
+
+.pricing-footer .text-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.pricing-footer .text-link:hover {
+    opacity: 0.7;
+}
+
+/* ---------- CTA секция ---------- */
+.business-cta {
+    background: var(--color-surface);
+}
+
+.cta-block {
+    position: relative;
+    border-radius: 1.5rem;
+    padding: 2.5rem 2rem;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent-hover));
+    overflow: hidden;
+}
+
+@media (min-width: 768px) {
+    .cta-block {
+        padding: 4rem;
+    }
+}
+
+.cta-block .bg-blob {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    filter: blur(2rem);
+}
+
+.cta-block .bg-blob.top-right {
+    top: -5rem;
+    right: -5rem;
+    width: 16rem;
+    height: 16rem;
+}
+
+.cta-block .bg-blob.bottom-left {
+    bottom: -4rem;
+    left: -4rem;
+    width: 12rem;
+    height: 12rem;
+}
+
+.cta-block .cta-content {
+    position: relative;
+    z-index: 10;
+    display: grid;
+    gap: 2.5rem;
+    align-items: center;
+}
+
+@media (min-width: 1024px) {
+    .cta-block .cta-content {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.cta-block .cta-text h2 {
+    font-family: var(--font-heading);
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+@media (min-width: 1024px) {
+    .cta-block .cta-text h2 {
+        font-size: 2.25rem;
+    }
+}
+
+.cta-block .cta-text p {
+    font-size: 1rem;
+    line-height: 1.625;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 28rem;
+    margin-bottom: 2rem;
+}
+
+.cta-block .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    background: #fff;
+    color: var(--color-primary);
+    text-decoration: none;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.cta-block .cta-btn:hover {
+    transform: scale(1.05);
+}
+
+.cta-block .cta-features {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.cta-block .cta-feature {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(4px);
+}
+
+.cta-block .cta-feature svg {
+    color: #fff;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+.cta-block .cta-feature span {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #fff;
+}

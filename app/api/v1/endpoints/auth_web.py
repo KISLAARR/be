@@ -124,7 +124,9 @@ async def register_web(
     if existing.scalar_one_or_none():
         return RedirectResponse(url=f"/register?error=phone_exists&{keep}", status_code=302)
 
-    if not request_id or not code:
+    # При выключенном OTP (нет SMS-провайдера) поля кода не требуем вовсе —
+    # страница их и не показывает; verify_code в этом режиме всегда True
+    if settings.OTP_ENABLED and (not request_id or not code):
         return RedirectResponse(url=f"/register?error=no_code&{keep}", status_code=302)
 
     try:

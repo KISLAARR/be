@@ -1,4 +1,4 @@
-# app/web/pages/model_checkout.py
+# app/web/pages/business_checkout.py
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
@@ -10,54 +10,62 @@ from app.web.components.icons import (
 import json
 
 TARIFFS = {
-    "start": {
-        "id": "start",
-        "name": "Старт",
-        "description": "Для тех, кто хочет попробовать",
-        "price": "490 ₽",
-        "period": "/мес",
+    "lite": {
+        "id": "lite",
+        "name": "Лайт",
+        "description": "До 5 сотрудников",
+        "price": "250 ₽",
+        "period": "за сотрудника/мес",
         "features": [
-            "До 3 записей в месяц",
-            "Скидка 30% на услуги мастеров",
-            "Доступ к начинающим мастерам",
-            "Базовое портфолио"
+            "Оплата только за сотрудников",
+            "Управление расписанием",
+            "Онлайн-запись клиентов",
+            "Базовая аналитика"
         ]
     },
-    "pro": {
-        "id": "pro",
-        "name": "Про",
-        "description": "Самый популярный выбор",
-        "price": "990 ₽",
+    "business": {
+        "id": "business",
+        "name": "Бизнес",
+        "description": "5–10 сотрудников",
+        "price": "3 500 ₽",
         "period": "/мес",
         "features": [
-            "До 8 записей в месяц",
-            "Скидка 50% на все услуги",
-            "Приоритетная запись",
-            "Доступ к топ-мастерам",
-            "Расширенное портфолио",
-            "Эксклюзивные процедуры"
+            "Расширенная аналитика",
+            "Приоритет в выдаче",
+            "Акции и программы лояльности",
+            "Персональная поддержка"
         ]
     },
-    "premium": {
-        "id": "premium",
-        "name": "Премиум",
-        "description": "Максимум возможностей",
-        "price": "1 990 ₽",
+    "corporate": {
+        "id": "corporate",
+        "name": "Корпоративный",
+        "description": "10–20 сотрудников",
+        "price": "6 990 ₽",
         "period": "/мес",
         "features": [
-            "Безлимитные записи",
-            "Скидка до 70% на услуги",
-            "VIP приоритет на запись",
-            "Доступ ко всем мастерам",
-            "Персональный менеджер",
-            "Фотосессии для портфолио",
-            "Ранний доступ к новым салонам"
+            "Мульти-филиалы",
+            "VIP поддержка",
+            "Индивидуальные интеграции",
+            "Расширенная отчётность",
+            "Выделенный менеджер"
+        ]
+    },
+    "custom": {
+        "id": "custom",
+        "name": "Индивидуальный",
+        "description": "Более 20 сотрудников",
+        "price": "По запросу",
+        "period": "",
+        "features": [
+            "Всё из тарифа «Корпоративный»",
+            "Индивидуальные условия",
+            "Персональный SLA"
         ]
     }
 }
 
-def render_model_checkout_page(plan: str = "start", user=None) -> str:
-    active = TARIFFS.get(plan, TARIFFS["start"])
+def render_business_checkout_page(plan: str = "business", user=None) -> str:
+    active = TARIFFS.get(plan, TARIFFS["business"])
     tariffs_json = json.dumps(TARIFFS, ensure_ascii=False)
     
     features_html = ''.join(f'<li>{ICON_CIRCLE_CHECK}<span>{f}</span></li>' for f in active["features"])
@@ -67,41 +75,45 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Оформление подписки | Руми</title>
-    <meta name="description" content="Оформите подписку «Модель» и получайте услуги со скидкой">
+    <title>Подключение салона | Руми</title>
+    <meta name="description" content="Подключите свой салон к платформе Руми">
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/css/model-checkout.css">
 </head>
 <body>
-    {render_header("model")}
-    {render_sidebar("model", user)}
+    {render_header("business")}
+    {render_sidebar("business", user)}
 
     <main class="home-main">
         <section class="section-py section-gradient checkout-section">
             <div class="section-container">
                 <div class="checkout-wrapper">
-                    <a href="/model#plans" class="checkout-back-link">
+                    <a href="/business#pricing" class="checkout-back-link">
                         {ICON_ARROW_LEFT}
                         Назад к тарифам
                     </a>
                     <div class="checkout-header">
-                        <h1 class="text-display checkout-title">Оформление подписки</h1>
-                        <p class="text-body checkout-subtitle">Заполните данные для подключения тарифа</p>
+                        <h1 class="text-display checkout-title">Подключение салона</h1>
+                        <p class="text-body checkout-subtitle">Заполните данные — мы свяжемся для настройки</p>
                     </div>
 
                     <!-- Селектор тарифов -->
                     <div class="tariff-selector">
-                        <button class="tariff-btn" data-plan="start">Старт</button>
-                        <button class="tariff-btn active" data-plan="pro">Про</button>
-                        <button class="tariff-btn" data-plan="premium">Премиум</button>
+                        <button class="tariff-btn" data-plan="lite">Лайт</button>
+                        <button class="tariff-btn active" data-plan="business">Бизнес</button>
+                        <button class="tariff-btn" data-plan="corporate">Корпоративный</button>
+                        <button class="tariff-btn" data-plan="custom">Индивидуальный</button>
                     </div>
 
                     <div class="checkout-grid">
                         <div class="checkout-form">
                             <div class="form-fields">
                                 <div>
-                                    <label class="form-label">Имя</label>
-                                    <input type="text" placeholder="Анна Иванова" class="form-input">
+                                    <label class="form-label">Контактное лицо</label>
+                                    <input type="text" placeholder="Иван Петров" class="form-input">
+                                </div>
+                                <div>
+                                    <label class="form-label">Название салона</label>
+                                    <input type="text" placeholder="Салон «Красота»" class="form-input">
                                 </div>
                                 <div>
                                     <label class="form-label">Телефон</label>
@@ -109,7 +121,11 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
                                 </div>
                                 <div>
                                     <label class="form-label">Email</label>
-                                    <input type="email" placeholder="anna@example.com" class="form-input">
+                                    <input type="email" placeholder="salon@example.com" class="form-input">
+                                </div>
+                                <div>
+                                    <label class="form-label">Количество сотрудников</label>
+                                    <input type="text" placeholder="Например: 7" class="form-input">
                                 </div>
                                 <label class="checkbox-label">
                                     <input type="checkbox" class="checkbox-input" id="terms-checkbox">
@@ -117,7 +133,7 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
                                 </label>
                             </div>
                             <button class="checkout-submit" id="submit-btn">
-                                Оплатить {active["price"]}
+                                Подключить салон
                             </button>
                             <p class="checkout-note" id="submit-note">Оплата будет доступна после интеграции с банком. Сейчас — заявка.</p>
                         </div>
@@ -133,21 +149,6 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
                             </ul>
                         </div>
                     </div>
-
-                    <!-- Партнёр Альфа-Банк (внутри чекаута) -->
-                    <div class="partner-mini" style="margin-top: 2rem; padding: 1rem; border: 1px solid #ffcaca; border-radius: 1rem; background: #fef2f2; display: flex; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div style="display: flex; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border-radius: 0.75rem; background: #EE3424;">
-                                <span style="font-size: 1.25rem; font-weight: 900; color: white;">A</span>
-                            </div>
-                            <div>
-                                <p style="font-size: 0.875rem; font-weight: 600; color: #1a1a1f;">Альфа-Банк</p>
-                                <span style="font-size: 0.7rem; color: #6b6470;">Партнёр руми</span>
-                            </div>
-                        </div>
-                        <p style="flex:1; font-size: 0.875rem; color: #1a1a1f;">Оплачивай подписку Альфа‑Картой — <span style="color: #EE3424; font-weight: 600;">кешбэк 5%</span></p>
-                        <a href="https://alfabank.ru" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 9999px; background: #EE3424; color: #fff; font-size: 0.75rem; font-weight: 500; text-decoration: none;">Оформить карту</a>
-                    </div>
                 </div>
             </div>
         </section>
@@ -157,6 +158,9 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
     <script>
         // Данные тарифов из Python
         const tariffs = {tariffs_json};
+
+        // Иконка галочки для вставки в список
+        const checkIcon = `{ICON_CIRCLE_CHECK}`;
 
         function switchTariff(planId) {{
             document.querySelectorAll('.tariff-btn').forEach(btn => {{
@@ -174,11 +178,8 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
 
             const featuresList = document.getElementById('tariff-features');
             featuresList.innerHTML = tariff.features.map(f => 
-                `<li>${{ICON_CIRCLE_CHECK}}<span>${{f}}</span></li>`
+                `<li>${{checkIcon}}<span>${{f}}</span></li>`
             ).join('');
-
-            // Обновляем текст кнопки
-            document.getElementById('submit-btn').innerHTML = 'Оплатить ' + tariff.price;
 
             const url = new URL(window.location);
             url.searchParams.set('plan', planId);
@@ -200,14 +201,16 @@ def render_model_checkout_page(plan: str = "start", user=None) -> str:
             }}
         }});
 
-        // Обработка отправки формы
+        // === Обработка отправки формы ===
         document.getElementById('submit-btn').addEventListener('click', function(e) {{
             e.preventDefault();
+            // Проверяем, согласен ли пользователь
             const checkbox = document.getElementById('terms-checkbox');
             if (!checkbox.checked) {{
                 alert('Пожалуйста, согласитесь с условиями использования и политикой конфиденциальности.');
                 return;
             }}
+            // Отправляем заявку (имитация)
             this.textContent = '✅ Заявка отправлена';
             this.disabled = true;
             this.style.opacity = '0.7';

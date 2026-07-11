@@ -6,11 +6,19 @@ from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
+from app.web.components.icons import (
+    ICON_SEARCH,
+    ICON_SCISSORS,
+    ICON_SPARKLES,
+    ICON_PERCENT,
+    ICON_STORE,
+    ICON_ARROW_RIGHT,
+)
 
 
 async def render_home_page(db: AsyncSession, user=None) -> str:
     """Главная страница руми."""
-    
+
     # Получаем популярные салоны
     try:
         result = await db.execute(
@@ -20,30 +28,26 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     except Exception as e:
         print(f"Ошибка загрузки салонов: {e}")
         salons = []
-    
+
     # Карточки салонов
     salon_cards = ""
     for s in salons:
         salon_cards += f"""
-        <div class="card" style="text-align: center;">
-            <div style="width: 4rem; height: 4rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; font-weight: bold;">
-                {s.name[0]}
-            </div>
-            <h3 class="text-subtitle" style="font-size: 1.1rem;">{s.name}</h3>
-            <p class="text-muted" style="font-size: 0.85rem; margin: 0.5rem 0;">
-                📍 {s.address or 'Адрес не указан'}
-            </p>
-            <p style="font-weight: 600; color: var(--color-primary);">
+        <div class="card salon-card">
+            <div class="salon-avatar">{s.name[0]}</div>
+            <h3 class="text-subtitle salon-name">{s.name}</h3>
+            <p class="salon-address">📍 {s.address or 'Адрес не указан'}</p>
+            <p class="salon-rating">
                 ⭐ {s.rating or '0.0'} 
-                <span class="text-muted" style="font-weight: 400;">({s.reviews_count or 0} отзывов)</span>
+                <span class="salon-rating-count">({s.reviews_count or 0} отзывов)</span>
             </p>
-            <a href="/salons/{s.id}" class="btn-primary" style="margin-top: 1rem; font-size: 0.85rem; padding: 0.5rem 1rem;">Подробнее</a>
+            <a href="/salons/{s.id}" class="btn-primary salon-btn">Подробнее</a>
         </div>
         """
-    
+
     if not salons:
-        salon_cards = '<p style="text-align: center; grid-column: 1 / -1;">Пока нет салонов. <a href="/register">Зарегистрируйтесь</a> как владелец, чтобы добавить первый салон!</p>'
-    
+        salon_cards = '<p class="salon-empty">Пока нет салонов. <a href="/register">Зарегистрируйтесь</a> как владелец, чтобы добавить первый салон!</p>'
+
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -54,86 +58,268 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     {get_base_styles()}
 </head>
 <body>
-    {render_header("home", user)}
-    {render_sidebar("home")}
+    {render_header("home")}
+    {render_sidebar("home", user)}
 
-    <main style="margin-right: 16rem;">
-        <!-- Hero -->
-        <section style="position: relative; background: linear-gradient(135deg, #FFF8F6, #F8C8DC33, #F28C6F22); overflow: hidden; padding: 8rem 0 6rem 0;">
-            <div class="section-container" style="position: relative; z-index: 10;">
-                <div class="badge" style="margin-bottom: 1rem;">Запись в пару кликов</div>
-                <h1 class="text-display" style="font-size: 6rem; line-height: 1.1;">Красота — рядом<br>с вами</h1>
-                <p style="font-size: 1.1rem; max-width: 32rem; margin-bottom: 2rem; color: var(--color-body);">Выберите услугу, салон и время — готово. Никаких звонков, всё онлайн.</p>
-                
-                <a href="/salons" style="display: flex; align-items: center; gap: 0.75rem; background: white; border: 2px solid transparent; border-radius: 1rem; padding: 1rem 1.5rem; width: 100%; max-width: 40rem; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.08); text-decoration: none; transition: all 0.2s;">
-                    <div style="display: flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); border-radius: 50%; color: white; flex-shrink: 0;">
-                        🔍
+    <main class="home-main">
+        <!-- Hero секция -->
+        <section class="home-hero">
+        
+            <img src="/static/images/flower-home.png" alt="" class="home-hero-bg-img">
+            <div class="home-hero-gradient"></div>
+
+            <div class="section-container">
+                <div class="home-hero-content">
+                    <h1 class="home-hero-title text-display">
+                        Красота — это просто<span class="dot-primary">.</span>
+                    </h1>
+                    <p class="home-hero-subtitle text-body-lg">
+                        Услуга, салон, время — готово. Без звонков и ожиданий.
+                    </p>
+
+                    <!-- Поиск -->
+                    <div class="home-search-card">
+                        <a href="/salons" class="home-search-link group">
+                            <div class="home-search-icon-wrapper">
+                                {ICON_SEARCH}
+                            </div>
+                            <div class="home-search-info">
+                                <span class="home-search-title">Найти салон или услугу</span>
+                                <span class="home-search-desc">Маникюр, стрижка, окрашивание, брови...</span>
+                            </div>
+                            <div class="home-search-btn hidden sm:flex">
+                                Найти
+                            </div>
+                        </a>
                     </div>
-                    <div style="flex: 1; text-align: left;">
-                        <span style="display: block; font-weight: 600; color: var(--color-heading); font-size: 1.1rem;">Найти салон или услугу</span>
-                        <span style="display: block; color: var(--color-muted); font-size: 0.875rem;">Маникюр, стрижка, окрашивание, брови...</span>
+
+                    <!-- Теги -->
+                    <div class="home-hero-tags">
+                        <a href="/salons?service=стрижка" class="home-tag">
+                            {ICON_SCISSORS} Стрижка
+                        </a>
+                        <a href="/salons?service=маникюр" class="home-tag">
+                            {ICON_SPARKLES} Маникюр
+                        </a>
+                        <a href="/salons?service=окрашивание" class="home-tag">
+                            {ICON_SPARKLES} Окрашивание
+                        </a>
+                        <a href="/salons?service=брови" class="home-tag">
+                            {ICON_SPARKLES} Брови
+                        </a>
                     </div>
-                    <div style="background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); color: white; padding: 0.75rem 1.5rem; border-radius: 2rem; font-weight: 600; font-size: 0.875rem;">Найти</div>
-                </a>
-                
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem;">
-                    <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">✂️ Стрижка</a>
-                    <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">💅 Маникюр</a>
-                    <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">🎨 Окрашивание</a>
-                    <a href="/salons" class="btn-outline" style="font-size: 0.85rem;">✨ Брови</a>
-                </div>
-                
-                <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 2rem;">
-                    <span class="text-muted" style="font-size: 0.875rem;">📍 Салоны рядом с вами</span>
-                    <span class="text-muted" style="font-size: 0.875rem;">⚡ Запись за 30 секунд</span>
-                    <span class="text-muted" style="font-size: 0.875rem;">✅ Проверенные мастера</span>
                 </div>
             </div>
         </section>
 
         <!-- Как записаться -->
-        <section class="section-py bg-surface">
+        <section class="section-py" style="background:var(--color-surface);">
             <div class="section-container">
-                <div style="text-align: center; margin-bottom: 3rem;">
-                    <div class="badge">Просто как 1-2-3</div>
-                    <h2 class="text-display" style="font-size: 2.5rem; margin-top: 1rem;">Как записаться?</h2>
-                    <p class="text-body" style="max-width: 32rem; margin: 0.5rem auto 0;">Три простых шага — и вы записаны к лучшему мастеру</p>
+                <div class="how-title-wrapper">
+                    <h2 class="how-title">
+                        Как записаться<span class="how-title-dot">?</span>
+                    </h2>
+                    <p class="how-subtitle">
+                        Никаких звонков. Никаких форм с десятью полями. Ничего лишнего.
+                    </p>
                 </div>
-                <div class="grid-3" style="max-width: 48rem; margin: 0 auto;">
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">1</div>
-                        <span class="badge" style="margin-bottom: 0.5rem;">Шаг 01</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Найдите салон</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Выберите салон или услугу рядом с вами. Фильтры, рейтинги и отзывы помогут.</p>
+
+                <!-- Блок с 4 шагами -->
+                <div class="steps-block">
+                    <div class="steps-grid">
+                        <!-- 01 -->
+                        <div class="step-item">
+                            <div class="step-number">
+                                <span class="step-num">01</span>
+                                <span class="step-dot" style="color:var(--color-primary);">.</span>
+                            </div>
+                            <h3 class="step-headline">Услуга</h3>
+                            <p class="step-desc">Выберите, что нужно сделать.</p>
+                        </div>
+                        <!-- 02 -->
+                        <div class="step-item">
+                            <div class="step-number">
+                                <span class="step-num">02</span>
+                                <span class="step-dot" style="color:var(--color-primary);">.</span>
+                            </div>
+                            <h3 class="step-headline">Салон</h3>
+                            <p class="step-desc">Найдите ближайший с нужным мастером.</p>
+                        </div>
+                        <!-- 03 -->
+                        <div class="step-item">
+                            <div class="step-number">
+                                <span class="step-num">03</span>
+                                <span class="step-dot" style="color:var(--color-primary);">.</span>
+                            </div>
+                            <h3 class="step-headline">Время</h3>
+                            <p class="step-desc">Возьмите свободное окно в один тап.</p>
+                        </div>
+                        <!-- 04 -->
+                        <div class="step-item">
+                            <div class="step-number">
+                                <span class="step-num">04</span>
+                                <span class="step-dot" style="color:var(--color-primary);">.</span>
+                            </div>
+                            <h3 class="step-headline">Готово</h3>
+                            <p class="step-desc">Приходите. Напоминание придёт само.</p>
+                        </div>
                     </div>
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">2</div>
-                        <span class="badge" style="margin-bottom: 0.5rem;">Шаг 02</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Выберите время</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Посмотрите свободные окна у мастера и выберите удобное время.</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Популярные салоны -->
+        <section class="section-py bg-surface-alt">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2 class="text-display section-title">Популярные салоны</h2>
+                    <p class="text-muted section-subtitle">Лучшие салоны красоты по отзывам пользователей руми</p>
+                </div>
+                <div class="salon-cards-grid">
+                    {salon_cards}
+                </div>
+                <div class="text-center mt-10">
+                    <a href="/salons" class="btn-outline">Смотреть все салоны →</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Партнёр Т‑Банк -->
+        <section class="section-py">
+            <div class="section-container">
+                <div class="partner-card">
+                    <div class="partner-inner">
+                        <!-- Левая колонка -->
+                        <div class="partner-left">
+                            <div class="partner-badge">Партнёр руми</div>
+                            <div class="partner-logo-wrapper">
+                                <div class="partner-logo-box">
+                                    <span class="partner-logo-letter">Т</span>
+                                </div>
+                                <div>
+                                    <p class="partner-bank-name">Т‑Банк</p>
+                                    <p class="partner-bank-desc">Эквайринг и кешбэк</p>
+                                </div>
+                            </div>
+                            <h3 class="partner-title">Оплаты, касса и кешбэк<br class="partner-br" /> — через Т‑Банк</h3>
+                            <p class="partner-desc">Для клиентов — кешбэк на услуги красоты с Т‑Картой. Для салонов — онлайн‑эквайринг, торговые терминалы и онлайн‑касса. Один партнёр, всё из коробки.</p>
+                            <div class="partner-buttons">
+                                <a href="https://www.tbank.ru" target="_blank" rel="noopener noreferrer" class="partner-btn-primary">
+                                    Оформить Т‑Карту
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right" aria-hidden="true">
+                                        <path d="M5 12h14"></path>
+                                        <path d="m12 5 7 7-7 7"></path>
+                                    </svg>
+                                </a>
+                                <a href="https://www.tbank.ru/business/" target="_blank" rel="noopener noreferrer" class="partner-btn-secondary">Для салонов</a>
+                            </div>
+                        </div>
+                        <!-- Правая колонка -->
+                        <div class="partner-right">
+                            <div class="partner-stat-card">
+                                <div class="partner-stat-icon">
+                                    {ICON_PERCENT}
+                                </div>
+                                <div>
+                                    <p class="partner-stat-value">5%</p>
+                                    <p class="partner-stat-label">кешбэк клиентам</p>
+                                </div>
+                                <p class="partner-stat-desc">На все услуги в салонах руми при оплате Т‑Картой</p>
+                            </div>
+                            <div class="partner-stat-card">
+                                <div class="partner-stat-icon">
+                                    {ICON_STORE}
+                                </div>
+                                <div>
+                                    <p class="partner-stat-value">0 ₽</p>
+                                    <p class="partner-stat-label">подключение салона</p>
+                                </div>
+                                <p class="partner-stat-desc">Эквайринг и онлайн‑касса для салонов руми — без платы за подключение</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card" style="text-align: center;">
-                        <div style="width: 3rem; height: 3rem; border-radius: 50%; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white;">3</div>
-                        <span class="badge" style="margin-bottom: 0.5rem;">Шаг 03</span>
-                        <h3 class="text-subtitle" style="font-size: 1.1rem; margin: 0.5rem 0;">Готово!</h3>
-                        <p class="text-muted" style="font-size: 0.875rem;">Приходите в назначенное время. Напоминание придёт заранее.</p>
+                    <div class="partner-footer">
+                        <span>Реклама • Т‑Банк • tbank.ru</span>
+                        <span>18+</span>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Популярные салоны -->
-        <section class="section-py bg-surface-alt">
+        <!-- Стать моделью -->
+        <section class="section-py" id="become-model">
             <div class="section-container">
-                <div style="text-align: center; margin-bottom: 3rem;">
-                    <h2 class="text-display" style="font-size: 2.5rem;">Популярные салоны</h2>
-                    <p class="text-muted" style="max-width: 32rem; margin: 0.5rem auto 0;">Лучшие салоны красоты по отзывам пользователей руми</p>
+                <div class="model-label">Для клиентов</div>
+                <div class="model-header">
+                    <div class="model-title-wrap">
+                        <h2 class="model-title">Стать моделью —<br />и платить меньше<span class="model-title-dot">.</span></h2>
+                        <p class="model-subtitle">Мастерам нужна практика. Вам — красивая стрижка или новая техника. Подписка — и услуги до 70% дешевле.</p>
+                    </div>
                 </div>
-                <div class="grid-3" style="max-width: 48rem; margin: 0 auto;">
-                    {salon_cards}
+                <div class="model-grid">
+                    <div class="model-item">
+                        <div class="model-item-value">−70%<span class="model-item-dot">.</span></div>
+                        <p class="model-item-desc">Услуги от мастеров со скидкой до 70%.</p>
+                    </div>
+                    <div class="model-item">
+                        <div class="model-item-value">Приоритет<span class="model-item-dot">.</span></div>
+                        <p class="model-item-desc">Первыми получаете лучшие окна записи.</p>
+                    </div>
+                    <div class="model-item">
+                        <div class="model-item-value">Новое<span class="model-item-dot">.</span></div>
+                        <p class="model-item-desc">Первые тестируете процедуры и техники.</p>
+                    </div>
+                    <div class="model-item">
+                        <div class="model-item-value">Портфолио<span class="model-item-dot">.</span></div>
+                        <p class="model-item-desc">Профессиональные фото после визита.</p>
+                    </div>
                 </div>
-                <div style="text-align: center; margin-top: 2.5rem;">
-                    <a href="/salons" class="btn-outline">Смотреть все салоны →</a>
+                <div class="model-cta">
+                    <a href="/model" class="btn-primary model-btn">
+                        Оформить подписку
+                        {ICON_ARROW_RIGHT}
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Для бизнеса -->
+        <section class="section-py section-gradient" id="for-business">
+            <div class="section-container">
+                <div class="business-label">Для бизнеса</div>
+                <div class="business-header">
+                    <div class="business-title-wrap">
+                        <h2 class="business-title">Управлять салоном —<br />тоже просто<span class="business-title-dot">.</span></h2>
+                        <p class="business-subtitle">Расписание, оплаты, клиенты, аналитика — всё в одном окне. Подключение за 15 минут. Первые 14 дней бесплатно.</p>
+                    </div>
+                </div>
+                <div class="business-grid">
+                    <div class="business-item">
+                        <div class="business-number">01<span class="business-number-dot">.</span></div>
+                        <h3 class="business-item-title">Расписание</h3>
+                        <p class="business-item-desc">Записи мастеров — в одном окне.</p>
+                    </div>
+                    <div class="business-item">
+                        <div class="business-number">02<span class="business-number-dot">.</span></div>
+                        <h3 class="business-item-title">Клиенты</h3>
+                        <p class="business-item-desc">История, заметки, повторные визиты.</p>
+                    </div>
+                    <div class="business-item">
+                        <div class="business-number">03<span class="business-number-dot">.</span></div>
+                        <h3 class="business-item-title">Оплаты</h3>
+                        <p class="business-item-desc">Касса, чаевые, отчёты — внутри.</p>
+                    </div>
+                    <div class="business-item">
+                        <div class="business-number">04<span class="business-number-dot">.</span></div>
+                        <h3 class="business-item-title">Аналитика</h3>
+                        <p class="business-item-desc">Выручка, загрузка, эффективность.</p>
+                    </div>
+                </div>
+                <div class="business-cta">
+                    <a href="/business" class="btn-primary business-btn">
+                        Подключить салон
+                        {ICON_ARROW_RIGHT}
+                    </a>
                 </div>
             </div>
         </section>
@@ -142,5 +328,5 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     </main>
 </body>
 </html>"""
-    
+
     return html

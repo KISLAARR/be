@@ -20,6 +20,7 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
     )
     bookings = bookings_result.scalars().all()
     
+
     # Разделяем на предстоящие и завершённые.
     # Брони хранятся naive (DateTime timezone=False) → сравниваем с naive now,
     # иначе TypeError: can't compare offset-naive and offset-aware datetimes.
@@ -144,8 +145,8 @@ async def render_bookings_page(db: AsyncSession, user) -> str:
     </style>
 </head>
 <body>
-    {render_header("bookings", user)}
-    {render_sidebar("bookings")}
+    {render_header("bookings")}
+    {render_sidebar("bookings", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

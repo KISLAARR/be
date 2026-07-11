@@ -16,3 +16,4 @@ keys/
 docker-compose.override.yml
 .env.staging
 keys-staging/
+node_modules/

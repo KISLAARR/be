@@ -95,8 +95,8 @@ def render_model_dashboard(user=None) -> str:
     </style>
 </head>
 <body>
-    {render_header("model", None)}
-    {render_sidebar("model")}
+    {render_header("model")}
+    {render_sidebar("model", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

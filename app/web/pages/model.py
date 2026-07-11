@@ -236,7 +236,7 @@ def render_model_page(user=None) -> str:
                             <li>Доступ к базовым салонам</li>
                             <li>Push-уведомления</li>
                         </ul>
-                        <a href="/model/checkout/start" class="btn-primary" style="width:100%">Выбрать Старт</a>
+                        <a href="/model/checkout?plan=start" class="btn-primary" style="width:100%">Выбрать Старт</a>
                     </div>
                     
                     <!-- Про (популярный) -->
@@ -251,7 +251,7 @@ def render_model_page(user=None) -> str:
                             <li>Приоритетная запись</li>
                             <li>Эксклюзивные акции</li>
                         </ul>
-                        <a href="/model/checkout/pro" class="btn-primary" style="width:100%">Выбрать Про</a>
+                        <a href="/model/checkout?plan=pro" class="btn-primary" style="width:100%">Выбрать Про</a>
                     </div>
                     
                     <!-- Премиум -->
@@ -266,7 +266,7 @@ def render_model_page(user=None) -> str:
                             <li>Закрытые мероприятия</li>
                             <li>Персональный стилист</li>
                         </ul>
-                        <a href="/model/checkout/premium" class="btn-primary" style="width:100%">Выбрать Премиум</a>
+                        <a href="/model/checkout?plan=premium" class="btn-primary" style="width:100%">Выбрать Премиум</a>
                     </div>
                 </div>
                 
