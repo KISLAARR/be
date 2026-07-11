@@ -36,6 +36,26 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
         </a>
         """
 
+    # Ролевые разделы (потерялись при редизайне): админка и панель бизнеса
+    role_items = ""
+    role = getattr(getattr(user, "role", None), "value", None)
+    if role == "admin":
+        role_items += f"""
+                    <a class="sidebar-link {is_active('admin')}" href="/admin">
+                        {ICON_USER} Админ-панель
+                    </a>"""
+    if role == "business":
+        role_items += f"""
+                    <a class="sidebar-link {is_active('business_dashboard')}" href="/business/dashboard">
+                        {ICON_BRIEFCASE} Панель бизнеса
+                    </a>"""
+    role_links = ""
+    if role_items:
+        role_links = f"""
+                <div class="space-y-1" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--color-border,#E5E7EB)">
+                    {role_items}
+                </div>"""
+
     return f"""
     <!-- Оверлей для затемнения -->
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -67,7 +87,7 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     <a class="sidebar-link {is_active('manifest')}" href="/about">
                         {ICON_FILE_TEXT} Манифест
                     </a>
-                </div>
+                </div>{role_links}
             </nav>
         </div>
     </aside>
