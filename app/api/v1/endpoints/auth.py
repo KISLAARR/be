@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.db.session import get_db
 from app.models.models import User, UserRole
-from app.schemas.user import RegisterRequest, LoginRequest
+from app.schemas.user import RegisterRequest, LoginRequest, SendCodeRequest
 from app.core.security import (
     create_access_token,
     get_password_hash,
@@ -16,11 +16,44 @@ from app.core.security import (
 from app.core.limiter import (
     limiter,
     is_account_locked,
+    otp_send_allowed,
     register_login_failure,
     reset_login_failures,
 )
+from app.services import otp
 
 router = APIRouter()
+
+
+@router.post("/register/send-code")
+@limiter.limit("3/minute")
+async def send_register_code(
+    request: Request,
+    data: SendCodeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправляет код подтверждения на телефон перед регистрацией."""
+    existing = await db.execute(select(User).where(User.phone == data.phone))
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Пользователь с таким номером уже зарегистрирован",
+        )
+
+    # Второй лимит поверх IP-шного slowapi: по самому номеру, против
+    # распределённого SMS-бомбинга одного телефона с разных IP
+    if not await otp_send_allowed(data.phone):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много запросов кода на этот номер, попробуйте позже",
+        )
+
+    try:
+        result = await otp.send_code(data.phone)
+    except otp.OTPError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    return result
 
 
 @router.post("/register")
@@ -32,6 +65,9 @@ async def register(
 
     Роль ВСЕГДА client — её нельзя задать из запроса (защита от privilege
     escalation). BUSINESS/MASTER назначаются отдельным модерируемым процессом.
+
+    Требует предварительного вызова /register/send-code — телефон должен
+    быть подтверждён кодом (request_id/code проверяются в app.services.otp).
     """
     try:
         validate_password_strength(data.password)
@@ -43,6 +79,17 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Пользователь с таким номером уже зарегистрирован",
+        )
+
+    try:
+        code_valid = await otp.verify_code(data.request_id, data.code, data.phone)
+    except otp.OTPError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    if not code_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный или истёкший код подтверждения",
         )
 
     user = User(

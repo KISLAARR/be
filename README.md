@@ -26,10 +26,57 @@ python -m app.scripts.gen_keys    # сгенерировать пару RS256-к
 ```bash
 docker compose up -d db redis     # PostgreSQL + Redis
 alembic upgrade head              # миграции
-python main.py
+uvicorn app.main:app --reload
 ```
 
+> SMS-подтверждение телефона (SMSC.ru/SMS.ru) пока официально не подключено —
+> `OTP_ENABLED=false` в `.env.example` временно пропускает проверку кода при
+> регистрации (в `production` это состояние нужно подтвердить явно, см.
+> `OTP_DISABLED_ACK` там же). Код и его состояние живут в Redis (TTL) —
+> `app/services/otp.py` + `app/services/sms_provider.py`, отдельного сервиса
+> для этого не заводим. Когда провайдер будет настроен — `SMS_MODE=live`,
+> `OTP_ENABLED=true`.
+
 Dev-данные (`python -m app.scripts.seed_data`) создаются с паролем `Seedpass1`.
+
+## Прод-деплой (Timeweb, один VPS, два стека)
+
+На сервере живут **три compose-проекта**: `rumi-prod` (docker-compose.prod.yml:
+app + arq-worker + redis; PostgreSQL — **управляемая БД Timeweb**), `rumi-staging`
+(docker-compose.staging.yml: то же + свой контейнер Postgres, конфиг из
+`.env.staging`) и `rumi-edge` (docker-compose.edge.yml: один Caddy на 80/443,
+проксирует оба стека через внешнюю docker-сеть `edge`; staging закрыт basic_auth).
+Подтверждение телефона (SMS/flash-call через SMSC.ru, резерв SMS.ru) — часть
+самого приложения (Redis TTL), отдельного сервиса/БД под это не поднимаем.
+
+**Полная инструкция первого запуска — [server/RUNBOOK.md](server/RUNBOOK.md)**
+(первичная настройка хоста — `server/bootstrap.sh`: deploy-user, SSH-hardening,
+ufw, fail2ban). Коротко:
+```bash
+sudo bash server/bootstrap.sh '<публичный ssh-ключ>'   # один раз, под root
+cp .env.example .env && cp .env.staging.example .env.staging   # заполнить, chmod 600
+python -m app.scripts.gen_keys                # прод-ключи; для staging — отдельная пара
+./deploy.sh staging && ./deploy.sh prod       # build + миграции + up + health-check
+```
+Staging обновляется автоматически по пушу в main (`.github/workflows/deploy-staging.yml`,
+нужны secrets `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_SSH_KEY`); прод — только руками
+`./deploy.sh prod`. Откат: `docker tag rumi-app:prod-prev rumi-app:prod && ./deploy.sh prod --no-pull --no-build`.
+
+### Бэкапы в S3 (доп. подстраховка)
+
+Managed PostgreSQL Timeweb уже делает ежедневные бэкапы сам. `backup_to_s3.sh`
+дублирует дампы обеих БД в S3 (VK Cloud, подключается в панели Timeweb) —
+на случай проблем с самим Timeweb. Настройка:
+
+```bash
+chmod +x backup_to_s3.sh
+crontab -e
+# добавить строку (ежедневно в 03:00):
+0 3 * * * cd /opt/beauty_platform && ./backup_to_s3.sh >> /var/log/db_backup.log 2>&1
+```
+
+Требует `postgresql-client` и `awscli` на хосте (`apt install postgresql-client awscli`)
+и заполненные `S3_ENDPOINT`/`S3_BUCKET`/`S3_ACCESS_KEY`/`S3_SECRET_KEY` в `.env`.
 
 ## Безопасность
 

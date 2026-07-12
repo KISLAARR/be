@@ -128,6 +128,18 @@ async def business_dashboard_page(
     return HTMLResponse(content=await render_business_dashboard(db, user, salon))
 
 
+@router.get("/business/register-salon", response_class=HTMLResponse)
+async def register_salon_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Анкета регистрации салона. Маршрут потерялся при редизайне, хотя
+    страница и редиректы на неё остались — возвращаем."""
+    from app.web.pages.register_salon import render_register_salon_page
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user or user.role.value != "business":
+        return RedirectResponse(url="/login?redirect=/business/register-salon", status_code=302)
+    return HTMLResponse(content=render_register_salon_page(user))
+
+
 @router.get("/business/my-salon", response_class=HTMLResponse)
 async def my_salon_page(
     request: Request, 

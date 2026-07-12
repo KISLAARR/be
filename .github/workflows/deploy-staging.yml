@@ -1,0 +1,46 @@
+# Автодеплой staging: пуш в main → по SSH выполнить deploy.sh staging.
+# Прод НЕ деплоится автоматикой — только руками на сервере (./deploy.sh prod).
+#
+# Требуемые secrets (пока сервера нет — можно не задавать, джоба тихо
+# пропустится, как DefectDojo в devsecops.yml):
+#   DEPLOY_HOST     — IP/хост сервера Timeweb
+#   DEPLOY_USER     — deploy (создаёт server/bootstrap.sh)
+#   DEPLOY_SSH_KEY  — приватный ключ (пара к ключу из bootstrap)
+name: deploy-staging
+
+on:
+  push:
+    branches: [main]
+
+# Один деплой за раз; новый пуш ждёт завершения предыдущего
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+    steps:
+      - name: Deploy staging over SSH
+        if: ${{ env.DEPLOY_HOST != '' }}
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=15 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              'cd /opt/rumi/be && ./deploy.sh staging'
+
+      - name: Skipped (нет DEPLOY_HOST)
+        if: ${{ env.DEPLOY_HOST == '' }}
+        run: echo "Секреты деплоя не заданы — пропускаем (сервер ещё не подключён)."

@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import List
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Корень проекта (…/be) — чтобы пути к ключам и .env не зависели от cwd
@@ -49,6 +49,59 @@ class Settings(BaseSettings):
 
     # SQL-эхо в логи. В проде ДОЛЖНО быть False (иначе параметры запросов утекают).
     SQL_ECHO: bool = False
+
+    # --- OTP (подтверждение телефона при регистрации) ---
+    # Код и его состояние живут только в Redis (TTL) — своей БД не нужно.
+    OTP_METHOD: str = "flash_call"  # flash_call (дешевле) или sms
+    OTP_LENGTH: int = 4
+    OTP_TTL_MINUTES: int = 5
+    MAX_VERIFY_ATTEMPTS: int = 3
+
+    # Провайдер отправки: mock (код никуда не уходит, виден в dev_code ответа
+    # и в логах) или live (SMSC.ru, резерв SMS.ru — см. app/services/sms_provider.py).
+    SMS_MODE: str = "mock"
+    SMSC_LOGIN: str = ""
+    SMSC_PASSWORD: str = ""
+    SMSC_SENDER_ID: str = ""
+    SMSRU_API_ID: str = ""
+
+    # Временный рубильник: пока нет официального подключения SMS-провайдера,
+    # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py
+    # возвращает фиктивный request_id и считает любой код верным).
+    OTP_ENABLED: bool = True
+
+    # Выключенный OTP в production = регистрация без подтверждения телефона.
+    # Чтобы рубильник не дожил до релиза незамеченным, в production такое
+    # состояние надо подтверждать явно вторым флагом — иначе приложение
+    # не стартует (та же логика, что принудительный COOKIE_SECURE).
+    OTP_DISABLED_ACK: bool = False
+
+    @model_validator(mode="after")
+    def _otp_guard_in_prod(self) -> "Settings":
+        # model_validator (не field_validator): должен срабатывать и на дефолтах
+        if (
+            self.ENVIRONMENT == "production"
+            and not self.OTP_ENABLED
+            and not self.OTP_DISABLED_ACK
+        ):
+            raise ValueError(
+                "OTP_ENABLED=false в production: любой код подтверждения будет "
+                "принят. Если это осознанно (SMS-провайдер ещё не подключён), "
+                "задайте OTP_DISABLED_ACK=true; иначе включите OTP_ENABLED."
+            )
+        if (
+            self.ENVIRONMENT == "production"
+            and self.OTP_ENABLED
+            and self.SMS_MODE == "mock"
+        ):
+            raise ValueError(
+                "SMS_MODE=mock в production при включённом OTP: коды не уходят "
+                "на телефон, а возвращаются в ответе /send-code любому, кто их "
+                "запросил (dev_code) — проверка телефона превращается в бутафорию. "
+                "Настройте SMS_MODE=live с кредами SMSC, либо отключите OTP "
+                "осознанно (OTP_ENABLED=false + OTP_DISABLED_ACK=true)."
+            )
+        return self
 
     @field_validator("COOKIE_SECURE")
     @classmethod
