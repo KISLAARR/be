@@ -1,8 +1,8 @@
-# Автодеплой staging: пуш в main → по SSH выполнить deploy.sh staging.
-# Прод НЕ деплоится автоматикой — только руками на сервере (./deploy.sh prod).
+# Автодеплой staging: пуш в ветку staging → по SSH выполнить deploy.sh staging.
+# SSH-ключ на сервере ограничен форс-командой (умеет только deploy.sh staging).
+# Прод деплоится отдельным workflow (deploy-prod.yml) из main.
 #
-# Требуемые secrets (пока сервера нет — можно не задавать, джоба тихо
-# пропустится, как DefectDojo в devsecops.yml):
+# Требуемые secrets (без них джоба тихо пропустится):
 #   DEPLOY_HOST     — IP/хост сервера Timeweb
 #   DEPLOY_USER     — deploy (создаёт server/bootstrap.sh)
 #   DEPLOY_SSH_KEY  — приватный ключ (пара к ключу из bootstrap)
@@ -10,7 +10,7 @@ name: deploy-staging
 
 on:
   push:
-    branches: [main]
+    branches: [staging]
 
 # Один деплой за раз; новый пуш ждёт завершения предыдущего
 concurrency:

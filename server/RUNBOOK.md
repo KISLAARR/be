@@ -59,14 +59,25 @@ crontab -e   # под deploy:
 ```
 S3-переменные — в `.env` (панель Timeweb → S3 VK Cloud). **Проверить restore**: скачать дамп, развернуть в staging-Postgres, убедиться, что приложение живо, — бэкап без проверенного restore не считается.
 
-### Автодеплой staging из GitHub
-В настройках репозитория → Secrets → Actions добавить `DEPLOY_HOST`, `DEPLOY_USER=deploy`, `DEPLOY_SSH_KEY` (приватная часть ключа). После этого каждый пуш в main обновляет staging сам.
+### Автодеплой из GitHub (канонический репозиторий — KISLAARR/be)
+Модель веток: **`staging` → staging** (deploy-staging.yml), **`main` → прод**
+(deploy-prod.yml; можно запустить и руками из вкладки Actions). `deploy.sh`
+сам чекаутит нужную ветку — общий чекаут на сервере руками не переключать.
+
+Secrets (Settings → Secrets → Actions, нужна роль Admin): `DEPLOY_HOST`,
+`DEPLOY_USER=deploy`, `DEPLOY_SSH_KEY` (ключ staging), `DEPLOY_PROD_SSH_KEY`
+(ОТДЕЛЬНЫЙ ключ прода). Оба ключа на сервере ограничены форс-командами:
+каждый умеет запустить только свой deploy.sh, ни shell, ни чужой стек.
+
+**Обязательное условие для прод-автодеплоя**: branch protection на `main`
+(и желательно `staging`) — изменения только через одобренный PR. Иначе
+прод катит любой, у кого есть право пуша в репозиторий.
 
 ## 2. Обычная работа
 
 | Действие | Команда |
 | --- | --- |
-| Деплой прод | `./deploy.sh prod` (только руками, после проверки на staging) |
+| Деплой прод | пуш/merge в `main` (или Actions → deploy-prod → Run); руками: `./deploy.sh prod` |
 | Деплой staging руками | `./deploy.sh staging` |
 | Откат | `docker tag rumi-app:prod-prev rumi-app:prod && ./deploy.sh prod --no-pull --no-build` |
 | Логи | `docker logs -f rumi-prod-app` (или `-staging-`, `rumi-edge-caddy`) |

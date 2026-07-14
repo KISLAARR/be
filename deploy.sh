@@ -27,18 +27,25 @@ case "${ENV_NAME}" in
         COMPOSE=(docker compose -p rumi-prod -f docker-compose.prod.yml)
         APP_CONTAINER="rumi-prod-app"
         IMAGE="rumi-app:prod"
+        BRANCH="main"
         ;;
     staging)
         COMPOSE=(docker compose -p rumi-staging -f docker-compose.staging.yml --env-file .env.staging)
         APP_CONTAINER="rumi-staging-app"
         IMAGE="rumi-app:staging"
+        BRANCH="staging"
         ;;
     *)
         echo "Использование: ./deploy.sh staging|prod" >&2; exit 1 ;;
 esac
 
-echo "[deploy:${ENV_NAME}] обновление кода..."
+# Каждое окружение жёстко привязано к своей ветке (staging → staging,
+# prod → main): общий чекаут больше не нужно переключать руками, и деплой
+# не зависит от того, на какой ветке сервер оставили в прошлый раз.
+echo "[deploy:${ENV_NAME}] обновление кода (ветка ${BRANCH})..."
 if [ "${NO_PULL}" -eq 0 ]; then
+    git fetch origin
+    git checkout "${BRANCH}"
     git pull --ff-only
 fi
 
