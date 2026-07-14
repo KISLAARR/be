@@ -18,9 +18,12 @@ services:
       # Прод-TLS: пока DOMAIN=IP — internal (LE не выдаёт сертификаты на IP);
       # с реальным доменом задать PROD_TLS=<email> в .env → Let's Encrypt.
       PROD_TLS: ${PROD_TLS:-internal}
-      # .test не выдаётся Let's Encrypt'ом — для него tls internal (см. Caddyfile);
-      # *.localhost не годится: Safari/Chrome шлют его на 127.0.0.1 мимо hosts
-      STAGING_DOMAIN: ${STAGING_DOMAIN:-rumi-staging.test}
+      # sslip.io = wildcard-DNS: staging.201-24-60-247.sslip.io публично
+      # резолвится в наш IP. Выдуманные хосты (.test и т.п.) не годятся:
+      # DPI провайдеров (ТСПУ) шлёт RST на TLS с SNI несуществующих в DNS
+      # имён — staging был недоступен без VPN. *.localhost не годится тоже:
+      # Safari/Chrome шлют его на 127.0.0.1 мимо hosts.
+      STAGING_DOMAIN: ${STAGING_DOMAIN:-staging.201-24-60-247.sslip.io}
       STAGING_TLS: ${STAGING_TLS:-internal}
       # basic_auth на staging-хост: bcrypt-хеш пароля. Сгенерировать свой:
       #   docker run --rm caddy:2-alpine caddy hash-password --plaintext 'ПАРОЛЬ'
