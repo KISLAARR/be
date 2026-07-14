@@ -1,11 +1,16 @@
 # app/services/otp.py
-"""Подтверждение телефона кодом (SMS/flash-call).
+"""Подтверждение телефона: кодом (SMS/flash-call) или через Telegram-бота.
 
 Код и его состояние живут только в Redis (TTL) — «положили, сравнили,
 стёрли», отдельная БД/сервис для этого не нужны. Ранее логика была вынесена
 в отдельный микросервис (otp-service); при единственном потребителе (это
 приложение) лишний контейнер/БД/секрет только добавляли точку отказа, без
 выигрыша в изоляции — поэтому код вернулся внутрь.
+
+Telegram-канал (блок 18): вместо кода запись со status=pending; бот
+(app/tg_bot.py) после «Поделиться контактом» переводит её в confirmed —
+verify_code для таких записей проверяет статус и совпадение номера,
+код не участвует. Запись одноразовая, как и у SMS.
 """
 import hashlib
 import secrets
@@ -76,8 +81,61 @@ async def send_code(phone: str) -> dict:
     }
 
 
+TG_STATUS_PENDING = "pending"
+TG_STATUS_CONFIRMED = "confirmed"
+
+
+def tg_deep_link(request_id: str) -> str:
+    """Ссылка, открывающая бота с токеном верификации."""
+    return f"https://t.me/{settings.TG_BOT_USERNAME}?start={request_id}"
+
+
+async def start_tg_verification(phone: str) -> dict:
+    """Создаёт ожидающую запись для подтверждения через Telegram-бота.
+
+    request_id (uuid4) — одновременно и токен deep link'а: энтропии больше,
+    чем у SMS-кода, живёт OTP_TTL_MINUTES и одноразов.
+    """
+    request_id = str(uuid.uuid4())
+    try:
+        r = get_redis()
+        key = _key(request_id)
+        await r.hset(
+            key,
+            mapping={
+                "phone_hash": _hash(phone),
+                "channel": "telegram",
+                "status": TG_STATUS_PENDING,
+                "attempts": 0,
+            },
+        )
+        await r.expire(key, settings.OTP_TTL_MINUTES * 60)
+    except Exception as e:
+        raise OTPError(f"Хранилище кодов недоступно: {e}") from e
+
+    return {
+        "request_id": request_id,
+        "deep_link": tg_deep_link(request_id),
+        "masked_phone": _mask_phone(phone),
+        "expires_in_seconds": settings.OTP_TTL_MINUTES * 60,
+    }
+
+
+async def get_tg_status(request_id: str) -> str:
+    """pending | confirmed | not_found (нет записи, истекла или не TG-канал)."""
+    try:
+        r = get_redis()
+        record = await r.hgetall(_key(request_id))
+    except Exception as e:
+        raise OTPError(f"Хранилище кодов недоступно: {e}") from e
+
+    if not record or record.get("channel") != "telegram":
+        return "not_found"
+    return record.get("status", TG_STATUS_PENDING)
+
+
 async def verify_code(request_id: str, code: str, phone: str) -> bool:
-    """True, если код верный, не истёк и не превышены попытки.
+    """True, если подтверждение валидно: верный код (SMS) либо confirmed (TG).
 
     Успешная проверка одноразовая — запись сразу удаляется из Redis.
     """
@@ -93,6 +151,14 @@ async def verify_code(request_id: str, code: str, phone: str) -> bool:
 
     if not record or record.get("phone_hash") != _hash(phone):
         return False  # не найден, истёк по TTL или не тот номер
+
+    if record.get("channel") == "telegram":
+        # Подтверждение делает бот (contact.user_id == from_user.id и номер
+        # совпал) — здесь достаточно статуса; код в этом канале не участвует.
+        if record.get("status") == TG_STATUS_CONFIRMED:
+            await r.delete(key)
+            return True
+        return False
 
     if int(record.get("attempts", 0)) >= settings.MAX_VERIFY_ATTEMPTS:
         await r.delete(key)

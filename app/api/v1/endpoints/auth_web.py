@@ -124,9 +124,11 @@ async def register_web(
     if existing.scalar_one_or_none():
         return RedirectResponse(url=f"/register?error=phone_exists&{keep}", status_code=302)
 
-    # При выключенном OTP (нет SMS-провайдера) поля кода не требуем вовсе —
-    # страница их и не показывает; verify_code в этом режиме всегда True
-    if settings.OTP_ENABLED and (not request_id or not code):
+    # При выключенном OTP (нет каналов) поля подтверждения не требуем вовсе —
+    # страница их и не показывает; verify_code в этом режиме всегда True.
+    # Требуем только request_id: код нужен лишь СМС-каналу, а для Telegram
+    # его нет по устройству — какой канал и что проверять, решает verify_code.
+    if settings.OTP_ENABLED and not request_id:
         return RedirectResponse(url=f"/register?error=no_code&{keep}", status_code=302)
 
     try:

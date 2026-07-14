@@ -16,17 +16,25 @@ def _alert(msg: str) -> str:
     )
 
 
-def _otp_block() -> str:
-    """Блок подтверждения телефона кодом. Рендерится только при включённом OTP
-    (settings.OTP_ENABLED) — пока SMS-провайдер не подключён, регистрация идёт
-    без кода и бэкенд его не требует (см. auth_web.register_web)."""
+def _sms_code_block() -> str:
+    """Блок ввода кода из СМС. Рендерится, только когда СМС-канал реально
+    доступен (live-провайдер, либо mock вне production для разработки)."""
     return """
             <div class="form-group" id="codeGroup" style="display:none">
                 <label for="code">Код из SMS / звонка</label>
                 <input type="text" id="code" name="code" placeholder="1234" inputmode="numeric" autocomplete="one-time-code">
                 <p id="codeHint" style="font-size:0.75rem;color:var(--color-muted,#6B7280);margin-top:0.375rem"></p>
-            </div>
-            <input type="hidden" id="request_id" name="request_id" value="">"""
+            </div>"""
+
+
+def _tg_verify_block() -> str:
+    """Кнопка подтверждения через Telegram-бота (блок 18): бот просит
+    «Поделиться контактом», страница поллит статус (tg-verify.js)."""
+    return """
+            <div class="form-group" id="tgVerifyGroup">
+                <button type="button" id="tgVerifyBtn" class="btn-primary" style="width:100%">Подтвердить номер в Telegram</button>
+                <p id="tgHint" style="font-size:0.75rem;color:var(--color-muted,#6B7280);margin-top:0.375rem">Откроется наш бот — нажмите в нём «Поделиться контактом», код вводить не нужно</p>
+            </div>"""
 
 
 def render_register_page(request: Request) -> str:
@@ -38,17 +46,23 @@ def render_register_page(request: Request) -> str:
         "phone_exists": "Пользователь с таким телефоном уже зарегистрирован",
         "weak_password": "Пароль не отвечает требованиям сложности",
         "bad_phone": "Неверный формат телефона. Пример: +7 (999) 123-45-67",
-        "no_code": "Получите код подтверждения на телефон перед регистрацией",
-        "bad_code": "Неверный или истёкший код подтверждения",
-        "otp_unavailable": "Сервис отправки кода временно недоступен, попробуйте позже",
+        "no_code": "Подтвердите телефон перед регистрацией",
+        "bad_code": "Подтверждение не прошло или истекло — попробуйте ещё раз",
+        "otp_unavailable": "Сервис подтверждения временно недоступен, попробуйте позже",
     }
     banner = _alert(errors.get(q.get("error", ""), ""))
 
     otp_enabled = settings.OTP_ENABLED
+    # Каналы подтверждения. СМС в production с mock-провайдером — не канал
+    # (эндпоинт send-code такое отбивает), поэтому и кнопку не рисуем.
+    sms_available = otp_enabled and (
+        settings.SMS_MODE == "live" or settings.ENVIRONMENT != "production"
+    )
+    tg_available = otp_enabled and settings.TG_VERIFY_ENABLED
 
-    # Кнопка «Получить код» рядом с телефоном — только при включённом OTP
+    # Кнопка «Получить код» рядом с телефоном — только при доступном СМС-канале
     phone_input = f'<input type="tel" id="phone" name="phone" value="{phone}" placeholder="+7 (___) ___-__-__" class="phone-input" required>'
-    if otp_enabled:
+    if sms_available:
         phone_group = f"""
             <div class="form-group">
                 <label for="phone">Телефон</label>
@@ -64,13 +78,27 @@ def render_register_page(request: Request) -> str:
                 {phone_input}
             </div>"""
 
+    # request_id общий для обоих каналов (его заполняет otp-code.js либо
+    # tg-verify.js), поэтому hidden-поле рендерится при любом включённом OTP
+    verify_blocks = ""
+    if otp_enabled:
+        verify_blocks = '<input type="hidden" id="request_id" name="request_id" value="">'
+        if tg_available:
+            verify_blocks = _tg_verify_block() + verify_blocks
+        if sms_available:
+            verify_blocks = _sms_code_block() + verify_blocks
+
     scripts = """
     <script src="/static/src/js/phone-mask.js"></script>
     <script src="/static/src/js/password-validator.js"></script>
     """
-    if otp_enabled:
+    if sms_available:
         scripts += """
     <script src="/static/src/js/otp-code.js"></script>
+    """
+    if tg_available:
+        scripts += """
+    <script src="/static/src/js/tg-verify.js"></script>
     """
 
     return f"""<!DOCTYPE html>
@@ -91,7 +119,7 @@ def render_register_page(request: Request) -> str:
             <div class="form-group">
                 <label for="full_name">Имя</label>
                 <input type="text" id="full_name" name="full_name" value="{full_name}" placeholder="Ваше имя">
-            </div>{phone_group}{_otp_block() if otp_enabled else ''}
+            </div>{phone_group}{verify_blocks}
             <div class="form-group">
                 <label for="password">Пароль</label>
                 <input type="password" id="pw" name="password" required minlength="8">

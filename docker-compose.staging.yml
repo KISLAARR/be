@@ -61,6 +61,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Telegram-бот подтверждения номера (блок 18): long polling, наружу портов
+  # нет — только исходящие к api.telegram.org и Redis. Стартует осмысленно
+  # лишь при TG_VERIFY_ENABLED=true + TG_BOT_TOKEN в .env.staging.
+  tg-bot:
+    image: rumi-app:staging
+    container_name: rumi-staging-tg-bot
+    env_file: .env.staging
+    command: ["python", "-m", "app.tg_bot"]
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    # HEALTHCHECK из Dockerfile проверяет HTTP /health — у бота его нет
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
   arq-worker:
     image: rumi-app:staging
     container_name: rumi-staging-arq

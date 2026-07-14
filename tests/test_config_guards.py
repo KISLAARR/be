@@ -24,7 +24,8 @@ def _restore_config():
     """
     yield
     os.environ.update(ENVIRONMENT="development", OTP_ENABLED="true", SMS_MODE="mock")
-    os.environ.pop("OTP_DISABLED_ACK", None)
+    for var in ("OTP_DISABLED_ACK", "TG_VERIFY_ENABLED", "TG_BOT_TOKEN", "TG_BOT_USERNAME"):
+        os.environ.pop(var, None)
     import app.core.config as config_mod
 
     importlib.reload(config_mod)
@@ -59,6 +60,22 @@ def test_prod_live_provider_starts(monkeypatch):
     mod = _load_settings(monkeypatch, ENVIRONMENT="production",
                          OTP_ENABLED="true", SMS_MODE="live")
     assert mod.settings.SMS_MODE == "live"
+
+
+def test_prod_mock_sms_with_tg_channel_starts(monkeypatch):
+    """Telegram-канал (блок 18) — живой канал: prod с mock-СМС стартует."""
+    mod = _load_settings(monkeypatch, ENVIRONMENT="production",
+                         OTP_ENABLED="true", SMS_MODE="mock",
+                         TG_VERIFY_ENABLED="true", TG_BOT_TOKEN="000:x",
+                         TG_BOT_USERNAME="rumi_test_bot")
+    assert mod.settings.TG_VERIFY_ENABLED is True
+
+
+def test_tg_enabled_without_token_fails(monkeypatch):
+    with pytest.raises(Exception, match="TG_BOT_TOKEN"):
+        _load_settings(monkeypatch, ENVIRONMENT="development",
+                       OTP_ENABLED="true", SMS_MODE="mock",
+                       TG_VERIFY_ENABLED="true")
 
 
 def test_cookie_secure_forced_in_prod(monkeypatch):

@@ -13,6 +13,7 @@ from app.core.security import (
     needs_rehash,
     validate_password_strength,
 )
+from app.core.config import settings
 from app.core.limiter import (
     limiter,
     is_account_locked,
@@ -33,6 +34,14 @@ async def send_register_code(
     db: AsyncSession = Depends(get_db),
 ):
     """Отправляет код подтверждения на телефон перед регистрацией."""
+    # В production mock-СМС не канал (коды никуда не уходят): пока нет
+    # договора с провайдером, СМС-путь закрыт — есть Telegram (tg-start).
+    if settings.ENVIRONMENT == "production" and settings.SMS_MODE == "mock":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Подтверждение по СМС временно недоступно",
+        )
+
     existing = await db.execute(select(User).where(User.phone == data.phone))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -54,6 +63,59 @@ async def send_register_code(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     return result
+
+
+@router.post("/register/tg-start")
+@limiter.limit("3/minute")
+async def start_tg_verification(
+    request: Request,
+    data: SendCodeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Начинает подтверждение телефона через Telegram-бота (блок 18).
+
+    Возвращает deep link на бота; дальше бот переводит запись в confirmed,
+    страница узнаёт об этом через /register/tg-status.
+    """
+    if not settings.TG_VERIFY_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Подтверждение через Telegram выключено",
+        )
+
+    existing = await db.execute(select(User).where(User.phone == data.phone))
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Пользователь с таким номером уже зарегистрирован",
+        )
+
+    # Общий с send-code бюджет попыток на номер: каналы разные, цель одна
+    if not await otp_send_allowed(data.phone):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много попыток подтверждения этого номера, попробуйте позже",
+        )
+
+    try:
+        return await otp.start_tg_verification(data.phone)
+    except otp.OTPError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+@router.get("/register/tg-status")
+@limiter.limit("30/minute")
+async def tg_verification_status(request: Request, request_id: str):
+    """Статус TG-подтверждения для поллинга страницей: pending|confirmed|not_found."""
+    if not settings.TG_VERIFY_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Подтверждение через Telegram выключено",
+        )
+    try:
+        return {"status": await otp.get_tg_status(request_id)}
+    except otp.OTPError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
 
 @router.post("/register")
