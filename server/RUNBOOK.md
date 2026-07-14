@@ -2,6 +2,8 @@
 
 Схема: один сервер, три compose-проекта — `rumi-prod` (app+arq+redis, БД = managed PostgreSQL Timeweb), `rumi-staging` (то же + свой контейнер Postgres) и `rumi-edge` (один Caddy на 80/443, проксирует оба стека через внешнюю docker-сеть `edge`; staging закрыт basic_auth).
 
+Адреса до появления домена: прод — `https://<IP сервера>` (самоподписанный сертификат), staging — `https://staging.201-24-60-247.sslip.io` (sslip.io = wildcard-DNS, имя публично резолвится в IP; выдуманные хосты типа `.test` не работают у провайдеров с DPI — режут TLS по SNI несуществующих имён). С реальным доменом staging переезжает на `staging.<домен>` (см. §3).
+
 ## 1. Первый запуск (один раз)
 
 ```bash
