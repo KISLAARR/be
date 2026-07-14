@@ -9,6 +9,11 @@
 # добавить "443:443/udp" в docker-compose.edge.yml, ufw allow 443/udp,
 # убрать этот блок.
 {
+    # Заходы по IP-адресу идут без SNI (SNI не бывает IP по RFC) — без этой
+    # опции Caddy не подбирает сертификат и рвёт handshake (alert 80).
+    # С реальным доменом опция безвредна: безымянные клиенты получат прод-хост.
+    default_sni {$DOMAIN:localhost}
+
     servers {
         protocols h1 h2
     }
