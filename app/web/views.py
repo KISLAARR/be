@@ -13,7 +13,6 @@ from app.web.pages.model_landing import render_model_landing_page
 from app.web.pages.model_checkout import render_model_checkout_page   
 from app.web.pages.about import render_about_page
 from app.web.pages.business_landing import render_business_landing_page
-from app.web.pages.offer_landing import render_offer_landing_page
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.styles import get_base_styles
@@ -339,13 +338,6 @@ async def model_dashboard_page(request: Request, db: AsyncSession = Depends(get_
     user = await get_current_user_from_cookie(request, db)
     from app.web.pages.model_dashboard import render_model_dashboard
     return HTMLResponse(content=render_model_dashboard(user))
-
-
-@router.get("/offer", response_class=HTMLResponse)
-async def offer_landing_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница «Коммерческое предложение»."""
-    user = await get_current_user_from_cookie(request, db)
-    return HTMLResponse(content=render_offer_landing_page(user))
 
 
 @router.get("/book", response_class=HTMLResponse)

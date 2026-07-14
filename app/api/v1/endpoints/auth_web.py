@@ -49,7 +49,7 @@ def _set_auth_cookie(response: RedirectResponse, user_id: int) -> None:
     )
 
 
-@router.post("/auth/login-web")
+@router.post("/login-web")
 @limiter.limit("5/minute")  # лимит по IP
 async def login_web(
     request: Request,
@@ -95,7 +95,7 @@ async def login_web(
     return response
 
 
-@router.post("/auth/register-web")
+@router.post("/register-web")
 async def register_web(
     request: Request,
     phone: str = Form(...),
