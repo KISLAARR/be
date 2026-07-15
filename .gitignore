@@ -9,6 +9,7 @@ __pycache__/
 .coverage
 htmlcov/
 alembic/versions/*.pyc
+node_modules/ 
 # Приватные ключи JWT и любые PEM — никогда в git
 keys/
 *.pem
