@@ -55,7 +55,7 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
 </head>
 <body>
     {render_header("home", user)}
-    {render_sidebar("home")}
+    {render_sidebar("home", user)}
 
     <main style="margin-right: 16rem;">
         <!-- Hero -->

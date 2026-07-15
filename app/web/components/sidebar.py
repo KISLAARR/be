@@ -1,23 +1,26 @@
 # app/web/components/sidebar.py
 
-def render_sidebar(current_page: str = "home") -> str:
+def render_sidebar(current_page: str = "home", user=None) -> str:
     """Боковая панель навигации."""
     nav_items = [
         ("/", "Главная", "home", "🏠"),
         ("/salons", "Салоны", "salons", "🏢"),
     ]
-    
+
     profile_items = [
         ("/profile", "Мой профиль", "👤"),
         ("/bookings", "Мои записи", "📅"),
         ("/favorites", "Избранное", "❤️"),
         ("/settings", "Настройки", "⚙️"),
     ]
-    
+
+    is_master = getattr(getattr(user, "role", None), "value", "") == "master"
     business_items = [
         ("/model/dashboard", "Стать моделью", "📸"),
         ("/business/dashboard", "Бизнес", "💼"),
     ]
+    if is_master:
+        business_items.append(("/master/dashboard", "Кабинет мастера", "💇"))
     
     def render_items(items, current):
         html = ""

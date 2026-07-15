@@ -39,6 +39,15 @@ class SalonRole(str, enum.Enum):
     # Master с operatonal-доступом, заскоупленным через Master.user_id —
     # ему не нужен настраиваемый словарь прав, который тут нужен owner/admin.
 
+class InventoryMovementType(str, enum.Enum):
+    RECEIPT = "receipt"          # приход (закупка)
+    CONSUMPTION = "consumption"  # списание по факту после клиента
+    ADJUSTMENT = "adjustment"    # корректировка по итогам инвентаризации
+
+class InventoryAuditStatus(str, enum.Enum):
+    DRAFT = "draft"          # акт открыт, идёт пересчёт
+    CONFIRMED = "confirmed"  # акт закрыт, остатки скорректированы
+
 # Ключи прав салона. Значение — можно ли делать соответствующее действие.
 # У создателя салона (SalonMember.is_creator=True) все права всегда True
 # независимо от словаря, плюс только он может удалить сам салон.
@@ -53,6 +62,8 @@ SALON_PERMISSION_KEYS = (
     "view_finances",
     "manage_tariff",
     "view_audit_log",
+    "manage_inventory",  # склад мастеров: приход, списания, инвентаризация
+    "manage_payroll",    # ставки мастеров, ручные бонусы/штрафы
 )
 
 OWNER_DEFAULT_PERMISSIONS: Dict[str, bool] = {k: True for k in SALON_PERMISSION_KEYS}
@@ -62,6 +73,8 @@ ADMIN_DEFAULT_PERMISSIONS: Dict[str, bool] = {
     "manage_tariff": False,
     "manage_owners": False,
     "view_audit_log": False,
+    "manage_inventory": False,
+    "manage_payroll": False,
 }
 
 # --- Core Tables ---
@@ -224,6 +237,10 @@ class Booking(Base):
     status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.PENDING)
     discount_percent: Mapped[int] = mapped_column(Integer, default=0)
     final_price: Mapped[int] = mapped_column(Integer, nullable=True)
+    # Мастер отчитался о фактически потраченных расходниках по этому визиту
+    # (форма склада после клиента). Флаг для напоминаний мастеру/админу —
+    # сам факт списания хранится в InventoryMovement(booking_id=...).
+    consumption_reported: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     client: Mapped["User"] = relationship(back_populates="bookings", foreign_keys=[client_id])
     master: Mapped["Master"] = relationship()
@@ -299,4 +316,153 @@ class AdminAudit(Base):
     __table_args__ = (
         Index("ix_admin_audit_created", "created_at"),
         Index("ix_admin_audit_salon", "salon_id"),
+    )
+
+# ========== Склад расходников (мини-склад на каждого мастера) ==========
+class InventoryItem(Base):
+    """Позиция номенклатуры на мини-складе конкретного мастера."""
+    __tablename__ = "inventory_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    unit: Mapped[str] = mapped_column(String(20), nullable=False)  # мл / г / шт / уп
+    # Текущий остаток — денормализованная сумма всех InventoryMovement.delta
+    # по этой позиции; движения остаются источником истины и историей.
+    quantity: Mapped[float] = mapped_column(Float, default=0.0, server_default="0", nullable=False)
+    cost_per_unit: Mapped[int] = mapped_column(Integer, nullable=False)  # для себестоимости
+    min_quantity: Mapped[float] = mapped_column(Float, default=0.0, server_default="0", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    master: Mapped["Master"] = relationship()
+
+class InventoryMovement(Base):
+    """Журнал движений по складу — единый источник истины для остатка и COGS."""
+    __tablename__ = "inventory_movements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id", ondelete="CASCADE"))
+    type: Mapped[InventoryMovementType] = mapped_column(Enum(InventoryMovementType), nullable=False)
+    delta: Mapped[float] = mapped_column(Float, nullable=False)  # знак = направление движения
+    # Цена за единицу на момент движения — чтобы себестоимость прошлых
+    # периодов не «плыла» при изменении текущей цены позиции.
+    unit_cost_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
+    booking_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    item: Mapped["InventoryItem"] = relationship()
+    booking: Mapped[Optional["Booking"]] = relationship()
+    created_by: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("ix_inventory_movements_item", "item_id"),
+        Index("ix_inventory_movements_booking", "booking_id"),
+    )
+
+class InventoryAudit(Base):
+    """Акт инвентаризации мини-склада мастера."""
+    __tablename__ = "inventory_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    status: Mapped[InventoryAuditStatus] = mapped_column(
+        Enum(InventoryAuditStatus), default=InventoryAuditStatus.DRAFT, nullable=False
+    )
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    master: Mapped["Master"] = relationship()
+    created_by: Mapped["User"] = relationship()
+    items: Mapped[List["InventoryAuditItem"]] = relationship(back_populates="audit", cascade="all, delete-orphan")
+
+class InventoryAuditItem(Base):
+    """Строка акта: системный остаток на старте пересчёта vs фактический."""
+    __tablename__ = "inventory_audit_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    audit_id: Mapped[int] = mapped_column(ForeignKey("inventory_audits.id", ondelete="CASCADE"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id", ondelete="CASCADE"))
+    expected_quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    actual_quantity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    audit: Mapped["InventoryAudit"] = relationship(back_populates="items")
+    item: Mapped["InventoryItem"] = relationship()
+
+# ========== Зарплаты: ставка мастера + ручные бонусы/штрафы ==========
+class MasterPayrollSettings(Base):
+    """Ставка мастера: оклад за период + % от выручки. 1–1 с Master."""
+    __tablename__ = "master_payroll_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"), unique=True)
+    base_salary: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    commission_percent: Mapped[float] = mapped_column(Float, default=0.0, server_default="0", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    master: Mapped["Master"] = relationship()
+
+class PayrollAdjustment(Base):
+    """Ручное начисление админом: бонус (amount > 0) или штраф (amount < 0)."""
+    __tablename__ = "payroll_adjustments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    period_month: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)  # 1-е число месяца
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    master: Mapped["Master"] = relationship()
+    created_by: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("ix_payroll_adjustments_master_period", "master_id", "period_month"),
+    )
+
+# ========== Promo-модели салона (роль UserRole.MODEL, отдельно от мастеров) ==========
+class SalonModel(Base):
+    """Привязка пользователя с ролью MODEL к салону (кастинг/сотрудничество для контента)."""
+    __tablename__ = "salon_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    stage_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+    user: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("salon_id", "user_id", name="uq_salon_model"),
+    )
+
+# ========== Заметки на карточке клиента ==========
+class ClientNote(Base):
+    """Заметка владельца/админа салона на карточке клиента."""
+    __tablename__ = "client_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    client_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+    client: Mapped["User"] = relationship(foreign_keys=[client_id])
+    author: Mapped["User"] = relationship(foreign_keys=[author_id])
+
+    __table_args__ = (
+        Index("ix_client_notes_salon_client", "salon_id", "client_id"),
     )

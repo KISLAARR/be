@@ -116,7 +116,7 @@ async def business_dashboard_page(
     if not salon or not membership:
         return RedirectResponse(url="/business/register-salon", status_code=302)
 
-    return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership))
+    return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership, request.query_params))
 
 
 @router.get("/business/my-salon", response_class=HTMLResponse)
@@ -148,6 +148,63 @@ async def my_salon_page(
         return RedirectResponse(url="/business/register-salon", status_code=302)
 
     return HTMLResponse(content=await render_my_salon_page(db, salon, user))
+
+
+@router.get("/business/clients/{client_id}", response_class=HTMLResponse)
+async def client_card_page(
+    client_id: int,
+    request: Request,
+    salon_id: int = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Детальная карточка клиента (история визитов, отзывы, заметки)."""
+    from app.crm.tabs.client_card import render_client_card
+    from app.api.deps import get_user_primary_salon_id, get_salon_membership
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url=f"/login?redirect=/business/clients/{client_id}", status_code=302)
+
+    resolved_id = await get_user_primary_salon_id(db, user.id, salon_id)
+    if resolved_id is None:
+        return RedirectResponse(url="/business/register-salon", status_code=302)
+
+    salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
+    membership = await get_salon_membership(db, user.id, resolved_id)
+    if not salon or not membership:
+        return RedirectResponse(url="/business/register-salon", status_code=302)
+
+    return HTMLResponse(content=await render_client_card(db, salon, user, client_id))
+
+
+@router.get("/master/dashboard", response_class=HTMLResponse)
+async def master_dashboard_page_route(request: Request, db: AsyncSession = Depends(get_db)):
+    """Кабинет мастера: свои записи + списание расходников."""
+    from app.web.pages.master.dashboard import render_master_dashboard
+    from app.models.models import UserRole
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login?redirect=/master/dashboard", status_code=302)
+    if user.role != UserRole.MASTER:
+        return RedirectResponse(url="/", status_code=302)
+
+    return HTMLResponse(content=await render_master_dashboard(db, user))
+
+
+@router.get("/master/inventory", response_class=HTMLResponse)
+async def master_inventory_page_route(request: Request, db: AsyncSession = Depends(get_db)):
+    """Мой склад: остатки и история движений мастера."""
+    from app.web.pages.master.inventory import render_master_inventory
+    from app.models.models import UserRole
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login?redirect=/master/inventory", status_code=302)
+    if user.role != UserRole.MASTER:
+        return RedirectResponse(url="/", status_code=302)
+
+    return HTMLResponse(content=await render_master_inventory(db, user))
 
 
 @router.get("/admin", response_class=HTMLResponse)

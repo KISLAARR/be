@@ -226,7 +226,7 @@ def render_profile_page(user=None, error=None, success=None) -> str:
 </head>
 <body>
     {render_header("profile", user)}
-    {render_sidebar("profile")}
+    {render_sidebar("profile", user)}
     
     <main style="margin-right: 16rem; padding-top: 2rem;">
         <div class="section-container">

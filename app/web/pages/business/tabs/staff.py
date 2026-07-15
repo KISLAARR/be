@@ -15,6 +15,8 @@ PERMISSION_LABELS = {
     "view_finances": "Финансы",
     "manage_tariff": "Тариф",
     "view_audit_log": "Лог действий",
+    "manage_inventory": "Склад",
+    "manage_payroll": "Зарплаты",
 }
 
 

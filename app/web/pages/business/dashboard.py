@@ -18,15 +18,34 @@ from app.web.pages.business.tabs.reviews import render_reviews_tab
 from app.web.pages.business.tabs.schedule import render_schedule_tab
 from app.web.pages.business.tabs.employees import render_employees_tab
 from app.web.pages.business.tabs.services import render_services_tab
-from app.web.pages.business.tabs.finances import render_finances_tab
+from app.web.pages.business.tabs.records import render_records_tab
+from app.web.pages.business.tabs.warehouse import render_warehouse_tab
+from app.web.pages.business.tabs.payroll import render_payroll_tab
+from app.web.pages.business.tabs.cost import render_cost_tab
+from app.web.pages.business.tabs.promo_models import render_promo_models_tab
 from app.web.pages.business.tabs.chat import render_chat_tab
 from app.web.pages.business.tabs.staff import render_staff_tab
 from app.crm.tabs.clients import render_crm_tab
 
 
-async def render_business_dashboard(db: AsyncSession, user, salon: Salon, membership: SalonMember) -> str:
+async def render_business_dashboard(db: AsyncSession, user, salon: Salon, membership: SalonMember, query_params=None) -> str:
     """Бизнес-панель с аналитикой. `membership` — активное членство текущего
-    пользователя в этом салоне (owner/admin), уже проверенное вызывающим кодом."""
+    пользователя в этом салоне (owner/admin), уже проверенное вызывающим кодом.
+    `query_params` — request.query_params страницы (используется вкладкой
+    «Записи» для фильтров и для восстановления активной вкладки после submit)."""
+
+    query_params = query_params or {}
+    active_tab = query_params.get("tab", "overview")
+    records_filters = {
+        "date_from": query_params.get("date_from"),
+        "date_to": query_params.get("date_to"),
+        "master_id": query_params.get("master_id"),
+        "status": query_params.get("status"),
+    }
+    warehouse_filters = {
+        "audit_id": query_params.get("audit_id"),
+    }
+    period_raw = query_params.get("period")
 
     perms = {
         key: (membership.is_creator or membership.permissions.get(key, False))
@@ -34,6 +53,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
             "manage_salon", "manage_owners", "manage_admins", "manage_masters",
             "manage_schedule", "manage_promotions", "manage_reviews",
             "view_finances", "manage_tariff", "view_audit_log",
+            "manage_inventory", "manage_payroll",
         )
     }
 
@@ -96,9 +116,20 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     tab_buttons.append(('services', '✂️ Услуги', True))
     tabs_html.append(await render_services_tab(db, salon, masters))
 
-    tab_buttons.append(('finances', '💰 Финансы', perms["view_finances"]))
+    tab_buttons.append(('payroll', '💰 Зарплаты', perms["manage_payroll"]))
+    if perms["manage_payroll"]:
+        tabs_html.append(await render_payroll_tab(db, salon, masters, master_ids, period_raw))
+
+    tab_buttons.append(('cost', '📉 Себестоимость', perms["view_finances"]))
     if perms["view_finances"]:
-        tabs_html.append(await render_finances_tab(db, salon, masters, master_ids))
+        tabs_html.append(await render_cost_tab(db, salon, masters, master_ids, period_raw))
+
+    tab_buttons.append(('records', '🧾 Записи', True))
+    tabs_html.append(await render_records_tab(db, salon, masters, master_ids, records_filters))
+
+    tab_buttons.append(('warehouse', '📦 Склад', perms["manage_inventory"]))
+    if perms["manage_inventory"]:
+        tabs_html.append(await render_warehouse_tab(db, salon, masters, master_ids, warehouse_filters))
 
     tab_buttons.append(('chat', '💬 Чат', True))
     tabs_html.append(await render_chat_tab(db, salon, user))
@@ -106,6 +137,10 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     tab_buttons.append(('staff', '👤 Сотрудники', perms["manage_admins"] or perms["manage_owners"]))
     if perms["manage_admins"] or perms["manage_owners"]:
         tabs_html.append(await render_staff_tab(db, salon, user, membership, perms))
+
+    tab_buttons.append(('models', '🎭 Модели', perms["manage_masters"]))
+    if perms["manage_masters"]:
+        tabs_html.append(await render_promo_models_tab(db, salon))
 
     tab_buttons.append(('promos', f'🎉 Акции ({len(promotions)})', True))
     tabs_html.append(render_promos_tab(promotions))
@@ -116,14 +151,24 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     tab_buttons.append(('crm', '👥 Клиенты', True))
     tabs_html.append(await render_crm_tab(db, salon, masters, master_ids))
 
+    visible_slugs = [slug for slug, _label, visible in tab_buttons if visible]
+    # Если вкладка из ?tab= недоступна (гейтится правом) или не существует —
+    # откатываемся на Обзор, он есть всегда.
+    if active_tab not in visible_slugs:
+        active_tab = "overview"
+
     nav_buttons_html = "".join(
-        f'<button class="tab-btn{" active" if slug == "overview" else ""}" onclick="switchTab(\'{slug}\')">{label}</button>'
+        f'<button class="tab-btn{" active" if slug == active_tab else ""}" onclick="switchTab(\'{slug}\')">{label}</button>'
         for slug, label, visible in tab_buttons if visible
     )
 
-    # Первый рендер каждой вкладки должен получить класс active только для overview —
-    # порядок в tabs_html соответствует порядку добавленных элементов выше.
-    tabs_body_html = "\n".join(tabs_html)
+    # Проставляем class="active" тому <div id="tab-{active_tab}" ...>, который
+    # пришёл из query-параметра ?tab= (по умолчанию — overview).
+    tabs_body_html = "\n".join(tabs_html).replace(
+        f'id="tab-{active_tab}" class="tab-content"',
+        f'id="tab-{active_tab}" class="tab-content active"',
+        1,
+    )
 
     switcher_html = ""
     if len(other_memberships) > 1:
