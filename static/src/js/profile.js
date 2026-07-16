@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
         editToggle.addEventListener('click', function() {
             viewMode.style.display = 'none';
             editMode.style.display = 'block';
-            // Добавляем класс для показа кнопки камеры
             if (container) container.classList.add('profile-edit-active');
         });
 
@@ -33,7 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // === Загрузка аватара (только через кнопку) ===
     const avatarEditBtn = document.getElementById('profile-avatar-edit');
     const avatarInput = document.getElementById('profile-avatar-input');
 

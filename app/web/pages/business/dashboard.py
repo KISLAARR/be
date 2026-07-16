@@ -219,15 +219,8 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     </style>
 </head>
 <body>
-<<<<<<< HEAD
     {render_header("business")}
     {render_sidebar("business", user)}
-    
-=======
-    {render_header("business", user)}
-    {render_sidebar("business")}
-
->>>>>>> origin/main
     <main style="margin-right:16rem;padding-top:2rem">
         <div class="section-container">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.75rem">
