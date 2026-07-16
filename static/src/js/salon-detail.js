@@ -1,9 +1,9 @@
 // static/js/pages/salon-detail.js
 
 document.addEventListener('DOMContentLoaded', function() {
-    let selectedSlot = null;
     let selectedMasterId = null;
     let selectedServiceId = null;
+    let selectedSlot = null;
 
     // ===== ИЗБРАННОЕ (салон и мастера) =====
     async function loadFavorites() {
@@ -71,167 +71,124 @@ document.addEventListener('DOMContentLoaded', function() {
     loadFavorites();
 
     // ===== ПЕРЕКЛЮЧЕНИЕ МЕЖДУ СПИСКОМ И ДЕТАЛЬНЫМ ВИДОМ =====
-    const mastersListContainer = document.getElementById('masters-list-container');
-    const masterDetailContainer = document.getElementById('master-detail-container');
+    const mastersList = document.getElementById('masters-list-container');
+    const masterDetails = document.querySelectorAll('.master-detail');
 
-    // Кнопки "Записаться" в карточках мастеров
-    document.querySelectorAll('.master-book-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const masterId = this.dataset.masterId;
+    document.querySelectorAll('.master-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const masterId = card.dataset.masterId;
             showMasterDetail(masterId);
         });
     });
 
-    // Клик по всей карточке мастера тоже может открывать детали (опционально)
-    document.querySelectorAll('.master-card').forEach(card => {
-        card.addEventListener('click', function() {
-            const masterId = this.dataset.masterId;
-            showMasterDetail(masterId);
+    document.querySelectorAll('.master-book-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showMasterDetail(btn.dataset.masterId);
         });
     });
 
     function showMasterDetail(masterId) {
-        // Скрываем список мастеров
-        mastersListContainer.style.display = 'none';
-        // Показываем детальный вид нужного мастера
-        document.querySelectorAll('.master-detail').forEach(el => {
-            el.classList.add('hidden');
-        });
+        mastersList.style.display = 'none';
+        masterDetails.forEach(d => d.classList.add('hidden'));
         const detail = document.querySelector(`.master-detail[data-master-id="${masterId}"]`);
-        if (detail) {
-            detail.classList.remove('hidden');
-        }
+        if (detail) detail.classList.remove('hidden');
+        selectedMasterId = masterId;
     }
 
-    // Кнопка "Назад к мастерам"
+    // Назад к мастерам
     document.querySelectorAll('.back-to-masters').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Скрываем все детали
-            document.querySelectorAll('.master-detail').forEach(el => {
-                el.classList.add('hidden');
-            });
-            // Показываем список
-            mastersListContainer.style.display = '';
+        btn.addEventListener('click', () => {
+            mastersList.style.display = 'block';
+            masterDetails.forEach(d => d.classList.add('hidden'));
         });
     });
 
-    // ===== ВЫБОР УСЛУГИ (в детальном виде) =====
+    // ===== ВЫБОР УСЛУГИ =====
     document.querySelectorAll('.service-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const masterId = parseInt(this.dataset.masterId);
-            const serviceId = parseInt(this.dataset.serviceId);
-            const serviceName = this.dataset.serviceName;
-            const price = this.dataset.price;
-            const duration = parseInt(this.dataset.duration);
-
-            // Убираем выделение с других кнопок (опционально)
+        btn.addEventListener('click', function() {
             document.querySelectorAll('.service-btn').forEach(b => b.classList.remove('selected'));
             this.classList.add('selected');
 
-            selectedMasterId = masterId;
-            selectedServiceId = serviceId;
+            selectedServiceId = this.dataset.serviceId;
+            const masterId = this.dataset.masterId;
+            const serviceName = this.dataset.serviceName;
+            const price = this.dataset.price;
 
-            // Скрываем все контейнеры слотов
-            document.querySelectorAll('.slots-container').forEach(c => c.classList.add('hidden'));
-
-            // Показываем контейнер слотов для этого мастера
             const slotsContainer = document.getElementById(`detail-slots-${masterId}`);
-            const slotsTitle = document.getElementById(`detail-slots-title-${masterId}`);
-            const slotGrid = document.getElementById(`detail-slot-grid-${masterId}`);
+            const titleEl = document.getElementById(`detail-slots-title-${masterId}`);
+            const gridEl = document.getElementById(`detail-slot-grid-${masterId}`);
 
-            if (slotsContainer && slotsTitle && slotGrid) {
-                slotsTitle.innerHTML = `
-                    📅 Время для «${serviceName}» (${price} ₽):
-                    <br>
-                    <input type="date" id="detail-datePicker-${masterId}" value="${new Date().toISOString().split('T')[0]}" class="date-picker">
+            if (slotsContainer && titleEl && gridEl) {
+                titleEl.innerHTML = `
+                    📅 Время для «${serviceName}» (${price} ₽)
+                    <input type="date" id="date-${masterId}" value="${new Date().toISOString().split('T')[0]}" style="margin-top:8px;">
                 `;
-                slotGrid.innerHTML = '<p class="text-muted text-xs">Выберите дату для загрузки слотов...</p>';
                 slotsContainer.classList.remove('hidden');
-
-                loadSlotsForDetail(masterId, serviceId, serviceName, price, duration);
-
-                // Обработчик изменения даты
-                setTimeout(() => {
-                    const datePicker = document.getElementById(`detail-datePicker-${masterId}`);
-                    if(datePicker) {
-                        datePicker.addEventListener('change', function() {
-                            loadSlotsForDetail(masterId, serviceId, serviceName, price, duration);
-                        });
-                    }
-                }, 50);
+                loadSlots(masterId, selectedServiceId, serviceName, price);
             }
         });
     });
 
-    // Функция загрузки слотов (адаптирована для детального вида)
-    async function loadSlotsForDetail(masterId, serviceId, serviceName, price, duration) {
-        const datePicker = document.getElementById(`detail-datePicker-${masterId}`);
-        const dateStr = datePicker ? datePicker.value : new Date().toISOString().split('T')[0];
-        const slotGrid = document.getElementById(`detail-slot-grid-${masterId}`);
+    async function loadSlots(masterId, serviceId, serviceName, price) {
+        const dateInput = document.getElementById(`date-${masterId}`);
+        const grid = document.getElementById(`detail-slot-grid-${masterId}`);
+        
+        if (!dateInput || !grid) return;
 
-        if (!slotGrid) return;
-
-        slotGrid.innerHTML = '<p class="text-muted text-xs">Загружаем слоты...</p>';
+        grid.innerHTML = '<p style="color:#888; grid-column:1/-1;">Загрузка слотов...</p>';
 
         try {
-            const response = await fetch(`/api/v1/bookings/available/${masterId}?date=${dateStr}&service_id=${serviceId}`);
-            const data = await response.json();
+            const res = await fetch(`/api/v1/bookings/available/${masterId}?date=${dateInput.value}&service_id=${serviceId}`);
+            const data = await res.json();
 
-            if (data.slots && data.slots.length > 0) {
-                const now = new Date();
-                const todayStr = new Date().toISOString().split('T')[0];
-                let slotsHtml = '';
-                for (const slot of data.slots) {
-                    const slotDate = new Date(slot);
-                    if (dateStr === todayStr && slotDate < now) continue;
-
-                    const timeStr = slotDate.toTimeString().slice(0, 5);
-                    const fullSlot = slotDate.getFullYear() + '-' + 
-                        String(slotDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                        String(slotDate.getDate()).padStart(2, '0') + 'T' + 
-                        String(slotDate.getHours()).padStart(2, '0') + ':' + 
-                        String(slotDate.getMinutes()).padStart(2, '0');
-
-                    slotsHtml += `<button class="slot-btn" data-fullslot="${fullSlot}" data-master="${masterId}" data-service="${serviceId}" data-name="${serviceName}" data-price="${price}">${timeStr}</button>`;
-                }
-                if (slotsHtml) {
-                    slotGrid.innerHTML = slotsHtml;
-                } else {
-                    slotGrid.innerHTML = '<p class="text-muted text-xs">Нет свободных окон на выбранную дату.</p>';
-                }
-            } else {
-                slotGrid.innerHTML = `<p class="text-muted text-xs">${data.message || 'Нет свободных окон на эту дату.'}</p>`;
-            }
-
-            // Обработчики для кнопок слотов
-            document.querySelectorAll('.slot-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
-                    this.classList.add('selected');
-                    selectedSlot = this.dataset.fullslot;
-                    selectedMasterId = parseInt(this.dataset.master);
-                    selectedServiceId = parseInt(this.dataset.service);
-
-                    const bookPanel = document.getElementById('bookPanel');
-                    bookPanel.classList.remove('hidden');
-                    document.getElementById('panelMaster').textContent = `${this.dataset.name} · ${this.dataset.price} ₽`;
-                    document.getElementById('panelTime').textContent = this.dataset.fullslot.replace('T', ' ');
+            grid.innerHTML = '';
+            if (data.slots && data.slots.length) {
+                data.slots.forEach(slot => {
+                    const btn = document.createElement('button');
+                    btn.className = 'slot-btn';
+                    btn.textContent = new Date(slot).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+                    btn.dataset.fullslot = slot;
+                    btn.dataset.master = masterId;
+                    btn.dataset.service = serviceId;
+                    btn.dataset.name = serviceName;
+                    btn.dataset.price = price;
+                    grid.appendChild(btn);
                 });
-            });
-
-        } catch (err) {
-            slotGrid.innerHTML = '<p class="text-red-500 text-xs">Ошибка загрузки. Попробуйте позже.</p>';
+            } else {
+                grid.innerHTML = '<p style="color:#888; grid-column:1/-1;">Нет свободных окон</p>';
+            }
+        } catch (e) {
+            grid.innerHTML = '<p style="color:red; grid-column:1/-1;">Ошибка загрузки</p>';
         }
     }
+
+    // ===== ВЫБОР СЛОТА =====
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('slot-btn')) {
+            document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+            e.target.classList.add('selected');
+
+            selectedSlot = e.target.dataset.fullslot;
+
+            const panel = document.getElementById('bookPanel');
+            document.getElementById('panelMaster').textContent = `${e.target.dataset.name} · ${e.target.dataset.price} ₽`;
+            document.getElementById('panelTime').textContent = selectedSlot.replace('T', ' ');
+            panel.classList.remove('hidden');
+        }
+    });
 
     // ===== ПОДТВЕРЖДЕНИЕ ЗАПИСИ =====
     window.confirmBooking = function() {
         if (!selectedSlot || !selectedMasterId || !selectedServiceId) {
-            alert('Выберите услугу и время!');
+            alert('Выберите время!');
             return;
         }
         window.location.href = `/book?master_id=${selectedMasterId}&service_id=${selectedServiceId}&time=${encodeURIComponent(selectedSlot)}`;
     };
+
+    // Закрытие панели при клике на фон (опционально)
+    document.getElementById('bookPanel').addEventListener('click', function(e) {
+        if (e.target.id === 'bookPanel') this.classList.add('hidden');
+    });
 });

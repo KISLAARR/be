@@ -93,7 +93,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             """
         promos_html += '</div></section>'
 
-    # ----- НОВАЯ ВЕРСИЯ: Мастера и запись (как в образце) -----
+    # ----- Мастера и запись -----
     masters_list_html = ""
     detail_html = ""
 
@@ -103,81 +103,70 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         user_name = master_user.full_name if master_user else "Мастер"
         avatar = master_user.avatar_url or ""
 
-        # Карточка мастера (отображается в списке)
-        master_card = f"""
+        # Карточка в списке
+        masters_list_html += f"""
         <div class="master-card" data-master-id="{m.id}">
-            <div class="master-layout">
-                <div class="master-image-box">
-                    {f'<img alt="{user_name}" src="{avatar}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
-                    <button class="fav-btn master-fav" data-type="master" data-id="{m.id}" data-icon-heart="{heart_svg}">
-                        <span class="heart-wrapper">{ICON_HEART}</span>
-                    </button>
+            <div class="master-image-box">
+                {f'<img src="{avatar}" alt="{user_name}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
+            </div>
+            <div class="master-info-box">
+                <div>
+                    <div class="master-name">{user_name}</div>
+                    <div class="master-spec">{m.specialization or "Барбер"}</div>
                 </div>
-                <div class="master-info-box">
-                    <div>
-                        <h3 class="master-name">{user_name}</h3>
-                        <p class="master-spec">{m.specialization}</p>
-                    </div>
-                    <div class="master-stats">
-                        <span class="stat-item">опыт: {m.experience_years} лет</span>
-                        <span class="stat-item rating-stat">
-                            {star_svg}
-                            <span class="rating-val">{m.rating}</span>
-                        </span>
-                    </div>
-                    <button class="btn-primary master-book-btn" data-master-id="{m.id}">Записаться</button>
+                <div class="master-stats">
+                    <span>опыт: {m.experience_years} лет</span>
+                    <span>⭐ {m.rating or 0.0:.1f}</span>
                 </div>
+                <button class="btn-primary master-book-btn" data-master-id="{m.id}">Записаться</button>
             </div>
         </div>
         """
-        masters_list_html += master_card
 
-        # Детальный вид мастера (скрыт по умолчанию)
-        services_result = await db.execute(
-            select(Service).where(Service.master_id == m.id).order_by(Service.price)
-        )
+        # Детальный вид
+        services_result = await db.execute(select(Service).where(Service.master_id == m.id))
         services = services_result.scalars().all()
 
-        services_list = ""
-        for srv in services:
-            services_list += f"""
+        services_html = ""
+        for s in services:
+            services_html += f"""
             <button class="service-btn" 
-                    data-master-id="{m.id}" 
-                    data-service-id="{srv.id}"
-                    data-service-name="{srv.name}"
-                    data-price="{srv.price}"
-                    data-duration="{srv.duration_minutes}">
-                <span class="service-name">{srv.name}</span>
-                <span class="service-duration">{srv.duration_minutes} мин</span>
-                <span class="service-price">{srv.price} ₽</span>
+                    data-master-id="{m.id}"
+                    data-service-id="{s.id}"
+                    data-service-name="{s.name}"
+                    data-price="{s.price}"
+                    data-duration="{s.duration_minutes}">
+                <div>
+                    <div class="service-name">{s.name}</div>
+                    <div class="service-duration">{s.duration_minutes} мин</div>
+                </div>
+                <div class="service-price">{s.price} ₽</div>
             </button>
             """
 
         detail_html += f"""
         <div class="master-detail hidden" data-master-id="{m.id}">
-            <div class="master-detail-header">
-                <button class="btn-outline back-to-masters">← Назад к мастерам</button>
-            </div>
+            <button class="back-to-masters">← Назад к мастерам</button>
+            
             <div class="master-detail-profile">
                 <div class="master-detail-avatar">
-                    {f'<img alt="{user_name}" src="{avatar}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
+                    {f'<img src="{avatar}" alt="{user_name}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
                 </div>
-                <div class="master-detail-info">
-                    <h2 class="master-detail-name">{user_name}</h2>
-                    <p class="master-detail-spec">{m.specialization}</p>
-                    <div class="master-detail-stats">
+                <div>
+                    <div class="master-detail-name">{user_name}</div>
+                    <div class="master-spec">{m.specialization or "Барбер"}</div>
+                    <div class="master-stats">
                         <span>опыт: {m.experience_years} лет</span>
-                        <span>⭐ {m.rating}</span>
+                        <span>⭐ {m.rating or 0.0:.1f}</span>
                     </div>
                 </div>
             </div>
-            <div class="master-detail-services">
-                <h3 class="services-title">Выберите услугу:</h3>
-                <div class="services-grid">
-                    {services_list}
-                </div>
+
+            <h3 style="margin: 1.5rem 0 1rem; font-weight:600;">Выберите услугу:</h3>
+            <div class="services-grid">
+                {services_html}
             </div>
-            <!-- Слоты (появляются после выбора услуги) -->
+
             <div class="slots-container hidden" id="detail-slots-{m.id}">
                 <div class="slots-title" id="detail-slots-title-{m.id}"></div>
                 <div class="slots-grid" id="detail-slot-grid-{m.id}"></div>
@@ -185,25 +174,32 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         </div>
         """
 
-    # Если мастеров нет – показываем заглушку
-    if not masters:
-        masters_list_html = '<p class="empty-state">В этом салоне пока нет мастеров.</p>'
-        detail_html = ""
-
     masters_block = f"""
     <section class="section-container masters-section">
         <div class="section-header">
-            <span class="section-title">Выберите мастера</span>
+            <h2 class="section-title">Выберите мастера</h2>
         </div>
         <div id="masters-list-container">
             <div class="masters-list">
-                {masters_list_html}
+                {masters_list_html or '<p>В салоне пока нет мастеров.</p>'}
             </div>
         </div>
-        <div id="master-detail-container">
-            {detail_html}
-        </div>
+        {detail_html}
     </section>
+    """
+
+    # Плавающая панель записи
+    booking_panel = """
+    <div class="booking-panel hidden" id="bookPanel">
+        <div class="booking-panel-inner">
+            <div class="booking-info">
+                <span class="booking-master" id="panelMaster"></span>
+                <span class="booking-dot"> · </span>
+                <span class="booking-time" id="panelTime"></span>
+            </div>
+            <button class="btn-primary" onclick="confirmBooking()">Записаться</button>
+        </div>
+    </div>
     """
 
     # ----- Отзывы -----
@@ -227,45 +223,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             """
     else:
         reviews_html = '<p class="empty-state">Пока нет отзывов. Будьте первым!</p>'
-
-    review_form = ""
-    if user:
-        masters_options = ""
-        for m in masters:
-            master_user = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
-            master_name = master_user.full_name if master_user else "Мастер"
-            masters_options += f'<option value="{m.id}">{master_name} — {m.specialization}</option>'
-
-        review_form = f"""
-        <div class="review-form-container">
-            <h3 class="form-title">Оставить отзыв</h3>
-            <form action="/api/v1/reviews/create" method="post" class="review-form">
-                <input type="hidden" name="salon_id" value="{salon.id}">
-                <div class="form-group">
-                    <label>Мастер:</label>
-                    <select name="master_id" required class="form-control">
-                        <option value="">Выберите мастера</option>
-                        {masters_options}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Оценка:</label>
-                    <div class="star-rating-input">
-                        <input type="radio" name="rating" value="5" id="star5" class="hidden"><label for="star5">★</label>
-                        <input type="radio" name="rating" value="4" id="star4" class="hidden"><label for="star4">★</label>
-                        <input type="radio" name="rating" value="3" id="star3" class="hidden"><label for="star3">★</label>
-                        <input type="radio" name="rating" value="2" id="star2" class="hidden"><label for="star2">★</label>
-                        <input type="radio" name="rating" value="1" id="star1" required class="hidden"><label for="star1">★</label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Комментарий:</label>
-                    <textarea name="comment" rows="3" placeholder="Расскажите о вашем впечатлении..." class="form-control"></textarea>
-                </div>
-                <button type="submit" class="btn-primary submit-btn">Отправить отзыв</button>
-            </form>
-        </div>
-        """
 
     html = f"""<!DOCTYPE html>
 <html lang="ru" data-theme="light">
@@ -291,23 +248,13 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                 <div class="reviews-list">
                     {reviews_html}
                 </div>
-                {review_form}
             </section>
 
             {render_footer()}
         </main>
     </div>
 
-    <div class="booking-panel hidden" id="bookPanel">
-        <div class="booking-panel-inner">
-            <div class="booking-info">
-                <strong class="booking-master" id="panelMaster"></strong> 
-                <span class="booking-dot">·</span> 
-                <span class="booking-time" id="panelTime"></span>
-            </div>
-            <button class="btn-primary" onclick="confirmBooking()">Записаться</button>
-        </div>
-    </div>
+    {booking_panel}
 
     <script src="/static/js/pages/salon_detail.js"></script>
 </body>
