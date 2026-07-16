@@ -3,8 +3,29 @@
 # Caddy выдаёт самоподписанный сертификат (tls internal); с реальным доменом
 # Let's Encrypt получается и продлевается автоматически.
 
+# HTTP/3 выключен: QUIC — это UDP 443, а наружу опубликован (compose) и открыт
+# в ufw только TCP. Анонсировать alt-svc h3 при закрытом UDP нельзя — браузер
+# кэширует анонс, уходит в QUIC и виснет на загрузке. Чтобы включить h3:
+# добавить "443:443/udp" в docker-compose.edge.yml, ufw allow 443/udp,
+# убрать этот блок.
+{
+    # Заходы по IP-адресу идут без SNI (SNI не бывает IP по RFC) — без этой
+    # опции Caddy не подбирает сертификат и рвёт handshake (alert 80).
+    # С реальным доменом опция безвредна: безымянные клиенты получат прод-хост.
+    default_sni {$DOMAIN:localhost}
+
+    servers {
+        protocols h1 h2
+    }
+}
+
 # ── Прод ─────────────────────────────────────────────────────────
 {$DOMAIN:localhost} {
+    # Пока DOMAIN = IP сервера, сертификат только самоподписанный: Let's Encrypt
+    # не выдаёт сертификаты на IP (Caddy бесконечно ретраил ACME, хост оставался
+    # без TLS вообще). С реальным доменом: PROD_TLS=<email> в .env → LE.
+    tls {$PROD_TLS:internal}
+
     encode gzip
     reverse_proxy rumi-prod-app:8000
 
@@ -21,9 +42,13 @@
 # (и поисковикам) без пароля. Дефолтные креды staging / rumi-staging-2026 —
 # ВРЕМЕННЫЕ, при настройке сервера заменить хеш в .env (STAGING_BASIC_AUTH_HASH):
 #   docker run --rm caddy:2-alpine caddy hash-password --plaintext 'НОВЫЙ_ПАРОЛЬ'
-{$STAGING_DOMAIN:rumi-staging.test} {
-    # До реального домена — самоподписанный сертификат (по умолчанию internal).
-    # С доменом: STAGING_TLS=<email> в .env → Caddy пойдёт в Let's Encrypt.
+# Хост по умолчанию — sslip.io (см. docker-compose.edge.yml): публично
+# резолвится в IP сервера, DPI провайдеров не режет его SNI (в отличие от
+# выдуманных .test) и не нужен hosts-файл. С реальным доменом — staging.<домен>.
+{$STAGING_DOMAIN:staging.201-24-60-247.sslip.io} {
+    # STAGING_TLS=<email> в .env → Let's Encrypt (sslip-имя резолвится, LE
+    # может выдать настоящий сертификат; лимиты на sslip.io общие — если
+    # выпуск не прошёл, вернуть internal). internal = самоподписанный.
     tls {$STAGING_TLS:internal}
 
     encode gzip

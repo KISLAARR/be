@@ -249,6 +249,7 @@ def _render_guest_page() -> str:
     <link rel="stylesheet" href="/static/css/pages/profile.css">
 </head>
 <body>
+<<<<<<< HEAD
     {render_header("profile")}
     {render_sidebar("profile", None)}
     <main class="profile-main">
@@ -259,6 +260,22 @@ def _render_guest_page() -> str:
                 <div class="profile-guest-actions">
                     <a href="/login" class="profile-btn-primary">Войти</a>
                     <a href="/register" class="profile-btn-outline">Зарегистрироваться</a>
+=======
+    {render_header("profile", user)}
+    {render_sidebar("profile", user)}
+    
+    <main style="margin-right: 16rem; padding-top: 2rem;">
+        <div class="section-container">
+            <div class="card" style="margin-bottom:2rem">
+                <div class="profile-header">
+                    <div class="avatar">{avatar_letter}</div>
+                    <div class="profile-info">
+                        <h1 class="text-display">{name}</h1>
+                        <p class="text-muted">{role_text}</p>
+                        <p class="text-muted" style="font-size:0.85rem">📱 {phone}</p>
+                        {login_block}
+                    </div>
+>>>>>>> origin/main
                 </div>
             </div>
         </div>

@@ -52,7 +52,7 @@ async def render_crm_tab(db: AsyncSession, salon, masters, master_ids) -> str:
         last_visit_str = c["last_visit"].strftime("%d.%m.%Y") if c["last_visit"] else "—"
         total_str = f"{c['total_spent']:,}".replace(",", " ")
         clients_rows += f"""
-        <tr class="client-row">
+        <tr class="client-row" style="cursor:pointer" onclick="window.location.href='/business/clients/{c['id']}?salon_id={salon.id}'">
             <td><strong>{c['name']}</strong></td>
             <td>{c['phone']}</td>
             <td>{c['visits']}</td>

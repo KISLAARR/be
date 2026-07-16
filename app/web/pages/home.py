@@ -58,7 +58,11 @@ async def render_home_page(db: AsyncSession, user=None) -> str:
     {get_base_styles()}
 </head>
 <body>
+<<<<<<< HEAD
     {render_header("home")}
+=======
+    {render_header("home", user)}
+>>>>>>> origin/main
     {render_sidebar("home", user)}
 
     <main class="home-main">

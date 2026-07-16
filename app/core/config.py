@@ -1,6 +1,7 @@
 # app/core/config.py
 from pathlib import Path
 from typing import List
+from urllib.parse import quote
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -114,8 +115,10 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL(self) -> str:
         """Строка подключения для asyncpg."""
+        # Логин/пароль экранируем: спецсимволы в пароле managed-БД (#, &, { …)
+        # иначе ломают разбор URL — например, # обрезает строку как фрагмент.
         return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"postgresql+asyncpg://{quote(self.POSTGRES_USER, safe='')}:{quote(self.POSTGRES_PASSWORD, safe='')}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 

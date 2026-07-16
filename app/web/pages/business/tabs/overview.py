@@ -33,7 +33,7 @@ async def render_overview_tab(db: AsyncSession, salon, masters, master_ids, serv
         chart_bars += f'<div class="chart-column"><div class="chart-value">{week_data[i]}</div><div class="chart-fill" style="height:{max(height, 5)}px"></div><div class="chart-label">{days[i]}</div></div>'
     
     return f"""
-    <div id="tab-overview" class="tab-content active">
+    <div id="tab-overview" class="tab-content">
         <div class="grid-3" style="margin-bottom:2rem">
             <div class="stat-card"><div class="stat-value">{len(masters)}</div><div class="stat-label">Мастеров</div></div>
             <div class="stat-card"><div class="stat-value">{services_count}</div><div class="stat-label">Услуг</div></div>
