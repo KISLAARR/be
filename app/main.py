@@ -34,6 +34,8 @@ from app.api.v1.endpoints import admin
 from app.api.v1.endpoints import staff
 from app.api.v1.endpoints import inventory
 from app.api.v1.endpoints import payroll
+from app.api.v1.endpoints import loyalty
+from app.api.v1.endpoints import schedule as schedule_endpoints
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,6 +85,8 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(staff.router, prefix="/api/v1/business/staff", tags=["staff"])
 app.include_router(inventory.router, prefix="/api/v1/inventory", tags=["inventory"])
 app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
+app.include_router(loyalty.router, prefix="/api/v1/loyalty", tags=["loyalty"])
+app.include_router(schedule_endpoints.router, prefix="/api/v1/schedule", tags=["schedule"])
 
 # Healthcheck — регистрируем ДО веб-роутера, иначе его перехватывает
 # catch-all страниц (`/{path:path}`) и /health отдаёт 404.

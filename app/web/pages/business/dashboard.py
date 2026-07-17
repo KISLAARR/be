@@ -46,6 +46,13 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
         "audit_id": query_params.get("audit_id"),
     }
     period_raw = query_params.get("period")
+    staff_notice = {
+        "added": query_params.get("added"),
+        "temp_pw": query_params.get("temp_pw"),
+        "error": query_params.get("error"),
+    }
+    schedule_master_id_raw = query_params.get("schedule_master_id")
+    schedule_master_id = int(schedule_master_id_raw) if schedule_master_id_raw and schedule_master_id_raw.isdigit() else None
 
     perms = {
         key: (membership.is_creator or membership.permissions.get(key, False))
@@ -108,7 +115,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
         tabs_html.append(await render_analytics_tab(db, salon, master_ids))
 
     tab_buttons.append(('schedule', '📅 Расписание', True))
-    tabs_html.append(await render_schedule_tab(db, salon, masters, perms["manage_schedule"], salon.id))
+    tabs_html.append(await render_schedule_tab(db, salon, masters, perms["manage_schedule"], schedule_master_id))
 
     tab_buttons.append(('employees', '💇 Мастера', True))
     tabs_html.append(await render_employees_tab(db, salon, masters))
@@ -136,7 +143,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
 
     tab_buttons.append(('staff', '👤 Сотрудники', perms["manage_admins"] or perms["manage_owners"]))
     if perms["manage_admins"] or perms["manage_owners"]:
-        tabs_html.append(await render_staff_tab(db, salon, user, membership, perms))
+        tabs_html.append(await render_staff_tab(db, salon, user, membership, perms, staff_notice))
 
     tab_buttons.append(('models', '🎭 Модели', perms["manage_masters"]))
     if perms["manage_masters"]:

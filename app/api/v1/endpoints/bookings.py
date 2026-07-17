@@ -1,6 +1,8 @@
 # app/api/v1/endpoints/bookings.py
-from fastapi import APIRouter, Depends, HTTPException, Request, Form, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, Body, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import timedelta, datetime, timezone as tz
@@ -11,7 +13,8 @@ from app.models.models import Booking, Master, Service, User, BookingStatus, Rev
 from app.schemas.booking import BookingCreate, BookingResponse, BookingCancel
 from app.api.deps import get_current_user, get_salon_membership
 from app.services.booking_service import BookingService
-from app.services.schedule_utils import get_salon_work_hours
+from app.services.loyalty_service import LoyaltyService, LoyaltyError
+from app.services.schedule_utils import get_effective_work_hours, is_within_booking_window, MAX_BOOKING_DAYS_AHEAD
 from app.utils.timezone import get_salon_time
 
 router = APIRouter()
@@ -119,9 +122,12 @@ async def get_available_slots(
     except (ValueError, TypeError):
         target_date = datetime.now()
 
-    work_hours = get_salon_work_hours(salon.working_hours, target_date)
+    if not is_within_booking_window(target_date):
+        return {"slots": [], "message": f"Запись открыта максимум на {MAX_BOOKING_DAYS_AHEAD} дней вперёд"}
+
+    work_hours = await get_effective_work_hours(db, salon, master_id, target_date)
     if work_hours is None:
-        return {"slots": [], "message": "Салон не работает в этот день или график задан с ошибкой"}
+        return {"slots": [], "message": "Салон не работает в этот день, день закрыт или график задан с ошибкой"}
     work_start, work_end = work_hours
 
     slot_duration = service.duration_minutes + master.break_minutes
@@ -313,22 +319,59 @@ async def _can_mark_booking(db: AsyncSession, user: User, booking: Booking) -> b
     )
 
 
+class CompleteBookingRequest(BaseModel):
+    """Скидка лояльности, применяемая при завершении записи. Опционально —
+    без тела запись просто завершается по цене услуги, как раньше."""
+    discount_choice: str = "none"  # none | regular_client | personal | promo
+    promo_code: Optional[str] = None
+    bonus_points_redeemed: int = 0
+
+
 @router.post("/{booking_id}/complete", response_model=BookingResponse)
 async def complete_booking(
     booking_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    body: Optional[CompleteBookingRequest] = Body(None),
 ):
-    """Отметить запись выполненной — сам мастер или owner/admin салона с manage_schedule."""
+    """Отметить запись выполненной — сам мастер или owner/admin салона с manage_schedule.
+    Выбор скидки лояльности (в `body`) доступен только администратору салона —
+    оплату оформляет он, не мастер: даже если тело запроса передано, мастеру
+    по своей записи применить скидку нельзя."""
     booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
     if not booking:
         raise HTTPException(status_code=404, detail="Запись не найдена")
     if not await _can_mark_booking(db, current_user, booking):
         raise HTTPException(status_code=403, detail="Нет прав отмечать эту запись")
+
+    wants_discount = body is not None and (body.discount_choice != "none" or body.bonus_points_redeemed)
+    if wants_discount:
+        master = (await db.execute(select(Master).where(Master.id == booking.master_id))).scalar_one_or_none()
+        membership = await get_salon_membership(db, current_user.id, master.salon_id if master else -1)
+        is_admin = membership is not None and (
+            membership.is_creator or membership.permissions.get("manage_schedule", False)
+        )
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="Скидку лояльности может применить только администратор салона")
+
     try:
-        return await BookingService.complete_booking(db, booking)
+        booking = await BookingService.complete_booking(db, booking)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if wants_discount:
+        try:
+            booking = await LoyaltyService.complete_with_discount(
+                db, booking=booking,
+                discount_choice=body.discount_choice,
+                promo_code=body.promo_code,
+                bonus_points_redeemed=body.bonus_points_redeemed,
+                actor=current_user,
+            )
+        except LoyaltyError as e:
+            raise HTTPException(status_code=e.status, detail=e.message)
+
+    return booking
 
 
 @router.post("/{booking_id}/no-show", response_model=BookingResponse)

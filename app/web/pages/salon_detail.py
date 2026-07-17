@@ -7,6 +7,8 @@ from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
+from app.services.loyalty_service import LoyaltyService
+from app.services.schedule_utils import MAX_BOOKING_DAYS_AHEAD
 
 
 async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str:
@@ -27,7 +29,28 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         select(Promotion).where(Promotion.salon_id == salon.id, Promotion.is_active == True)
     )
     promotions = promos_result.scalars().all()
-    
+
+    # Лояльность видна клиенту заранее, до записи — скидку/бонусы даёт салон, не РУМИ.
+    loyalty_html = ""
+    if user:
+        loyalty = await LoyaltyService.get_client_status(db, salon.id, user.id)
+        chips = []
+        if loyalty["is_regular_client"] and loyalty["regular_client_discount_percent"] > 0:
+            chips.append(f'🏅 Постоянный клиент −{loyalty["regular_client_discount_percent"]}%')
+        if loyalty["personal_discount_percent"]:
+            chips.append(f'🎁 Ваша скидка −{loyalty["personal_discount_percent"]}%')
+        if loyalty["bonus_points"] > 0:
+            chips.append(f'⭐ {loyalty["bonus_points"]} баллов')
+        if chips:
+            loyalty_html = (
+                '<div style="margin-top:0.75rem;display:flex;gap:0.75rem;flex-wrap:wrap">'
+                + "".join(
+                    f'<span class="badge" style="background:var(--color-accent-light);color:var(--color-primary)">{c}</span>'
+                    for c in chips
+                )
+                + "</div>"
+            )
+
     reviews_result = await db.execute(
         select(Review).where(Review.salon_id == salon.id).order_by(Review.created_at.desc()).limit(10)
     )
@@ -237,6 +260,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                     <span>⭐ {salon.rating} ({salon.reviews_count} отзывов)</span>
                     <button id="fav-salon-{salon.id}" onclick="toggleFavorite('salon', {salon.id})" class="fav-btn" title="Добавить в избранное">🤍</button>
                 </div>
+                {loyalty_html}
                 <p style="margin-top:0.75rem;color:var(--color-body)">{salon.description or ''}</p>
             </div>
         </div>
@@ -325,9 +349,12 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             
             slotsTitle.innerHTML = `
                 📅 Доступное время для «${{serviceName}}» (${{price}} ₽, ${{duration}} мин):
-                <br><input type="date" id="datePicker-${{masterId}}" value="${{new Date().toISOString().split('T')[0]}}" 
+                <br><input type="date" id="datePicker-${{masterId}}" value="${{new Date().toISOString().split('T')[0]}}"
+                    min="${{new Date().toISOString().split('T')[0]}}"
+                    max="${{new Date(Date.now() + {MAX_BOOKING_DAYS_AHEAD} * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}}"
                     onchange="loadSlots(${{masterId}}, ${{serviceId}}, '${{serviceName}}', ${{price}}, ${{duration}})"
                     style="margin-top:0.5rem;padding:0.4rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                <span style="font-size:0.75rem;color:var(--color-muted)">Запись открыта на {MAX_BOOKING_DAYS_AHEAD} дней вперёд</span>
             `;
             slotGrid.innerHTML = '<p style="color:var(--color-muted);font-size:0.85rem">Выберите дату для загрузки слотов...</p>';
             slotsContainer.style.display = 'block';
