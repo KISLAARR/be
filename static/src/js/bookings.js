@@ -1,6 +1,11 @@
 // static/src/js/bookings.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что мы на странице записей
+    if (!document.querySelector('.bookings-tabs')) {
+        return;
+    }
+
     // === Переключение вкладок ===
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');

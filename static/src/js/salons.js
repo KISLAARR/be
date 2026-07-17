@@ -1,6 +1,11 @@
-// static/src/js/salons.js
+// static/js/pages/salons.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что мы на странице салонов
+    if (!document.getElementById('searchInput')) {
+        return;
+    }
+
     // === Поиск ===
     const searchInput = document.getElementById('searchInput');
     const cards = document.querySelectorAll('.salon-card');

@@ -9,7 +9,6 @@ from app.web.components.icons import (
     ICON_HEART,
     ICON_LOGOUT,
     ICON_CALENDAR_DAYS_SIDEBAR,
-    ICON_SETTINGS_SIDEBAR,
 )
 
 def render_sidebar(current_page: str = "home", user=None) -> str:
@@ -69,9 +68,6 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     </a>
                     <a class="sidebar-link {is_active('favorites')}" href="/favorites">
                         {ICON_HEART} Избранное
-                    </a>
-                    <a class="sidebar-link {is_active('settings')}" href="/settings">
-                        {ICON_SETTINGS_SIDEBAR} Настройки
                     </a>
                     <a class="sidebar-link sidebar-logout" href="/logout">
                         {ICON_LOGOUT} Выход

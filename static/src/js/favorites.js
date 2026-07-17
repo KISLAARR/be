@@ -1,6 +1,11 @@
 // static/src/js/favorites.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что мы на странице избранного
+    if (!document.querySelector('.favorites-main')) {
+        return;
+    }
+
     const removeButtons = document.querySelectorAll('.fav-remove-btn');
 
     removeButtons.forEach(btn => {
@@ -23,7 +28,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (response.ok) {
                     if (card) {
                         card.remove();
-                        // Проверяем, остались ли карточки в секции
                         const section = card.closest('.fav-section');
                         const remaining = section.querySelectorAll('.fav-card');
                         if (remaining.length === 0) {

@@ -1,11 +1,9 @@
-/* static/css/pages/salons.css */
+/* static/src/css/pages/salons.css */
 
-/* ==========================================
-   Адаптивная раскладка и отступы страницы
-   ========================================== */
+/* ===== Адаптивная раскладка и отступы страницы ===== */
 
 .main-content {
-    margin-right: 16rem; /* Идентично поведению .home-main на главной */
+    margin-right: 16rem;
 }
 
 @media (max-width: 1023px) {
@@ -14,29 +12,23 @@
     }
 }
 
-/* Настройки контейнера контента */
 .main-content .section-container {
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
     box-sizing: border-box;
-    /* Уменьшенные равные отступы для мобильных и планшетов */
     padding-left: 1rem;
     padding-right: 1rem;
 }
 
 @media (min-width: 1024px) {
     .main-content .section-container {
-        /* Уменьшенный отступ слева на ПК */
         padding-left: 1.5rem;
-        /* Увеличенный отступ справа для создания красивой дистанции до сайдбара */
         padding-right: 3rem;
     }
 }
 
-/* ==========================================
-   Стили элементов страницы салонов
-   ========================================== */
+/* ========= Стили элементов страницы салонов ======= */
 
 .salons-hero {
     background: var(--color-surface-alt);
@@ -145,7 +137,7 @@
     object-fit: cover;
 }
 
-/* --- Кнопка избранного (унифицирована со страницей салонов) --- */
+/* --- Кнопка избранного --- */
 .favorite-btn {
     position: absolute;
     right: 0.5rem;
@@ -303,4 +295,99 @@
     .salons-title {
         font-size: 2rem;
     }
+}
+
+/* Десктопный блок справа */
+.salon-promo-desktop {
+    display: none;
+    flex-shrink: 0;
+    width: 320px;
+    padding: 1.25rem;
+    background: var(--color-surface-alt);
+    flex-direction: column;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+@media (min-width: 1024px) {
+    .salon-promo-desktop {
+        display: flex;
+    }
+}
+
+.promo-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-primary);
+    margin-bottom: 0.5rem;
+}
+
+.promo-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    transition: transform 0.2s;
+    cursor: default;
+}
+
+.promo-item:hover {
+    transform: scale(1.01);
+}
+
+.promo-tag {
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+}
+
+.promo-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.promo-title {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-heading);
+}
+
+.promo-desc {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Мобильный блок под карточкой */
+.salon-promo-mobile {
+    display: block;
+    padding: 1rem 1.25rem;
+    background: var(--color-surface-alt);
+    border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 1024px) {
+    .salon-promo-mobile {
+        display: none;
+    }
+}
+
+.salon-promo-mobile .promo-item {
+    background: rgba(255, 255, 255, 0.6);
+    margin-bottom: 0.5rem;
+}
+
+.salon-promo-mobile .promo-item:last-child {
+    margin-bottom: 0;
 }
