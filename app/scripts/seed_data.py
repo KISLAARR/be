@@ -1,5 +1,7 @@
 # app/scripts/seed_data.py
 import asyncio
+import json
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, func
@@ -10,9 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.models.models import (
     Salon, Master, User, Service, Promotion, UserRole, Base,
     SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
+    Booking, BookingStatus, Review,
+    SalonLoyaltySettings, LoyaltyOffer, ClientLoyalty, LoyaltyStatusSource,
+    InventoryItem, MasterPayrollSettings,
 )
 from app.core.config import settings
 from app.core.security import get_password_hash
+
+# График работы: слоты записи считаются от него (schedule_utils) — без графика
+# ни один салон не покажет ни одного слота.
+WORK_WEEK = json.dumps({
+    "mon": "10:00-21:00", "tue": "10:00-21:00", "wed": "10:00-21:00",
+    "thu": "10:00-21:00", "fri": "10:00-21:00", "sat": "11:00-19:00",
+    "sun": "выходной",
+})
+WORK_DAILY = json.dumps({
+    d: "10:00-20:00" for d in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+})
 
 # Единый dev-пароль для всех сидовых пользователей (Argon2id). Только для локалки.
 DEV_PASSWORD = "Seedpass1"
@@ -37,11 +53,11 @@ async def seed_database():
         print("🔄 База пуста. Заполняем тестовыми данными...")
         
         # ========== САЛОНЫ ==========
-        s1 = Salon(name="Брутальный", description="Мужские стрижки, борода, уход", address="Москва, ул. Тверская, 15", latitude=55.761859, longitude=37.606138, phone="+79991234567", rating=0.0, reviews_count=0, timezone="Europe/Moscow")
-        s2 = Salon(name="Classic", description="Классические мужские стрижки", address="Санкт-Петербург, Невский пр., 22", latitude=59.934280, longitude=30.335099, phone="+78121234567", rating=0.0, reviews_count=89, timezone="Europe/Moscow")
-        s3 = Salon(name="Имидж", description="Женские и мужские стрижки, окрашивание", address="Москва, пр. Мира, 45", latitude=55.779438, longitude=37.636928, phone="+74959876543", rating=0.0, reviews_count=234, timezone="Europe/Moscow")
-        s4 = Salon(name="Гламур", description="Маникюр, педикюр, наращивание", address="Санкт-Петербург, Большой пр. П.С., 10", latitude=59.962264, longitude=30.308452, phone="+78123334455", rating=0.0, reviews_count=312, timezone="Europe/Moscow")
-        s5 = Salon(name="Элегант", description="Стрижки, укладки, уход за волосами", address="Казань, ул. Баумана, 33", latitude=55.792752, longitude=49.121467, phone="+78432987654", rating=0.0, reviews_count=178, timezone="Europe/Moscow")
+        s1 = Salon(name="Брутальный", description="Мужские стрижки, борода, уход", address="Москва, ул. Тверская, 15", latitude=55.761859, longitude=37.606138, phone="+79991234567", rating=0.0, reviews_count=0, timezone="Europe/Moscow", working_hours=WORK_WEEK)
+        s2 = Salon(name="Classic", description="Классические мужские стрижки", address="Санкт-Петербург, Невский пр., 22", latitude=59.934280, longitude=30.335099, phone="+78121234567", rating=0.0, reviews_count=89, timezone="Europe/Moscow", working_hours=WORK_DAILY)
+        s3 = Salon(name="Имидж", description="Женские и мужские стрижки, окрашивание", address="Москва, пр. Мира, 45", latitude=55.779438, longitude=37.636928, phone="+74959876543", rating=0.0, reviews_count=234, timezone="Europe/Moscow", working_hours=WORK_WEEK)
+        s4 = Salon(name="Гламур", description="Маникюр, педикюр, наращивание", address="Санкт-Петербург, Большой пр. П.С., 10", latitude=59.962264, longitude=30.308452, phone="+78123334455", rating=0.0, reviews_count=312, timezone="Europe/Moscow", working_hours=WORK_DAILY)
+        s5 = Salon(name="Элегант", description="Стрижки, укладки, уход за волосами", address="Казань, ул. Баумана, 33", latitude=55.792752, longitude=49.121467, phone="+78432987654", rating=0.0, reviews_count=178, timezone="Europe/Moscow", working_hours=WORK_WEEK)
         session.add_all([s1, s2, s3, s4, s5])
         await session.flush()
         
@@ -142,8 +158,87 @@ async def seed_database():
                     is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS), is_active=True,
                 ))
 
+        # ========== ВЛАДЕЛЬЦЫ ОСТАЛЬНЫХ САЛОНОВ + СОТРУДНИК С ОГРАНИЧЕННЫМИ ПРАВАМИ ==========
+        # Игорь (+...0002) владеет s1 (выше) и s2 — кейс «несколько салонов у одного
+        # владельца». Светлана — владелица s3. Тимур — админ в s1 с урезанными
+        # правами (только склад и записи) — для демонстрации матрицы прав.
+        owner2 = User(phone="+79990000004", full_name="Светлана Хозяйка", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.BUSINESS, is_active=True)
+        staff1 = User(phone="+79990000005", full_name="Тимур Администратор", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.CLIENT, is_active=True)
+        session.add_all([owner2, staff1])
+        await session.flush()
+
+        if owner:
+            s2.creator_id = owner.id
+            session.add(SalonMember(salon_id=s2.id, user_id=owner.id, role=SalonRole.OWNER,
+                                    is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS), is_active=True))
+        s3.creator_id = owner2.id
+        session.add(SalonMember(salon_id=s3.id, user_id=owner2.id, role=SalonRole.OWNER,
+                                is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS), is_active=True))
+        session.add(SalonMember(salon_id=s1.id, user_id=staff1.id, role=SalonRole.ADMIN,
+                                is_creator=False, is_active=True,
+                                permissions={"manage_inventory": True, "manage_bookings": True}))
+
+        # ========== ЗАПИСИ (в разных статусах, в рабочие часы 10–21) ==========
+        client_user = await session.execute(select(User).where(User.phone == "+79990000001"))
+        client_user = client_user.scalar_one()
+        svc_m1 = (await session.execute(select(Service).where(Service.master_id == m1.id))).scalars().first()
+        svc_m3 = (await session.execute(select(Service).where(Service.master_id == m3.id))).scalars().first()
+
+        def _at(day_shift: int, hour: int) -> datetime:
+            return (datetime.now() + timedelta(days=day_shift)).replace(hour=hour, minute=0, second=0, microsecond=0)
+
+        bookings = [
+            # прошедшая выполненная — видна в истории и в карточке клиента CRM
+            Booking(client_id=client_user.id, master_id=m1.id, service_id=svc_m1.id,
+                    start_time=_at(-5, 12), end_time=_at(-5, 13),
+                    status=BookingStatus.COMPLETED, final_price=svc_m1.price),
+            # будущая подтверждённая — завтра
+            Booking(client_id=client_user.id, master_id=m1.id, service_id=svc_m1.id,
+                    start_time=_at(1, 14), end_time=_at(1, 15),
+                    status=BookingStatus.CONFIRMED, final_price=svc_m1.price),
+            # будущая отменённая — виден статус в «Моих записях»
+            Booking(client_id=client_user.id, master_id=m3.id, service_id=svc_m3.id,
+                    start_time=_at(2, 16), end_time=_at(2, 17),
+                    status=BookingStatus.CANCELLED, final_price=svc_m3.price),
+        ]
+        session.add_all(bookings)
+
+        # ========== ОТЗЫВЫ ==========
+        session.add_all([
+            Review(client_id=client_user.id, master_id=m1.id, salon_id=s1.id, rating=5,
+                   comment="Отличная стрижка, мастер топ!"),
+            Review(client_id=client_user.id, master_id=m3.id, salon_id=s2.id, rating=4,
+                   comment="Хорошо, но пришлось подождать 10 минут."),
+        ])
+        m1.rating = 5.0
+        s1.rating = 5.0
+        s1.reviews_count = 1
+        m3.rating = 4.0
+
+        # ========== ЛОЯЛЬНОСТЬ (салон Брутальный) ==========
+        session.add(SalonLoyaltySettings(salon_id=s1.id, regular_client_discount_percent=5,
+                                         regular_client_visits_threshold=3, bonus_accrual_percent=5.0))
+        session.add(LoyaltyOffer(salon_id=s1.id, title="День рождения", discount_percent=15,
+                                 promo_code="BDAY15", is_active=True))
+        session.add(ClientLoyalty(salon_id=s1.id, client_id=client_user.id,
+                                  is_regular_client=True, regular_client_source=LoyaltyStatusSource.MANUAL,
+                                  bonus_points=150))
+
+        # ========== СКЛАД И ЗАРПЛАТА (мастер Александр в Брутальном) ==========
+        session.add_all([
+            InventoryItem(master_id=m1.id, name="Шампунь профессиональный", unit="мл",
+                          quantity=1500.0, cost_per_unit=2, min_quantity=300.0),
+            InventoryItem(master_id=m1.id, name="Воск для укладки", unit="г",
+                          quantity=200.0, cost_per_unit=8, min_quantity=50.0),
+            InventoryItem(master_id=m1.id, name="Лезвия для бритвы", unit="шт",
+                          quantity=18.0, cost_per_unit=45, min_quantity=20.0),  # ниже минимума — видна плашка
+        ])
+        session.add(MasterPayrollSettings(master_id=m1.id, base_salary=40000, commission_percent=30.0))
+
         await session.commit()
-        print("✅ База заполнена: 5 салонов, 6 мастеров, 17 услуг, 9 акций!")
+        print("✅ База заполнена: 5 салонов (график работы задан — слоты записи работают), "
+              "6 мастеров, 17 услуг, 9 акций, владельцы+сотрудник, записи в 3 статусах, "
+              "отзывы, лояльность, склад, зарплата!")
 
 if __name__ == "__main__":
     asyncio.run(seed_database())
