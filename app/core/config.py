@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     # бота + ARQ). Требует TG_BOT_TOKEN; получают только привязавшие Telegram.
     TG_NOTIFY_ENABLED: bool = False
 
+    # Каталог загруженных изображений (аватары, фото салонов). В docker —
+    # volume, переживает деплой. ВРЕМЕННО локально: переезд на S3 Timeweb,
+    # когда возьмут креды из панели (см. app/services/uploads.py).
+    UPLOADS_DIR: str = "uploads"
+
     # Временный рубильник: пока нет официального подключения SMS-провайдера,
     # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py
     # возвращает фиктивный request_id и считает любой код верным).

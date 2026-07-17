@@ -38,6 +38,7 @@ from app.api.v1.endpoints import staff
 from app.api.v1.endpoints import inventory
 from app.api.v1.endpoints import payroll
 from app.api.v1.endpoints import loyalty
+from app.api.v1.endpoints import uploads
 from app.api.v1.endpoints import schedule as schedule_endpoints
 
 @asynccontextmanager
@@ -74,6 +75,12 @@ app.add_middleware(CSRFOriginMiddleware)
 # 1. Статические файлы — ПЕРВЫМИ!
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Загруженные пользователями изображения (аватары, фото салонов) — отдельный
+# каталог-volume, не запекается в образ и переживает деплой
+import os as _os
+_os.makedirs(settings.UPLOADS_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOADS_DIR), name="uploads")
+
 # 2. API-роутеры — ДОЛЖНЫ БЫТЬ ДО ВЕБ-РОУТЕРА
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(auth_web.router, prefix="/api/v1/auth", tags=["auth-web"])
@@ -88,6 +95,7 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(staff.router, prefix="/api/v1/business/staff", tags=["staff"])
 app.include_router(inventory.router, prefix="/api/v1/inventory", tags=["inventory"])
 app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
+app.include_router(uploads.router, prefix="/api/v1/upload", tags=["uploads"])
 app.include_router(loyalty.router, prefix="/api/v1/loyalty", tags=["loyalty"])
 app.include_router(schedule_endpoints.router, prefix="/api/v1/schedule", tags=["schedule"])
 

@@ -41,11 +41,32 @@ document.addEventListener('DOMContentLoaded', function() {
             avatarInput.click();
         });
 
-        avatarInput.addEventListener('change', function(e) {
+        avatarInput.addEventListener('change', async function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            alert('Загрузка аватара: ' + file.name + '\n(Функция будет добавлена позже)');
-            avatarInput.value = '';
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch('/api/v1/upload/avatar', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.detail || 'Не удалось загрузить фото');
+                    return;
+                }
+                const container = document.getElementById('profile-avatar-container');
+                const letter = container.querySelector('.profile-avatar-letter');
+                if (letter) letter.remove();
+                let img = container.querySelector('img');
+                if (!img) {
+                    img = document.createElement('img');
+                    container.prepend(img);
+                }
+                img.src = data.url + '?t=' + Date.now();
+            } catch (err) {
+                alert('Сеть недоступна, попробуйте ещё раз');
+            } finally {
+                avatarInput.value = '';
+            }
         });
     }
 });

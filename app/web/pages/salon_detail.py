@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
-from app.models.models import Salon, Master, Service, Promotion, User, Booking, BookingStatus, Review
+from app.models.models import Salon, SalonPhoto, Master, Service, Promotion, User, Booking, BookingStatus, Review
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
@@ -62,6 +62,21 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                 )
                 + "</div>"
             )
+
+    salon_photos = (
+        await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
+    ).scalars().all()
+    photos_strip = ""
+    if salon_photos:
+        photos_strip = (
+            '<div class="salon-photos" style="display:flex;gap:0.75rem;overflow-x:auto;padding:1rem 0">'
+            + "".join(
+                f'<img src="{p.url}" alt="" loading="lazy" '
+                f'style="height:180px;border-radius:0.75rem;flex-shrink:0">'
+                for p in salon_photos
+            )
+            + "</div>"
+        )
 
     heart_svg = ICON_HEART.replace('"', '&quot;')
     heart_filled_svg = ICON_HEART_FILLED.replace('"', '&quot;')
@@ -273,6 +288,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     <div class="main-wrapper">
         <main>
             {top_block}
+            {f'<section class="section-container">{photos_strip}</section>' if photos_strip else ''}
             {promos_html}
             {masters_block}
 

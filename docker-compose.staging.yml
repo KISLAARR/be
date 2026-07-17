@@ -51,6 +51,7 @@ services:
       WEB_CONCURRENCY: "2"
     volumes:
       - ./keys-staging:/app/keys:ro   # у staging СВОИ RS256-ключи (не боевые!)
+      - uploads_staging:/app/uploads  # загруженные фото; переживают деплой
     networks:
       - default
       - edge                          # виден edge-Caddy как rumi-staging-app
@@ -111,3 +112,4 @@ networks:
 
 volumes:
   pgdata_staging:
+  uploads_staging:

@@ -23,7 +23,38 @@ _ERROR_MESSAGES = {
 
 async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_params=None) -> str:
     """Страница редактирования своего салона."""
+    from app.models.models import SalonPhoto  # локальный импорт: избегаем циклов
+
     query_params = query_params or {}
+
+    # Фото галереи — явный select (ленивая подгрузка в async уронила бы рендер)
+    photos = (
+        await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
+    ).scalars().all()
+    photo_cards = "".join(
+        f'''<div style="position:relative">
+                <img src="{p.url}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:0.5rem;border:1px solid var(--color-border)">
+                <form method="post" action="/api/v1/upload/salon/{salon.id}/photo/{p.id}/delete" style="position:absolute;top:0.25rem;right:0.25rem;margin:0">
+                    <button type="submit" title="Удалить фото" onclick="return confirm('Удалить фото?')"
+                        style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:1.5rem;height:1.5rem;cursor:pointer;line-height:1">&times;</button>
+                </form>
+            </div>'''
+        for p in photos
+    )
+    photos_section = f'''
+            <!-- Фото салона -->
+            <div class="card" style="margin-top: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2 class="text-subtitle" style="font-size: 1.25rem;">Фото салона</h2>
+                    <form method="post" action="/api/v1/upload/salon/{salon.id}/photo" enctype="multipart/form-data" style="margin:0;display:flex;gap:0.5rem;align-items:center">
+                        <input type="file" name="file" accept="image/*" required style="font-size:0.85rem">
+                        <button type="submit" class="btn-primary" style="font-size:0.85rem;padding:0.5rem 1rem">Загрузить</button>
+                    </form>
+                </div>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+                    {photo_cards or '<p style="color:var(--color-muted);margin:0">Пока нет фотографий — они появятся на странице салона для клиентов</p>'}
+                </div>
+            </div>'''
     error_banner = ""
     error_code = query_params.get("error")
     if error_code:
@@ -290,6 +321,8 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
                 </table>
             </div>
             
+            {photos_section}
+
             <!-- Акции -->
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
