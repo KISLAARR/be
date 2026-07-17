@@ -1,27 +1,79 @@
 # app/web/pages/my_salon.py
+import html
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.models import Salon, Master, Promotion, User as UserModel
+from app.models.models import Salon, Master, Promotion, SalonLoyaltySettings, LoyaltyOffer, User as UserModel
+
+DAY_KEYS_RU = [
+    ("mon", "Понедельник"), ("tue", "Вторник"), ("wed", "Среда"), ("thu", "Четверг"),
+    ("fri", "Пятница"), ("sat", "Суббота"), ("sun", "Воскресенье"),
+]
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
 
 
-async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str:
+_ERROR_MESSAGES = {
+    "bad_phone": "Не удалось распознать телефон мастера. Формат: +7 999 123-45-67 или 8 999 123-45-67.",
+    "master_exists": "У этого пользователя уже есть профиль мастера.",
+}
+
+
+async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_params=None) -> str:
     """Страница редактирования своего салона."""
-    
+    query_params = query_params or {}
+    error_banner = ""
+    error_code = query_params.get("error")
+    if error_code:
+        message = _ERROR_MESSAGES.get(error_code, "Что-то пошло не так, попробуйте ещё раз.")
+        error_banner = (
+            '<div style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.875rem">'
+            f'{message}</div>'
+        )
+
+    # Временный пароль нового мастера показываем один раз, сразу после
+    # добавления — дальше он нигде не хранится и не восстанавливается.
+    success_banner = ""
+    temp_pw = query_params.get("temp_pw")
+    if temp_pw:
+        safe_temp_pw = html.escape(temp_pw, quote=True)
+        success_banner = (
+            '<div style="background:#DCFCE7;color:#166534;border:1px solid #86EFAC;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.875rem">'
+            f'Мастер добавлен. Временный пароль (передайте его мастеру, он больше нигде не отобразится): '
+            f'<code style="background:white;padding:0.15rem 0.5rem;border-radius:0.25rem;font-weight:700">{safe_temp_pw}</code>'
+            '</div>'
+        )
+    elif query_params.get("added"):
+        success_banner = (
+            '<div style="background:#DCFCE7;color:#166534;border:1px solid #86EFAC;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.875rem">'
+            'Мастер добавлен.</div>'
+        )
+
     # Получаем мастеров салона
     masters_result = await db.execute(
         select(Master).where(Master.salon_id == salon.id)
     )
     masters = masters_result.scalars().all()
-    
+
     # Получаем акции
     promos_result = await db.execute(
         select(Promotion).where(Promotion.salon_id == salon.id)
     )
     promotions = promos_result.scalars().all()
+
+    # Настройки лояльности + именные скидки/промокоды
+    loyalty_settings = (await db.execute(
+        select(SalonLoyaltySettings).where(SalonLoyaltySettings.salon_id == salon.id)
+    )).scalar_one_or_none()
+    loyalty_offers_result = await db.execute(
+        select(LoyaltyOffer).where(LoyaltyOffer.salon_id == salon.id).order_by(LoyaltyOffer.created_at.desc())
+    )
+    loyalty_offers = loyalty_offers_result.scalars().all()
     
     # Таблица мастеров
     masters_rows = ""
@@ -46,6 +98,56 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
         </tr>
         """
     
+    # Таблица именных скидок/промокодов лояльности
+    loyalty_offers_rows = ""
+    for o in loyalty_offers:
+        code_str = o.promo_code or "—"
+        loyalty_offers_rows += f"""
+        <tr>
+            <td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);"><strong>{o.title}</strong></td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">{o.discount_percent}%</td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);"><code>{code_str}</code></td>
+            <td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">
+                <button onclick="deleteLoyaltyOffer({o.id}, '{o.title}')" style="background: none; border: none; color: red; cursor: pointer;">🗑️</button>
+            </td>
+        </tr>
+        """
+
+    # Часы работы: разбираем текущий JSON (может отсутствовать — это и есть
+    # причина пустого расписания, пока владелец их не заполнит)
+    parsed_hours = {}
+    if salon.working_hours:
+        try:
+            parsed_hours = json.loads(salon.working_hours)
+        except (ValueError, TypeError):
+            parsed_hours = {}
+
+    hours_rows = ""
+    for key, label in DAY_KEYS_RU:
+        raw = (parsed_hours.get(key) or "").strip()
+        # Если для салона вообще не задан график (raw пустой), день по умолчанию
+        # считаем рабочим, а не выходным — иначе все чекбоксы "Выходной" оказываются
+        # включены и заблокированные поля времени незаметно для владельца
+        # сохраняются как "closed", хотя он вводил часы работы.
+        is_closed = raw in ("closed", "выходной", "day off")
+        start_val, end_val = "10:00", "20:00"
+        if raw and not is_closed and "-" in raw:
+            parts = raw.split("-")
+            if len(parts) == 2:
+                start_val, end_val = parts[0].strip(), parts[1].strip()
+        checked = "checked" if is_closed else ""
+        disabled = "disabled" if is_closed else ""
+        hours_rows += f"""
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:1px solid var(--color-border);flex-wrap:wrap">
+            <span style="width:130px;font-size:0.875rem">{label}</span>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;color:var(--color-muted);width:110px">
+                <input type="checkbox" class="wh-closed" data-day="{key}" {checked} onchange="toggleDayClosed('{key}', this.checked)"> Выходной
+            </label>
+            <input type="time" id="wh-start-{key}" value="{start_val}" {disabled} style="padding:0.4rem;border:1px solid var(--color-border);border-radius:0.5rem">
+            <span style="color:var(--color-muted)">—</span>
+            <input type="time" id="wh-end-{key}" value="{end_val}" {disabled} style="padding:0.4rem;border:1px solid var(--color-border);border-radius:0.5rem">
+        </div>"""
+
     # Таблица акций (с рабочей кнопкой удаления)
     promos_rows = ""
     for p in promotions:
@@ -118,7 +220,10 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
                 </div>
                 <a href="/business/dashboard" class="btn-outline">← К панели управления</a>
             </div>
-            
+
+            {error_banner}
+            {success_banner}
+
             <!-- Форма редактирования -->
             <div class="card" style="margin-bottom: 2rem;">
                 <h2 class="text-subtitle" style="font-size: 1.25rem; margin-bottom: 1.5rem;">Основная информация</h2>
@@ -149,7 +254,22 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
                     <button type="submit" class="btn-primary">💾 Сохранить изменения</button>
                 </form>
             </div>
-            
+
+            <!-- Часы работы -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <h2 class="text-subtitle" style="font-size: 1.25rem; margin-bottom: 0.5rem;">Часы работы</h2>
+                <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.875rem;">
+                    Без часов работы расписание пустое и клиенты не могут записаться — заполните хотя бы будни.
+                </p>
+                <div style="margin-bottom: 1rem">
+                    {hours_rows}
+                </div>
+                <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                    <button type="button" class="btn-primary" onclick="saveWorkingHours({salon.id})">💾 Сохранить часы работы</button>
+                    <button type="button" class="btn-outline" style="font-size:0.85rem" onclick="copyMondayToWeekdays()">Скопировать понедельник на пн–пт</button>
+                </div>
+            </div>
+
             <!-- Мастера -->
             <div class="card" style="margin-bottom: 2rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -186,6 +306,49 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
                     </thead>
                     <tbody>
                         {promos_rows or '<tr><td colspan="3" style="padding:2rem;text-align:center;color:var(--color-muted)">Пока нет акций</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Лояльность -->
+            <div class="card" style="margin-top: 2rem;">
+                <h2 class="text-subtitle" style="font-size: 1.25rem; margin-bottom: 0.5rem;">Лояльность</h2>
+                <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.875rem;">
+                    Скидку клиенту даёт только ваш салон — настройте её сами. Мастер такие скидки не применяет,
+                    это делает администратор при завершении записи в «Расписании».
+                </p>
+
+                <div class="grid-2" style="gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Скидка «постоянному клиенту», %</label>
+                        <input type="number" id="loyaltyRegularPercent" min="0" max="99" value="{loyalty_settings.regular_client_discount_percent if loyalty_settings else 0}" style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 0.5rem;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Визитов за год для авто-статуса</label>
+                        <input type="number" id="loyaltyVisitsThreshold" min="1" placeholder="Не задано — только вручную" value="{loyalty_settings.regular_client_visits_threshold if loyalty_settings and loyalty_settings.regular_client_visits_threshold else ''}" style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 0.5rem;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 1.5rem; max-width: calc(50% - 0.75rem)">
+                    <label style="display: block; font-weight: 500; margin-bottom: 0.5rem;">Автоначисление баллов после оплаты, % от чека</label>
+                    <input type="number" id="loyaltyBonusAccrual" min="0" max="99" step="0.1" placeholder="0 — выключено" value="{loyalty_settings.bonus_accrual_percent if loyalty_settings else 0}" style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 0.5rem;">
+                </div>
+                <button type="button" class="btn-primary" onclick="saveLoyaltySettings({salon.id})">💾 Сохранить настройки лояльности</button>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 2rem 0 1rem;">
+                    <h3 style="font-size: 1.05rem;">Именные скидки и промокоды</h3>
+                    <button class="btn-primary" style="font-size:0.85rem;padding:0.5rem 1rem" onclick="document.getElementById('addLoyaltyOfferModal').classList.add('active')">+ Добавить</button>
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 0.75rem; border-bottom: 2px solid var(--color-border);">Название</th>
+                            <th style="text-align: left; padding: 0.75rem; border-bottom: 2px solid var(--color-border);">Скидка</th>
+                            <th style="text-align: left; padding: 0.75rem; border-bottom: 2px solid var(--color-border);">Промокод</th>
+                            <th style="text-align: left; padding: 0.75rem; border-bottom: 2px solid var(--color-border);"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {loyalty_offers_rows or '<tr><td colspan="4" style="padding:2rem;text-align:center;color:var(--color-muted)">Пока нет именных скидок</td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -268,8 +431,29 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
         </div>
     </div>
     
+    <!-- Модальное окно: Добавить именную скидку/промокод -->
+    <div class="modal-overlay" id="addLoyaltyOfferModal">
+        <div class="modal-box">
+            <button class="modal-close" onclick="document.getElementById('addLoyaltyOfferModal').classList.remove('active')">&times;</button>
+            <h2 style="margin-bottom:1.5rem">Добавить скидку</h2>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Название *</label>
+                <input type="text" id="loyaltyOfferTitle" required placeholder="Например: День рождения" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
+            </div>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Скидка, % *</label>
+                <input type="number" id="loyaltyOfferPercent" min="1" max="99" required style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
+            </div>
+            <div style="margin-bottom:1rem">
+                <label style="display:block;font-weight:500;margin-bottom:0.5rem">Промокод</label>
+                <input type="text" id="loyaltyOfferCode" placeholder="Необязательно, например BDAY15" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
+            </div>
+            <button type="button" class="btn-primary" style="width:100%" onclick="addLoyaltyOffer({salon.id})">Добавить</button>
+        </div>
+    </div>
+
     {render_footer(user)}
-    
+
     <script>
     function editMaster(id, name, spec, exp) {{
         document.getElementById('editMasterId').value = id;
@@ -292,6 +476,83 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None) -> str
             fetch('/api/v1/business/my-salon/promotions/' + id + '/delete', {{ method: 'POST' }})
                 .then(r => {{ if (r.ok) location.reload(); else alert('Ошибка при удалении'); }});
         }}
+    }}
+
+    const WH_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    function toggleDayClosed(day, isClosed) {{
+        document.getElementById('wh-start-' + day).disabled = isClosed;
+        document.getElementById('wh-end-' + day).disabled = isClosed;
+    }}
+
+    function copyMondayToWeekdays() {{
+        const start = document.getElementById('wh-start-mon').value;
+        const end = document.getElementById('wh-end-mon').value;
+        const mondayClosed = document.querySelector('.wh-closed[data-day="mon"]').checked;
+        ['tue', 'wed', 'thu', 'fri'].forEach(day => {{
+            document.querySelector(`.wh-closed[data-day="${{day}}"]`).checked = mondayClosed;
+            document.getElementById('wh-start-' + day).value = start;
+            document.getElementById('wh-end-' + day).value = end;
+            toggleDayClosed(day, mondayClosed);
+        }});
+    }}
+
+    async function saveWorkingHours(salonId) {{
+        const hours = {{}};
+        for (const day of WH_DAY_KEYS) {{
+            const closed = document.querySelector(`.wh-closed[data-day="${{day}}"]`).checked;
+            if (closed) {{
+                hours[day] = 'closed';
+            }} else {{
+                const start = document.getElementById('wh-start-' + day).value;
+                const end = document.getElementById('wh-end-' + day).value;
+                if (!start || !end) {{ alert('Укажите время начала и конца для рабочего дня'); throw new Error('missing time'); }}
+                hours[day] = `${{start}}-${{end}}`;
+            }}
+        }}
+        const res = await fetch(`/api/v1/business/my-salon?salon_id=${{salonId}}`, {{
+            method: 'PUT',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ working_hours: JSON.stringify(hours) }})
+        }});
+        if (res.ok) {{ alert('Часы работы сохранены'); location.reload(); }}
+        else {{ const d = await res.json().catch(() => ({{}})); alert(d.detail || 'Ошибка'); }}
+    }}
+
+    async function saveLoyaltySettings(salonId) {{
+        const body = {{
+            regular_client_discount_percent: parseInt(document.getElementById('loyaltyRegularPercent').value) || 0,
+            regular_client_visits_threshold: document.getElementById('loyaltyVisitsThreshold').value
+                ? parseInt(document.getElementById('loyaltyVisitsThreshold').value) : null,
+            bonus_accrual_percent: parseFloat(document.getElementById('loyaltyBonusAccrual').value) || 0,
+        }};
+        const res = await fetch(`/api/v1/loyalty/salon/${{salonId}}/settings`, {{
+            method: 'PUT',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify(body)
+        }});
+        if (res.ok) {{ alert('Настройки лояльности сохранены'); }}
+        else {{ const d = await res.json(); alert(d.detail || 'Ошибка'); }}
+    }}
+
+    async function addLoyaltyOffer(salonId) {{
+        const title = document.getElementById('loyaltyOfferTitle').value.trim();
+        const discount_percent = parseInt(document.getElementById('loyaltyOfferPercent').value);
+        const promo_code = document.getElementById('loyaltyOfferCode').value.trim() || null;
+        if (!title || !discount_percent) {{ alert('Заполните название и размер скидки'); return; }}
+        const res = await fetch(`/api/v1/loyalty/salon/${{salonId}}/offers`, {{
+            method: 'POST',
+            headers: {{ 'Content-Type': 'application/json' }},
+            body: JSON.stringify({{ title, discount_percent, promo_code }})
+        }});
+        if (res.ok) {{ location.reload(); }}
+        else {{ const d = await res.json(); alert(d.detail || 'Ошибка'); }}
+    }}
+
+    function deleteLoyaltyOffer(id, title) {{
+        if (!confirm(`Удалить скидку «${{title}}»?`)) return;
+        fetch(`/api/v1/loyalty/salon/{salon.id}/offers/${{id}}`, {{ method: 'DELETE' }})
+            .then(r => {{ if (r.ok) location.reload(); else r.json().then(d => alert(d.detail || 'Ошибка')); }});
     }}
     </script>
 </body>

@@ -7,6 +7,8 @@ from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
+from app.services.loyalty_service import LoyaltyService
+from app.services.schedule_utils import MAX_BOOKING_DAYS_AHEAD
 from app.web.components.icons import (
     ICON_ARROW_LEFT,
     ICON_HEART,
@@ -37,6 +39,29 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         select(Review).where(Review.salon_id == salon.id).order_by(Review.created_at.desc()).limit(10)
     )
     reviews = reviews_result.scalars().all()
+
+    # Лояльность видна клиенту заранее, до записи — скидку/бонусы даёт салон,
+    # не РУМИ (портировано из main при слиянии с редизайном).
+    loyalty_html = ""
+    if user:
+        loyalty = await LoyaltyService.get_client_status(db, salon.id, user.id)
+        chips = []
+        if loyalty["is_regular_client"] and loyalty["regular_client_discount_percent"] > 0:
+            chips.append(f'🏅 Постоянный клиент −{loyalty["regular_client_discount_percent"]}%')
+        if loyalty["personal_discount_percent"]:
+            chips.append(f'🎁 Ваша скидка −{loyalty["personal_discount_percent"]}%')
+        if loyalty["bonus_points"] > 0:
+            chips.append(f'⭐ {loyalty["bonus_points"]} баллов')
+        if chips:
+            loyalty_html = (
+                '<div class="salon-loyalty" style="margin-top:0.75rem;display:flex;gap:0.75rem;flex-wrap:wrap">'
+                + "".join(
+                    f'<span class="badge" style="background:var(--color-accent-light);color:var(--color-primary);'
+                    f'padding:0.25rem 0.75rem;border-radius:1rem;font-size:0.85rem">{c}</span>'
+                    for c in chips
+                )
+                + "</div>"
+            )
 
     heart_svg = ICON_HEART.replace('"', '&quot;')
     heart_filled_svg = ICON_HEART_FILLED.replace('"', '&quot;')
@@ -75,6 +100,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                         </div>
                     </div>
                     <p class="salon-desc">{salon.description or ''}</p>
+                    {loyalty_html}
                     <div class="salon-contacts">
                         <span class="contact-item">{ICON_MAP_PIN} {salon.address or 'Адрес не указан'}</span>
                         <span class="contact-item">{ICON_PHONE} {salon.phone or '—'}</span>
@@ -263,7 +289,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
 
     {booking_panel}
 
-    <script src="/static/js/pages/salon-detail.js"></script>
+    <script>window.MAX_BOOKING_DAYS = {MAX_BOOKING_DAYS_AHEAD};</script>
+    <script src="/static/src/js/salon-detail.js"></script>
 </body>
 </html>"""
     return html

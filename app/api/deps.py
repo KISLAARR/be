@@ -1,28 +1,41 @@
 # app/api/deps.py
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
 from app.db.session import get_db
 from app.models.models import User, UserRole, SalonMember
 from app.core.config import settings
 from app.core.security import decode_access_token
 
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+# auto_error=False: отсутствие заголовка Authorization не должно ронять запрос
+# здесь же — веб-панель шлёт JWT только в cookie access_token (см.
+# app/core/middleware.py), а не в этом заголовке. Ниже сами решаем, откуда
+# брать токен, и кидаем 401 сами, если не нашли ни там, ни там.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """Декодирует JWT-токен, находит пользователя и возвращает его."""
+    """Декодирует JWT и находит пользователя. Токен берётся из заголовка
+    Authorization: Bearer (API-клиенты) либо, если его нет, из cookie
+    access_token (браузерные fetch()-запросы бизнес-панели — у них
+    заголовка никогда не будет, только ambient-cookie)."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Не удалось подтвердить учётные данные",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
+        raise credentials_exception
+
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception
@@ -32,10 +45,10 @@ async def get_current_user(
 
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
-    
+
     if user is None or not user.is_active:
         raise credentials_exception
-    
+
     return user
 
 

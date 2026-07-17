@@ -157,8 +157,8 @@ async def on_contact(message: Message) -> None:
         )
     else:
         await message.answer(
-            "Подтверждение устарело (действует 10 минут). Вернитесь на сайт "
-            "и начните заново.",
+            f"Подтверждение устарело (действует {settings.OTP_TTL_MINUTES} мин). "
+            "Вернитесь на сайт и начните заново.",
             reply_markup=ReplyKeyboardRemove(),
         )
 

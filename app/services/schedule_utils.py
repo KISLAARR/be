@@ -1,9 +1,15 @@
 # app/services/schedule_utils.py
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+# Запись открыта на 2 месяца вперёд от сегодняшнего дня.
+MAX_BOOKING_DAYS_AHEAD = 60
 
 
 def get_salon_work_hours(
@@ -36,3 +42,38 @@ def get_salon_work_hours(
     work_start = target_date.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
     work_end = target_date.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
     return work_start, work_end
+
+
+def is_within_booking_window(target_date: datetime) -> bool:
+    """Дата не дальше MAX_BOOKING_DAYS_AHEAD дней от сегодня."""
+    horizon = datetime.now().date() + timedelta(days=MAX_BOOKING_DAYS_AHEAD)
+    return target_date.date() <= horizon
+
+
+async def get_effective_work_hours(
+    db: AsyncSession, salon, master_id: int, target_date: datetime
+) -> Optional[Tuple[datetime, datetime]]:
+    """Единая точка правды о доступности дня для записи: сочетает окно
+    в 2 месяца, недельный график салона (get_salon_work_hours) и закрытые
+    даты (ScheduleClosure — на весь салон или на конкретного мастера).
+    None — в этот день записаться нельзя ни по какой из причин."""
+    from app.models.models import ScheduleClosure  # локальный импорт — без цикла с models.py
+
+    if not is_within_booking_window(target_date):
+        return None
+
+    hours = get_salon_work_hours(salon.working_hours, target_date)
+    if hours is None:
+        return None
+
+    closed = await db.execute(
+        select(ScheduleClosure.id).where(
+            ScheduleClosure.salon_id == salon.id,
+            ScheduleClosure.date == target_date.date(),
+            (ScheduleClosure.master_id.is_(None)) | (ScheduleClosure.master_id == master_id),
+        )
+    )
+    if closed.first() is not None:
+        return None
+
+    return hours
