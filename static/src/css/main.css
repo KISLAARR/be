@@ -24,3 +24,7 @@
 @import './settings.css';
 @import './bookings.css';
 @import './favorites.css';
+
+/* Стили панели бизнеса */
+@import './business/dashboard.css';
+@import './business/tabs/overview.css';
