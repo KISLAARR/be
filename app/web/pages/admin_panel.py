@@ -134,7 +134,7 @@ def _users_tab(users, me_id):
 def _salons_tab(salons, owner_phone_by_id):
     rows = ""
     for s in salons:
-        owner = owner_phone_by_id.get(s.owner_id, "—") if s.owner_id else "нет"
+        owner = owner_phone_by_id.get(s.creator_id, "—") if s.creator_id else "нет"
         owner_form = (
             f'<form method="post" action="/api/v1/admin/salons/{s.id}/owner" style="display:inline-flex;gap:0.25rem">'
             f'<input name="owner_phone" placeholder="+7… (пусто = снять)" value="" '
@@ -308,7 +308,7 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         {reviews_tab}
         {audit_tab}
     </main>
-    {render_footer()}
+    {render_footer(user)}
     <script>
         function switchTab(name) {{
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));

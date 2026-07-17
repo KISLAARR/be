@@ -1,4 +1,5 @@
 # app/main.py
+
 from contextlib import asynccontextmanager
 
 from geopy.distance import geodesic
@@ -21,6 +22,7 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.middleware import SecurityHeadersMiddleware, CSRFOriginMiddleware
 from app.core.worker import close_arq_pool
+
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
@@ -30,7 +32,11 @@ from app.api.v1.endpoints import auth_web
 from app.api.v1.endpoints import reviews
 from app.api.v1.endpoints import services
 from app.api.v1.endpoints import favorites
+
 from app.api.v1.endpoints import admin
+from app.api.v1.endpoints import staff
+from app.api.v1.endpoints import inventory
+from app.api.v1.endpoints import payroll
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,8 +73,8 @@ app.add_middleware(CSRFOriginMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 2. API-роутеры — ДОЛЖНЫ БЫТЬ ДО ВЕБ-РОУТЕРА
-app.include_router(auth_web.router, prefix="/api/v1/auth", tags=["auth-web"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth_web.router, prefix="/api/v1/auth", tags=["auth-web"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"])
 app.include_router(business.router, prefix="/api/v1/business", tags=["business"])
@@ -77,6 +83,9 @@ app.include_router(reviews.router, prefix="/api/v1", tags=["reviews"])
 app.include_router(services.router, prefix="/api/v1", tags=["services"])
 app.include_router(favorites.router, prefix="/api/v1", tags=["favorites"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(staff.router, prefix="/api/v1/business/staff", tags=["staff"])
+app.include_router(inventory.router, prefix="/api/v1/inventory", tags=["inventory"])
+app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
 
 # Healthcheck — регистрируем ДО веб-роутера, иначе его перехватывает
 # catch-all страниц (`/{path:path}`) и /health отдаёт 404.
@@ -84,8 +93,10 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 async def health_check():
     return {"status": "ok"}
 
+
 # 3. Веб-роутер (страницы) — ПОСЛЕ API
 app.include_router(web_router, include_in_schema=False)
+
 
 @app.get("/api/v1/salons", response_model=List[SalonResponse])
 async def get_salons(db: AsyncSession = Depends(get_db)):

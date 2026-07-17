@@ -1,48 +1,58 @@
 # app/api/v1/endpoints/business.py
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Form, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 from fastapi.responses import HTMLResponse
 
 from app.db.session import get_db
-from app.models.models import User, Salon, SalonPhoto, Master, Service, Promotion, UserRole
+from app.models.models import (
+    User, Salon, SalonPhoto, Master, Service, Promotion,
+    SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS, AdminAudit, ClientNote,
+    SalonModel, UserRole,
+)
 from app.schemas.business import (
-    SalonUpdateRequest, 
+    SalonUpdateRequest,
     SalonResponse,
     MasterResponse,
     ServiceResponse,
     PromotionResponse
 )
-from app.api.deps import get_current_user
+from app.api.deps import (
+    get_current_user, check_salon_permission, get_user_primary_salon_id, get_salon_membership,
+)
 
 router = APIRouter()
 
-# Вспомогательная функция для проверки прав
-async def get_owner_salon(
+
+async def get_current_salon(
+    salon_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> Salon:
-    """Проверяет, что пользователь — BUSINESS, и возвращает его салон."""
-    if current_user.role != UserRole.BUSINESS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Этот раздел доступен только владельцам салонов"
-        )
-    
-    result = await db.execute(
-        select(Salon).where(Salon.owner_id == current_user.id)
-    )
-    salon = result.scalar_one_or_none()
-    
-    if not salon:
+    """
+    Резолвит салон, к которому у текущего пользователя есть активное членство
+    (owner или admin). Без salon_id — берётся салон, где он создатель, иначе
+    первый по дате. Не проверяет конкретное право — только сам факт членства;
+    эндпоинты, требующие большего, дополнительно вызывают check_salon_permission.
+    """
+    resolved_id = await get_user_primary_salon_id(db, current_user.id, salon_id)
+    if resolved_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="У вас пока нет привязанного салона. Заполните заявку на подключение."
         )
-    
+    salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
+    if salon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Салон не найден")
     return salon
+
+
+# Оставлено для обратной совместимости импортов из других модулей.
+get_owner_salon = get_current_salon
 
 
 # ========== POST-эндпоинт (создание И обновление салона) ==========
@@ -54,35 +64,39 @@ async def create_or_update_salon(
     address: str = Form(...),
     phone: str = Form(...),
     method_override: str = Form(""),
+    salon_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание ИЛИ обновление салона через веб-форму."""
     from app.web.auth import get_current_user_from_cookie
-    
+
     user = await get_current_user_from_cookie(request, db)
-    if not user or user.role.value != "business":
+    if not user:
         return RedirectResponse(url="/login", status_code=302)
-    
+
     # Если method_override=put — это обновление существующего салона
     if method_override == "put":
-        salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-        if not salon:
+        resolved_id = await get_user_primary_salon_id(db, user.id, salon_id)
+        if resolved_id is None:
             return RedirectResponse(url="/business/register-salon", status_code=302)
-        
+        try:
+            await check_salon_permission(db, user, resolved_id, "manage_salon")
+        except HTTPException:
+            return HTMLResponse(content="Недостаточно прав для изменения салона", status_code=403)
+
+        salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one()
         salon.name = name
         salon.description = description
         salon.address = address
         salon.phone = phone
         await db.commit()
         return RedirectResponse(url="/business/dashboard?updated=1", status_code=302)
-    
-    # Иначе — создание нового салона
-    existing = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-    if existing:
-        return RedirectResponse(url="/business/dashboard", status_code=302)
-    
+
+    # Иначе — создание нового салона. Лимита на число салонов на владельца
+    # сейчас нет (тарифы нигде не enforced — вводить гейт только по числу
+    # салонов было бы непоследовательно; появится вместе с логикой тарифов).
     salon = Salon(
-        owner_id=user.id,
+        creator_id=user.id,
         name=name,
         description=description,
         address=address,
@@ -94,26 +108,68 @@ async def create_or_update_salon(
         is_active=True
     )
     db.add(salon)
+    await db.flush()  # получить salon.id до commit
+
+    db.add(SalonMember(
+        salon_id=salon.id,
+        user_id=user.id,
+        role=SalonRole.OWNER,
+        is_creator=True,
+        permissions=dict(OWNER_DEFAULT_PERMISSIONS),
+        is_active=True,
+    ))
     await db.commit()
     await db.refresh(salon)
-    
+
     return RedirectResponse(url="/business/dashboard?success=1", status_code=302)
+
+
+@router.delete("/my-salon")
+async def delete_salon(
+    salon_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Удаление салона — доступно только создателю карточки."""
+    membership = await check_salon_permission(db, current_user, salon_id, "manage_salon")
+    if membership is not None and not membership.is_creator:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Удалить салон может только его создатель",
+        )
+
+    salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one_or_none()
+    if salon is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Салон не найден")
+
+    db.add(AdminAudit(
+        actor_id=current_user.id, action="delete_salon",
+        target_type="salon", target_id=salon.id, salon_id=salon.id,
+        detail=f"Удалён салон «{salon.name}»",
+    ))
+    await db.delete(salon)
+    await db.commit()
+    return {"status": "deleted"}
+
 
 @router.get("/my-salon", response_model=SalonResponse)
 async def get_my_salon(
-    salon: Salon = Depends(get_owner_salon)
+    salon: Salon = Depends(get_current_salon)
 ):
-    """Возвращает карточку салона текущего владельца."""
+    """Возвращает карточку салона текущего пользователя."""
     return salon
 
 
 @router.put("/my-salon", response_model=SalonResponse)
 async def update_my_salon(
     update_data: SalonUpdateRequest,
-    salon: Salon = Depends(get_owner_salon),
+    salon: Salon = Depends(get_current_salon),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Обновляет информацию о своём салоне (API)."""
+    await check_salon_permission(db, current_user, salon.id, "manage_salon")
+
     if update_data.name is not None:
         salon.name = update_data.name
     if update_data.description is not None:
@@ -124,18 +180,18 @@ async def update_my_salon(
         salon.address = update_data.address
     if update_data.working_hours is not None:
         salon.working_hours = update_data.working_hours
-    
+
     if update_data.photos is not None:
         old_photos = await db.execute(
             select(SalonPhoto).where(SalonPhoto.salon_id == salon.id)
         )
         for photo in old_photos.scalars().all():
             await db.delete(photo)
-        
+
         for url in update_data.photos:
             new_photo = SalonPhoto(salon_id=salon.id, url=url)
             db.add(new_photo)
-    
+
     await db.commit()
     await db.refresh(salon)
     return salon
@@ -143,7 +199,7 @@ async def update_my_salon(
 
 @router.get("/my-salon/masters", response_model=List[MasterResponse])
 async def get_my_masters(
-    salon: Salon = Depends(get_owner_salon),
+    salon: Salon = Depends(get_current_salon),
     db: AsyncSession = Depends(get_db)
 ):
     """Список всех мастеров моего салона."""
@@ -155,7 +211,7 @@ async def get_my_masters(
 
 @router.get("/my-salon/promotions", response_model=List[PromotionResponse])
 async def get_my_promotions(
-    salon: Salon = Depends(get_owner_salon),
+    salon: Salon = Depends(get_current_salon),
     db: AsyncSession = Depends(get_db)
 ):
     """Список акций моего салона."""
@@ -168,10 +224,13 @@ async def get_my_promotions(
 @router.post("/my-salon/promotions", response_model=PromotionResponse, status_code=status.HTTP_201_CREATED)
 async def create_promotion(
     promotion_data: PromotionResponse,
-    salon: Salon = Depends(get_owner_salon),
+    salon: Salon = Depends(get_current_salon),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Создаёт новую акцию для салона."""
+    await check_salon_permission(db, current_user, salon.id, "manage_promotions")
+
     new_promotion = Promotion(
         salon_id=salon.id,
         title=promotion_data.title,
@@ -186,19 +245,20 @@ async def create_promotion(
 
 @router.get("/my-salon/dashboard")
 async def get_business_dashboard(
-    salon: Salon = Depends(get_owner_salon),
+    salon: Salon = Depends(get_current_salon),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Возвращает сводку для панели бизнеса."""
     from app.models.models import Booking, BookingStatus
     from sqlalchemy import func as sql_func
     from datetime import datetime, timedelta
-    
+
     masters_count = len(salon.masters)
-    
+
     today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
-    
+
     bookings_today = await db.execute(
         select(sql_func.count(Booking.id)).where(
             Booking.master_id.in_([m.id for m in salon.masters]),
@@ -207,17 +267,24 @@ async def get_business_dashboard(
         )
     )
     today_count = bookings_today.scalar() or 0
-    
-    month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    revenue_month = await db.execute(
-        select(sql_func.sum(Booking.final_price)).where(
-            Booking.master_id.in_([m.id for m in salon.masters]),
-            Booking.start_time >= month_start,
-            Booking.status == BookingStatus.COMPLETED
-        )
+
+    # Выручка — только тем, у кого есть view_finances (создатель — всегда).
+    revenue = None
+    membership = await get_salon_membership(db, current_user.id, salon.id)
+    can_view_finances = membership is not None and (
+        membership.is_creator or membership.permissions.get("view_finances", False)
     )
-    revenue = revenue_month.scalar() or 0
-    
+    if can_view_finances:
+        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        revenue_month = await db.execute(
+            select(sql_func.sum(Booking.final_price)).where(
+                Booking.master_id.in_([m.id for m in salon.masters]),
+                Booking.start_time >= month_start,
+                Booking.status == BookingStatus.COMPLETED
+            )
+        )
+        revenue = revenue_month.scalar() or 0
+
     return {
         "salon_name": salon.name,
         "masters_count": masters_count,
@@ -226,57 +293,238 @@ async def get_business_dashboard(
         "rating": salon.rating,
         "reviews_count": salon.reviews_count
     }
+
+
+@router.get("/my-salon/bookings")
+async def list_my_salon_bookings(
+    salon: Salon = Depends(get_current_salon),
+    db: AsyncSession = Depends(get_db),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    master_id: Optional[int] = None,
+    status_filter: Optional[str] = None,
+):
+    """Список броней салона с фильтрами — данные для вкладки «Записи» /
+    внешних интеграций. Формат дат: YYYY-MM-DD."""
+    from datetime import datetime, timedelta
+    from app.models.models import Booking, BookingStatus, Service as ServiceModel, Master as MasterModel
+
+    master_ids_result = await db.execute(select(MasterModel.id).where(MasterModel.salon_id == salon.id))
+    master_ids = [row[0] for row in master_ids_result.all()]
+    if not master_ids:
+        return []
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    start = datetime.strptime(date_from, "%Y-%m-%d") if date_from else today - timedelta(days=30)
+    end = (datetime.strptime(date_to, "%Y-%m-%d") if date_to else today) + timedelta(days=1)
+
+    query = (
+        select(Booking, ServiceModel)
+        .join(ServiceModel, ServiceModel.id == Booking.service_id)
+        .where(Booking.master_id.in_(master_ids), Booking.start_time >= start, Booking.start_time < end)
+    )
+    if master_id:
+        query = query.where(Booking.master_id == master_id)
+    if status_filter:
+        try:
+            query = query.where(Booking.status == BookingStatus(status_filter))
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный статус брони")
+
+    result = await db.execute(query.order_by(Booking.start_time.desc()).limit(200))
+    return [
+        {
+            "id": b.id,
+            "client_id": b.client_id,
+            "master_id": b.master_id,
+            "service_name": s.name,
+            "start_time": b.start_time.isoformat(),
+            "status": b.status.value,
+            "final_price": b.final_price or s.price,
+            "consumption_reported": b.consumption_reported,
+        }
+        for b, s in result.all()
+    ]
+
+
 @router.post("/my-salon/promotions/web")
 async def create_promotion_web(
     request: Request,
     title: str = Form(...),
     description: str = Form(""),
     tag: str = Form(...),
+    salon_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание акции через веб-форму."""
     from app.web.auth import get_current_user_from_cookie
-    
+
     user = await get_current_user_from_cookie(request, db)
-    if not user or user.role.value != "business":
+    if not user:
         return RedirectResponse(url="/login", status_code=302)
-    
-    salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-    if not salon:
+
+    resolved_id = await get_user_primary_salon_id(db, user.id, salon_id)
+    if resolved_id is None:
         return RedirectResponse(url="/business/register-salon", status_code=302)
-    
+    try:
+        await check_salon_permission(db, user, resolved_id, "manage_promotions")
+    except HTTPException:
+        return HTMLResponse(content="Недостаточно прав для управления акциями", status_code=403)
+
     promo = Promotion(
-        salon_id=salon.id,
+        salon_id=resolved_id,
         title=title,
         description=description,
         tag=tag
     )
     db.add(promo)
     await db.commit()
-    
+
     return RedirectResponse(url="/business/my-salon?promo_added=1", status_code=302)
+
+
 @router.post("/my-salon/promotions/{promo_id}/delete")
 async def delete_promotion_web(
     promo_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """Удаление акции владельцем салона."""
+    """Удаление акции."""
     from app.web.auth import get_current_user_from_cookie
-    
+
     user = await get_current_user_from_cookie(request, db)
-    if not user or user.role.value != "business":
+    if not user:
         return RedirectResponse(url="/login", status_code=302)
-    
-    salon = (await db.execute(select(Salon).where(Salon.owner_id == user.id))).scalar_one_or_none()
-    if not salon:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
-    
-    promo = (await db.execute(select(Promotion).where(Promotion.id == promo_id, Promotion.salon_id == salon.id))).scalar_one_or_none()
+
+    promo = (await db.execute(select(Promotion).where(Promotion.id == promo_id))).scalar_one_or_none()
     if not promo:
         return HTMLResponse(content="Акция не найдена", status_code=404)
-    
+
+    try:
+        await check_salon_permission(db, user, promo.salon_id, "manage_promotions")
+    except HTTPException:
+        return HTMLResponse(content="Недостаточно прав для управления акциями", status_code=403)
+
     await db.delete(promo)
     await db.commit()
-    
+
     return RedirectResponse(url="/business/my-salon?promo_deleted=1", status_code=302)
+
+
+# ========== Карточка клиента: заметки ==========
+class ClientNoteCreateRequest(BaseModel):
+    text: str
+
+
+@router.post("/my-salon/clients/{client_id}/notes", status_code=status.HTTP_201_CREATED)
+async def create_client_note(
+    client_id: int,
+    note_data: ClientNoteCreateRequest,
+    salon: Salon = Depends(get_current_salon),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Добавляет заметку на карточку клиента. Доступно любому активному
+    участнику салона — как и сама вкладка «Клиенты», без отдельного права."""
+    text = note_data.text.strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Текст заметки не может быть пустым")
+
+    note = ClientNote(
+        salon_id=salon.id,
+        client_id=client_id,
+        author_id=current_user.id,
+        text=text,
+    )
+    db.add(note)
+    await db.commit()
+    await db.refresh(note)
+    return {"id": note.id, "text": note.text, "created_at": note.created_at.isoformat()}
+
+
+# ========== Promo-модели салона (вкладка «Модели») ==========
+class SalonModelCreateRequest(BaseModel):
+    phone: str
+    stage_name: Optional[str] = None
+    bio: Optional[str] = None
+    photo_url: Optional[str] = None
+
+
+@router.get("/my-salon/models")
+async def list_salon_models(
+    salon: Salon = Depends(get_current_salon),
+    db: AsyncSession = Depends(get_db),
+):
+    """Список promo-моделей, привязанных к салону."""
+    result = await db.execute(
+        select(SalonModel, User)
+        .join(User, User.id == SalonModel.user_id)
+        .where(SalonModel.salon_id == salon.id, SalonModel.is_active == True)
+        .order_by(SalonModel.created_at.desc())
+    )
+    return [
+        {
+            "id": sm.id, "user_id": u.id, "full_name": u.full_name, "phone": u.phone,
+            "stage_name": sm.stage_name, "bio": sm.bio, "photo_url": sm.photo_url,
+        }
+        for sm, u in result.all()
+    ]
+
+
+@router.post("/my-salon/models", status_code=status.HTTP_201_CREATED)
+async def attach_salon_model(
+    payload: SalonModelCreateRequest,
+    salon: Salon = Depends(get_current_salon),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Привязывает существующего пользователя с ролью MODEL к салону
+    (кастинг/сотрудничество). Новых пользователей здесь не создаём —
+    модели регистрируются сами через «Стать моделью»."""
+    await check_salon_permission(db, current_user, salon.id, "manage_masters")
+
+    model_user = (await db.execute(select(User).where(User.phone == payload.phone))).scalar_one_or_none()
+    if not model_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь с таким телефоном не найден")
+    if model_user.role != UserRole.MODEL:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="У этого пользователя нет роли «модель»")
+
+    existing = (await db.execute(
+        select(SalonModel).where(SalonModel.salon_id == salon.id, SalonModel.user_id == model_user.id)
+    )).scalar_one_or_none()
+    if existing:
+        if existing.is_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Эта модель уже привязана к салону")
+        existing.is_active = True
+        existing.stage_name = payload.stage_name
+        existing.bio = payload.bio
+        existing.photo_url = payload.photo_url
+        await db.commit()
+        return {"id": existing.id, "status": "reattached"}
+
+    salon_model = SalonModel(
+        salon_id=salon.id, user_id=model_user.id,
+        stage_name=payload.stage_name, bio=payload.bio, photo_url=payload.photo_url,
+    )
+    db.add(salon_model)
+    await db.commit()
+    await db.refresh(salon_model)
+    return {"id": salon_model.id, "status": "attached"}
+
+
+@router.delete("/my-salon/models/{model_id}")
+async def detach_salon_model(
+    model_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Отвязывает promo-модель от салона (мягкое удаление)."""
+    salon_model = (await db.execute(select(SalonModel).where(SalonModel.id == model_id))).scalar_one_or_none()
+    if not salon_model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Модель не найдена")
+
+    await check_salon_permission(db, current_user, salon_model.salon_id, "manage_masters")
+
+    salon_model.is_active = False
+    await db.commit()
+    return {"status": "detached"}

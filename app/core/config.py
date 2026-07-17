@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # --- База данных ---
     POSTGRES_USER: str = "beauty_user"
     POSTGRES_PASSWORD: str  # ОБЯЗАТЕЛЕН из окружения, без дефолта в коде
+
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: str = "5432"
     POSTGRES_DB: str = "beauty_platform"
@@ -146,3 +147,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

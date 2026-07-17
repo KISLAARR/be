@@ -159,21 +159,23 @@ async def register(
         full_name=data.full_name,
         hashed_password=get_password_hash(data.password),
         role=UserRole.CLIENT,  # назначается сервером, не из тела запроса
+
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
     token = create_access_token(user.id)
+
     return {
         "user": {
             "id": user.id,
             "phone": user.phone,
             "full_name": user.full_name,
-            "role": user.role,
+            "role": user.role
         },
         "access_token": token,
-        "token_type": "bearer",
+        "token_type": "bearer"
     }
 
 

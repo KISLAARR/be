@@ -26,11 +26,6 @@ def render_login_page(request: Request) -> str:
     }
     banner = _alert(errors.get(q.get("error", ""), ""))
 
-    # Подключаем JS-файлы (маска телефона)
-    scripts = """
-    <script src="/static/src/js/phone-mask.js"></script>
-    """
-
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -38,7 +33,6 @@ def render_login_page(request: Request) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Вход — руми</title>
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/src/css/login-register.css">
 </head>
 <body class="auth-page">
     <div class="auth-card">
@@ -61,6 +55,5 @@ def render_login_page(request: Request) -> str:
             <a href="/register">Регистрация</a> · <a href="/">На главную</a>
         </div>
     </div>
-    {scripts}
 </body>
 </html>"""

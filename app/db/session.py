@@ -5,6 +5,7 @@ from app.core.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
+
     echo=settings.SQL_ECHO,  # в проде False: иначе SQL с параметрами утекает в логи
     future=True
 )

@@ -6,7 +6,7 @@
 /* Глобальные стили */
 @import './global.css';
 
-/* Компоненты */
+/* Компоненты (footer, header, sidebar) */
 @import './components.css';
 
 /* Стили страниц */
@@ -18,3 +18,9 @@
 @import './business-checkout.css';
 @import './model-landing.css';
 @import './model-checkout.css';
+@import './profile.css';
+@import './salons.css';
+@import './salon-detail.css';
+@import './settings.css';
+@import './bookings.css';
+@import './favorites.css';

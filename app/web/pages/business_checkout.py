@@ -152,7 +152,7 @@ def render_business_checkout_page(plan: str = "business", user=None) -> str:
                 </div>
             </div>
         </section>
-        {render_footer()}
+        {render_footer(user)}
     </main>
 
     <script>
@@ -218,7 +218,6 @@ def render_business_checkout_page(plan: str = "business", user=None) -> str:
             document.getElementById('submit-note').textContent = 'Мы свяжемся с вами в ближайшее время.';
         }});
     </script>
-    <script src="/static/src/js/phone-mask.js"></script>
 </body>
 </html>"""
     return html

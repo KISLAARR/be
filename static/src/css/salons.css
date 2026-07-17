@@ -1,0 +1,306 @@
+/* static/css/pages/salons.css */
+
+/* ==========================================
+   Адаптивная раскладка и отступы страницы
+   ========================================== */
+
+.main-content {
+    margin-right: 16rem; /* Идентично поведению .home-main на главной */
+}
+
+@media (max-width: 1023px) {
+    .main-content {
+        margin-right: 0;
+    }
+}
+
+/* Настройки контейнера контента */
+.main-content .section-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    /* Уменьшенные равные отступы для мобильных и планшетов */
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+@media (min-width: 1024px) {
+    .main-content .section-container {
+        /* Уменьшенный отступ слева на ПК */
+        padding-left: 1.5rem;
+        /* Увеличенный отступ справа для создания красивой дистанции до сайдбара */
+        padding-right: 3rem;
+    }
+}
+
+/* ==========================================
+   Стили элементов страницы салонов
+   ========================================== */
+
+.salons-hero {
+    background: var(--color-surface-alt);
+    padding-top: 5rem;
+    padding-bottom: 0rem;
+}
+
+.salons-hero-content {
+    padding-bottom: 5rem;
+    max-width: 42rem;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.salons-title {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.salons-subtitle {
+    color: var(--color-muted);
+    margin-bottom: 2rem;
+}
+
+.search-box {
+    position: relative;
+    max-width: 32rem;
+    margin: 0 auto;
+}
+
+.search-box svg {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-muted);
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.875rem 1rem 0.875rem 3rem;
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    background: var(--color-surface);
+    outline: none;
+    transition: border-color 0.2s;
+    color: var(--color-heading);
+}
+
+.search-input:focus {
+    border-color: var(--color-accent);
+}
+
+.salons-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.salon-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.salon-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.salon-card-inner {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 640px) {
+    .salon-card-inner {
+        flex-direction: row;
+    }
+}
+
+.salon-image {
+    position: relative;
+    width: 100%;
+    height: 10rem;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+@media (min-width: 640px) {
+    .salon-image {
+        width: 12rem;
+        height: auto;
+        min-height: 12rem;
+    }
+}
+
+.salon-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* --- Кнопка избранного (унифицирована со страницей салонов) --- */
+.favorite-btn {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4px);
+    padding: 0;
+    transition: transform 0.2s ease;
+}
+
+.favorite-btn .heart-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.favorite-btn .heart-icon svg {
+    width: 1.125rem;
+    height: 1.125rem;
+    color: #9ca3af;
+    transition: color 0.2s;
+}
+
+.favorite-btn:hover {
+    transform: scale(1.1);
+}
+
+.favorite-btn:active {
+    transform: scale(0.95);
+}
+
+.favorite-btn.liked .heart-icon svg {
+    color: #ef4444;
+    fill: #ef4444;
+}
+
+.salon-rating-badge {
+    position: absolute;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.salon-rating-badge svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    fill: #facc15;
+    color: #facc15;
+}
+
+.salon-rating-badge .rating-count {
+    font-weight: 400;
+    opacity: 0.7;
+    font-size: 0.65rem;
+}
+
+.salon-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.25rem;
+}
+
+.salon-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    margin: 0;
+}
+
+.salon-address {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.salon-address svg {
+    color: var(--color-primary);
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.salon-desc {
+    color: var(--color-body);
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.services-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.service-chip {
+    background: var(--color-accent-light);
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-heading);
+}
+
+.salon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--color-accent);
+    color: white;
+    padding: 0.5rem 1.25rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity 0.2s;
+    width: fit-content;
+}
+
+.salon-btn:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 640px) {
+    .salon-image {
+        height: 10rem;
+    }
+    .salon-info {
+        padding: 1rem;
+    }
+    .salons-title {
+        font-size: 2rem;
+    }
+}

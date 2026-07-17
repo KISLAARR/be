@@ -1,7 +1,6 @@
 # app/web/pages/register.py
 import html
 from fastapi import Request
-
 from app.core.config import settings
 from app.web.components.styles import get_base_styles
 
@@ -108,7 +107,6 @@ def render_register_page(request: Request) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Регистрация — руми</title>
     {get_base_styles()}
-    <link rel="stylesheet" href="/static/src/css/login-register.css">
 </head>
 <body class="auth-page">
     <div class="auth-card">

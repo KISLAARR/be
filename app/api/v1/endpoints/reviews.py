@@ -2,9 +2,9 @@
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.db.session import get_db
 from app.services.review_service import ReviewService, ReviewError
+
 
 router = APIRouter()
 
@@ -38,3 +38,4 @@ async def create_review_web(
         return HTMLResponse(content=f"<h1>{e.message}</h1>", status_code=e.status)
 
     return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
+

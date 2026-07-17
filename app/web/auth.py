@@ -12,7 +12,6 @@ async def get_current_user_from_cookie(request: Request, db: AsyncSession = Depe
     token = request.cookies.get("access_token")
     if not token:
         return None
-
     payload = decode_access_token(token)
     if payload is None:
         return None
