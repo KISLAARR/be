@@ -145,6 +145,13 @@ async def register_web(
     await db.commit()
     await db.refresh(user)
 
+    # Если номер подтверждали через Telegram — бот оставил chat_id, забираем
+    # его в профиль: уведомления о записях заработают с первого дня.
+    tg_chat_id = await otp.pop_tg_chat_id(norm_phone)
+    if tg_chat_id:
+        user.tg_chat_id = tg_chat_id
+        await db.commit()
+
     response = RedirectResponse(url="/profile", status_code=302)
     _set_auth_cookie(response, user.id)
     return response

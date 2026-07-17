@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     TG_VERIFY_ENABLED: bool = False
     TG_BOT_TOKEN: str = ""
     TG_BOT_USERNAME: str = ""
+    # Уведомления о записях в Telegram (клиенту/мастеру/бизнесу через того же
+    # бота + ARQ). Требует TG_BOT_TOKEN; получают только привязавшие Telegram.
+    TG_NOTIFY_ENABLED: bool = False
 
     # Временный рубильник: пока нет официального подключения SMS-провайдера,
     # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py

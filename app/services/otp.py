@@ -121,6 +121,41 @@ async def start_tg_verification(phone: str) -> dict:
     }
 
 
+def _tg_chat_key(phone: str) -> str:
+    return f"otp:tg-chat:{_hash(phone)}"
+
+
+async def save_tg_chat_id(phone_hash: str, chat_id: int) -> None:
+    """Бот запоминает chat_id подтвердившего номер (ключ по хешу телефона).
+
+    Живёт 1 час: за это время пользователь должен успеть дорегистрироваться —
+    тогда pop_tg_chat_id() перенесёт привязку в users.tg_chat_id.
+    """
+    try:
+        r = get_redis()
+        await r.set(f"otp:tg-chat:{phone_hash}", chat_id, ex=3600)
+    except Exception as e:
+        raise OTPError(f"Хранилище кодов недоступно: {e}") from e
+
+
+async def pop_tg_chat_id(phone: str) -> int | None:
+    """Забирает (одноразово) chat_id, сохранённый ботом при подтверждении.
+
+    Ошибки Redis глотаем: привязка Telegram — приятный бонус, а не условие
+    регистрации; не привязалось сейчас — привяжется через /start в боте.
+    """
+    try:
+        r = get_redis()
+        key = _tg_chat_key(phone)
+        value = await r.get(key)
+        if value is None:
+            return None
+        await r.delete(key)
+        return int(value)
+    except Exception:
+        return None
+
+
 async def get_tg_status(request_id: str) -> str:
     """pending | confirmed | not_found (нет записи, истекла или не TG-канал)."""
     try:

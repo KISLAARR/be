@@ -4,7 +4,7 @@ from datetime import datetime, time, date as date_
 from typing import Optional, List, Dict
 
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, ForeignKey,
+    Column, Integer, String, Float, Boolean, ForeignKey, BigInteger,
     Text, DateTime, Date, Enum, CheckConstraint, Index, UniqueConstraint, JSON, text
 )
 from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
@@ -102,6 +102,10 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Привязка Telegram для уведомлений (блок 18+): chat_id из бота.
+    # BigInteger — телеграмовские id не влезают в int32. NULL = не привязан.
+    tg_chat_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
     subscription_tier: Mapped[Optional[SubscriptionTier]] = mapped_column(Enum(SubscriptionTier), nullable=True)
     subscription_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

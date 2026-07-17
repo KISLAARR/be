@@ -165,6 +165,12 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
+    # Привязка Telegram, если номер подтверждали ботом (см. auth_web то же)
+    tg_chat_id = await otp.pop_tg_chat_id(data.phone)
+    if tg_chat_id:
+        user.tg_chat_id = tg_chat_id
+        await db.commit()
+
     token = create_access_token(user.id)
 
     return {

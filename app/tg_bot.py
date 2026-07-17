@@ -34,6 +34,7 @@ from app.services.otp import (
     _hash,
     _key,
     _mask_phone,
+    save_tg_chat_id,
 )
 
 logger = logging.getLogger("tg_bot")
@@ -85,12 +86,30 @@ _CONTACT_KB = ReplyKeyboardMarkup(
 )
 
 
+LINK_MODE = "link"  # /start без токена: привязка Telegram к существующему аккаунту
+
+
 async def on_start(message: Message, command: CommandObject) -> None:
-    """/start <request_id> из deep link'а на странице регистрации."""
+    """/start <request_id> из deep link'а, или /start без аргумента — привязка."""
     token = (command.args or "").strip()
     r = get_redis()
-    record = await r.hgetall(_key(token)) if token else {}
 
+    if not token:
+        # Привязка Telegram для уведомлений: пользователь уже зарегистрирован,
+        # пришёл к боту сам. Просим контакт, дальше on_contact в LINK_MODE.
+        await r.set(
+            _pending_key(message.from_user.id), LINK_MODE,
+            ex=settings.OTP_TTL_MINUTES * 60,
+        )
+        await message.answer(
+            "Здравствуйте! Это бот Руми.\n\n"
+            "Нажмите кнопку ниже, чтобы привязать Telegram к вашему аккаунту — "
+            "будем присылать сюда уведомления о записях.",
+            reply_markup=_CONTACT_KB,
+        )
+        return
+
+    record = await r.hgetall(_key(token))
     if not record or record.get("channel") != "telegram":
         await message.answer(
             "Ссылка устарела или открыта без сайта. Вернитесь на страницу "
@@ -111,6 +130,54 @@ async def on_start(message: Message, command: CommandObject) -> None:
     )
 
 
+async def _link_existing_account(message: Message) -> None:
+    """LINK_MODE: находим пользователя по номеру из контакта, сохраняем chat_id."""
+    if message.contact.user_id != message.from_user.id:
+        await message.answer(
+            "Это чужой контакт — привязать можно только свой. "
+            "Нажмите кнопку «Поделиться контактом».",
+            reply_markup=_CONTACT_KB,
+        )
+        return
+
+    phone = try_normalize_phone(message.contact.phone_number or "")
+    if not phone:
+        await message.answer(
+            "Не удалось разобрать номер из контакта.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    from sqlalchemy import select
+
+    from app.db.session import AsyncSessionLocal
+    from app.models.models import User
+
+    async with AsyncSessionLocal() as db:
+        user = (
+            await db.execute(select(User).where(User.phone == phone))
+        ).scalar_one_or_none()
+        if user is None:
+            await message.answer(
+                "Аккаунт с этим номером не найден. Сначала зарегистрируйтесь "
+                "на сайте Руми — привязка произойдёт сама при подтверждении номера.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return
+        user.tg_chat_id = message.chat.id
+        await db.commit()
+
+    r = get_redis()
+    await r.delete(_pending_key(message.from_user.id))
+    logger.info(
+        "linked: tg_user=%s phone=%s", message.from_user.id, _mask_phone(phone)
+    )
+    await message.answer(
+        "Telegram привязан ✅ Теперь уведомления о записях будут приходить сюда.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+
 async def on_contact(message: Message) -> None:
     r = get_redis()
     token = await r.get(_pending_key(message.from_user.id))
@@ -120,6 +187,10 @@ async def on_contact(message: Message) -> None:
             "«Подтвердить в Telegram» — затем снова поделитесь контактом.",
             reply_markup=ReplyKeyboardRemove(),
         )
+        return
+
+    if token == LINK_MODE:
+        await _link_existing_account(message)
         return
 
     record = await r.hgetall(_key(token))
@@ -133,6 +204,9 @@ async def on_contact(message: Message) -> None:
     if verdict == VERDICT_OK:
         await r.hset(_key(token), "status", TG_STATUS_CONFIRMED)
         await r.delete(_pending_key(message.from_user.id))
+        # Запоминаем chat_id: после регистрации он переедет в users.tg_chat_id
+        # (pop_tg_chat_id в register-эндпоинтах) — уведомления заработают сразу.
+        await save_tg_chat_id(record["phone_hash"], message.chat.id)
         logger.info(
             "confirmed: tg_user=%s phone=%s",
             message.from_user.id,

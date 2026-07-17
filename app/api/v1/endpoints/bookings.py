@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.models import Booking, Master, Service, User, BookingStatus, Review, Salon
 from app.schemas.booking import BookingCreate, BookingResponse, BookingCancel
 from app.api.deps import get_current_user, get_salon_membership
+from app.services.notifications import notify_booking_cancelled, notify_booking_created
 from app.services.booking_service import BookingService
 from app.services.loyalty_service import LoyaltyService, LoyaltyError
 from app.services.schedule_utils import get_effective_work_hours, is_within_booking_window, MAX_BOOKING_DAYS_AHEAD
@@ -64,6 +65,7 @@ async def create_booking(
     db.add(booking)
     await db.commit()
     await db.refresh(booking)
+    await notify_booking_created(db, booking)
     return booking
 
 @router.get("/my", response_model=List[BookingResponse])
@@ -76,10 +78,13 @@ async def get_my_bookings(
     )
     return result.scalars().all()
 
+# POST-алиас: фронт (bookings.js) отменяет POST'ом без тела; исторический
+# PATCH с BookingCancel оставлен для API-клиентов — тело стало опциональным.
 @router.patch("/{booking_id}/cancel", response_model=BookingResponse)
+@router.post("/{booking_id}/cancel", response_model=BookingResponse)
 async def cancel_booking(
     booking_id: int,
-    cancel_data: BookingCancel,
+    cancel_data: Optional[BookingCancel] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -94,6 +99,7 @@ async def cancel_booking(
     booking.status = BookingStatus.CANCELLED
     await db.commit()
     await db.refresh(booking)
+    await notify_booking_cancelled(db, booking)
     return booking
 
 @router.get("/available/{master_id}")
@@ -225,6 +231,8 @@ async def create_booking_web(
     )
     db.add(booking)
     await db.commit()
+    await db.refresh(booking)
+    await notify_booking_created(db, booking)
     return RedirectResponse(url="/bookings?success=1", status_code=302)
 
 @router.post("/confirm")
@@ -300,6 +308,8 @@ async def confirm_booking_web(
     )
     db.add(booking)
     await db.commit()
+    await db.refresh(booking)
+    await notify_booking_created(db, booking)
     return RedirectResponse(url="/bookings?success=1", status_code=302)
 
 # Создание отзыва вынесено в единый эндпоинт reviews.py (через ReviewService).
