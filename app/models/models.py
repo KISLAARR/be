@@ -1,11 +1,11 @@
 # app/models/models.py
 import enum
-from datetime import datetime, time
+from datetime import datetime, time, date as date_
 from typing import Optional, List, Dict
 
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, ForeignKey,
-    Text, DateTime, Enum, CheckConstraint, Index, UniqueConstraint, JSON, text
+    Text, DateTime, Date, Enum, CheckConstraint, Index, UniqueConstraint, JSON, text
 )
 from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -47,6 +47,16 @@ class InventoryMovementType(str, enum.Enum):
 class InventoryAuditStatus(str, enum.Enum):
     DRAFT = "draft"          # акт открыт, идёт пересчёт
     CONFIRMED = "confirmed"  # акт закрыт, остатки скорректированы
+
+class LoyaltyStatusSource(str, enum.Enum):
+    AUTO = "auto"      # статус выставлен автоматически по числу визитов
+    MANUAL = "manual"  # статус выставлен/снят вручную админом
+
+class LoyaltyPointsMovementType(str, enum.Enum):
+    ACCRUAL = "accrual"            # автоначисление % от чека после оплаты
+    MANUAL_ADD = "manual_add"      # ручное начисление админом
+    REDEEMED = "redeemed"          # списание баллов клиентом при оплате
+    MANUAL_REMOVE = "manual_remove"  # ручное списание админом (коррекция)
 
 # Ключи прав салона. Значение — можно ли делать соответствующее действие.
 # У создателя салона (SalonMember.is_creator=True) все права всегда True
@@ -235,8 +245,14 @@ class Booking(Base):
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
 
     status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), default=BookingStatus.PENDING)
+    # Скидка лояльности салона, применённая админом при завершении записи
+    # (0, если не применялась). Считается и пишется в complete_booking —
+    # см. app/services/loyalty_service.py.
     discount_percent: Mapped[int] = mapped_column(Integer, default=0)
     final_price: Mapped[int] = mapped_column(Integer, nullable=True)
+    # Что именно применили: "regular_client" / "personal" / текст промокода / NULL.
+    loyalty_source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    bonus_points_redeemed: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     # Мастер отчитался о фактически потраченных расходниках по этому визиту
     # (форма склада после клиента). Флаг для напоминаний мастеру/админу —
     # сам факт списания хранится в InventoryMovement(booking_id=...).
@@ -466,3 +482,113 @@ class ClientNote(Base):
     __table_args__ = (
         Index("ix_client_notes_salon_client", "salon_id", "client_id"),
     )
+
+# ========== Лояльность салона: статус, персональные скидки, бонусы ==========
+class SalonLoyaltySettings(Base):
+    """Настройки программы лояльности салона (1–1 с Salon)."""
+    __tablename__ = "salon_loyalty_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"), unique=True)
+    regular_client_discount_percent: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # Автоприсвоение статуса «постоянный клиент» после N визитов за 12 мес.
+    # NULL = только вручную админом.
+    regular_client_visits_threshold: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # % от final_price, автоматически зачисляемый баллами после оплаты. 0 = выключено.
+    bonus_accrual_percent: Mapped[float] = mapped_column(Float, default=0.0, server_default="0", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+
+class LoyaltyOffer(Base):
+    """Именная скидка/промокод, который салон создаёт сам («позиция»)."""
+    __tablename__ = "loyalty_offers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    discount_percent: Mapped[int] = mapped_column(Integer, nullable=False)
+    promo_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("salon_id", "promo_code", name="uq_loyalty_offer_promo_code"),
+    )
+
+class ClientLoyalty(Base):
+    """Состояние лояльности клиента в конкретном салоне."""
+    __tablename__ = "client_loyalty"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    client_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    is_regular_client: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    regular_client_source: Mapped[Optional[LoyaltyStatusSource]] = mapped_column(Enum(LoyaltyStatusSource), nullable=True)
+    # Персональная скидка этому конкретному клиенту, отдельно от статуса «постоянный клиент».
+    personal_discount_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bonus_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+    client: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("salon_id", "client_id", name="uq_client_loyalty"),
+    )
+
+class LoyaltyPointsMovement(Base):
+    """Журнал изменений бонусного баланса клиента (начисление/списание)."""
+    __tablename__ = "loyalty_points_movements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_loyalty_id: Mapped[int] = mapped_column(ForeignKey("client_loyalty.id", ondelete="CASCADE"))
+    type: Mapped[LoyaltyPointsMovementType] = mapped_column(Enum(LoyaltyPointsMovementType), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)  # знак = направление
+    booking_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    client_loyalty: Mapped["ClientLoyalty"] = relationship()
+    booking: Mapped[Optional["Booking"]] = relationship()
+    created_by: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        Index("ix_loyalty_points_movements_client_loyalty", "client_loyalty_id"),
+    )
+
+# ========== Закрытые даты (весь салон или конкретный мастер) ==========
+class ScheduleClosure(Base):
+    """Дата, закрытая для записи — на весь салон (master_id=NULL) либо на
+    одного мастера (отпуск/больничный). Отдельно от Salon.working_hours,
+    который описывает только повторяющийся по дням недели график."""
+    __tablename__ = "schedule_closures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    master_id: Mapped[Optional[int]] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"), nullable=True)
+    date: Mapped[date_] = mapped_column(Date, nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+    master: Mapped[Optional["Master"]] = relationship()
+    created_by: Mapped["User"] = relationship()
+
+    __table_args__ = (
+        # Одно закрытие "всего салона" на дату
+        Index(
+            "uq_schedule_closure_salon", "salon_id", "date", unique=True,
+            postgresql_where=text("master_id IS NULL"),
+        ),
+        # Одно закрытие конкретного мастера на дату
+        Index(
+            "uq_schedule_closure_master", "salon_id", "master_id", "date", unique=True,
+            postgresql_where=text("master_id IS NOT NULL"),
+        ),
+    )
+

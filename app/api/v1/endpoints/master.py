@@ -13,6 +13,7 @@ from app.api.deps import (
     get_current_user, require_role, check_salon_permission, get_user_primary_salon_id,
 )
 from app.core.security import get_password_hash
+from app.schemas.user import try_normalize_phone
 
 router = APIRouter()
 
@@ -82,10 +83,17 @@ async def create_master_web(
     except HTTPException:
         return HTMLResponse(content="Недостаточно прав для управления мастерами", status_code=403)
     salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one()
-    
+
+    # Телефон из формы может быть в любом виде ("+7 (948) 758-97-34" и т.п.) —
+    # нормализуем к +7XXXXXXXXXX, иначе не влезет в users.phone (String(15))
+    # и не совпадёт при поиске с уже зарегистрированным пользователем.
+    norm_phone = try_normalize_phone(phone)
+    if norm_phone is None:
+        return RedirectResponse(url="/business/my-salon?error=bad_phone", status_code=302)
+
     # Проверяем, нет ли уже мастера с таким телефоном
     temp_password = None
-    existing_user = (await db.execute(select(User).where(User.phone == phone))).scalar_one_or_none()
+    existing_user = (await db.execute(select(User).where(User.phone == norm_phone))).scalar_one_or_none()
     if existing_user:
         # Если пользователь уже есть, просто создаём профиль мастера
         existing_master = (await db.execute(select(Master).where(Master.user_id == existing_user.id))).scalar_one_or_none()
@@ -97,7 +105,7 @@ async def create_master_web(
         # Показываем владельцу один раз; мастер обязан сменить его при входе.
         temp_password = secrets.token_urlsafe(9)
         master_user = User(
-            phone=phone,
+            phone=norm_phone,
             full_name=full_name,
             hashed_password=get_password_hash(temp_password),
             role=UserRole.MASTER,

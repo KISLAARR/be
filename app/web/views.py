@@ -176,7 +176,7 @@ async def my_salon_page(
     if not salon:
         return RedirectResponse(url="/business/register-salon", status_code=302)
 
-    return HTMLResponse(content=await render_my_salon_page(db, salon, user))
+    return HTMLResponse(content=await render_my_salon_page(db, salon, user, request.query_params))
 
 
 @router.get("/business/clients/{client_id}", response_class=HTMLResponse)

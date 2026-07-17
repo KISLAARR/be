@@ -1,8 +1,15 @@
 # app/web/pages/business/tabs/staff.py
+import html
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.models import SalonMember, SalonRole, AdminAudit, User as UserModel, SALON_PERMISSION_KEYS
+
+_ERROR_MESSAGES = {
+    "bad_phone": "Не удалось распознать телефон. Формат: +7 999 123-45-67 или 8 999 123-45-67.",
+    "bad_role": "Неизвестная роль.",
+    "member_exists": "Этот пользователь уже участник салона.",
+}
 
 PERMISSION_LABELS = {
     "manage_salon": "Настройки салона",
@@ -20,8 +27,33 @@ PERMISSION_LABELS = {
 }
 
 
-async def render_staff_tab(db: AsyncSession, salon, user, membership: SalonMember, perms: dict) -> str:
+async def render_staff_tab(db: AsyncSession, salon, user, membership: SalonMember, perms: dict, notice: dict = None) -> str:
     """Вкладка «Сотрудники» — совладельцы и админы салона, их права, лог действий."""
+
+    notice = notice or {}
+    notice_banner = ""
+    if notice.get("temp_pw"):
+        safe_pw = html.escape(notice["temp_pw"], quote=True)
+        notice_banner = (
+            '<div style="background:#DCFCE7;color:#166534;border:1px solid #86EFAC;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem">'
+            f'Сотрудник добавлен. Временный пароль (передайте лично, он больше нигде не отобразится): '
+            f'<code style="background:white;padding:0.15rem 0.5rem;border-radius:0.25rem;font-weight:700">{safe_pw}</code>'
+            '</div>'
+        )
+    elif notice.get("added"):
+        notice_banner = (
+            '<div style="background:#DCFCE7;color:#166534;border:1px solid #86EFAC;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem">'
+            'Сотрудник добавлен.</div>'
+        )
+    elif notice.get("error"):
+        message = _ERROR_MESSAGES.get(notice["error"], "Что-то пошло не так, попробуйте ещё раз.")
+        notice_banner = (
+            '<div style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;'
+            'border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.875rem">'
+            f'{message}</div>'
+        )
 
     members_result = await db.execute(
         select(SalonMember, UserModel)
@@ -77,25 +109,28 @@ async def render_staff_tab(db: AsyncSession, salon, user, membership: SalonMembe
             role_options += '<option value="admin">Админ</option>'
         invite_form = f"""
         <button class="btn-primary" style="font-size:0.85rem;padding:0.5rem 1rem;margin-bottom:1rem" onclick="document.getElementById('inviteMemberModal').classList.add('active')">
-            + Пригласить
+            + Добавить
         </button>
         <div class="modal-overlay" id="inviteMemberModal">
             <div class="modal-box">
                 <button class="modal-close" onclick="document.getElementById('inviteMemberModal').classList.remove('active')">&times;</button>
-                <h2 style="margin-bottom:1.5rem">Пригласить в салон</h2>
-                <div style="margin-bottom:1rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.5rem">Телефон *</label>
-                    <input type="tel" id="inviteePhone" required placeholder="+7XXXXXXXXXX" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                </div>
-                <div style="margin-bottom:1rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.5rem">Имя (если новый пользователь)</label>
-                    <input type="text" id="inviteeName" placeholder="Имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                </div>
-                <div style="margin-bottom:1rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.5rem">Роль</label>
-                    <select id="inviteeRole" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">{role_options}</select>
-                </div>
-                <button type="button" class="btn-primary" style="width:100%" onclick="submitInvite({salon.id})">Отправить приглашение</button>
+                <h2 style="margin-bottom:1.5rem">Добавить сотрудника</h2>
+                <form action="/api/v1/business/staff/add-web" method="post">
+                    <input type="hidden" name="salon_id" value="{salon.id}">
+                    <div style="margin-bottom:1rem">
+                        <label style="display:block;font-weight:500;margin-bottom:0.5rem">Телефон *</label>
+                        <input type="tel" name="phone" required placeholder="+7XXXXXXXXXX" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                    </div>
+                    <div style="margin-bottom:1rem">
+                        <label style="display:block;font-weight:500;margin-bottom:0.5rem">Имя (если новый пользователь)</label>
+                        <input type="text" name="full_name" placeholder="Имя" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                    </div>
+                    <div style="margin-bottom:1rem">
+                        <label style="display:block;font-weight:500;margin-bottom:0.5rem">Роль</label>
+                        <select name="role" style="width:100%;padding:0.75rem;border:1px solid var(--color-border);border-radius:0.5rem">{role_options}</select>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width:100%">Добавить</button>
+                </form>
             </div>
         </div>"""
 
@@ -138,6 +173,7 @@ async def render_staff_tab(db: AsyncSession, salon, user, membership: SalonMembe
 
     return f"""
     <div id="tab-staff" class="tab-content">
+        {notice_banner}
         {invite_form}
         <div class="card" style="overflow-x:auto">
             <table>
@@ -177,20 +213,6 @@ async def render_staff_tab(db: AsyncSession, salon, user, membership: SalonMembe
                 method: 'POST',
                 headers: {{ 'Content-Type': 'application/json' }},
                 body: JSON.stringify({{ permissions }})
-            }}).then(async r => {{
-                if (r.ok) {{ location.reload(); }} else {{ const d = await r.json(); alert(d.detail || 'Ошибка'); }}
-            }});
-        }}
-
-        function submitInvite(salonId) {{
-            const phone = document.getElementById('inviteePhone').value;
-            const full_name = document.getElementById('inviteeName').value;
-            const role = document.getElementById('inviteeRole').value;
-            if (!phone) {{ alert('Укажите телефон'); return; }}
-            fetch(`/api/v1/business/staff/invite?salon_id=${{salonId}}`, {{
-                method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ phone, full_name: full_name || null, role }})
             }}).then(async r => {{
                 if (r.ok) {{ location.reload(); }} else {{ const d = await r.json(); alert(d.detail || 'Ошибка'); }}
             }});
