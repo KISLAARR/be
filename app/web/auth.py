@@ -3,7 +3,7 @@ from fastapi import Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists
 from app.db.session import get_db
-from app.models.models import User, SalonMember
+from app.models.models import User, SalonMember, Master
 from app.core.security import decode_access_token
 
 
@@ -35,4 +35,11 @@ async def get_current_user_from_cookie(request: Request, db: AsyncSession = Depe
             )
         )
         user.has_salon_access = bool(has_salon.scalar())
+
+        # Аналогично — role="master" не всегда синхронизирован с реальной
+        # записью в Master (см. has_salon_access выше).
+        has_master = await db.execute(
+            select(exists().where(Master.user_id == user.id, Master.is_active == True))
+        )
+        user.has_master_profile = bool(has_master.scalar())
     return user

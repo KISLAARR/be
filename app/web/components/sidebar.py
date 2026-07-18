@@ -45,7 +45,10 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     <a class="sidebar-link {is_active('admin')}" href="/admin">
                         {ICON_USER} Админ-панель
                     </a>"""
-    if role == "business" or getattr(user, "has_salon_access", False):
+    if (
+        role == "business" or role == "master"
+        or getattr(user, "has_salon_access", False) or getattr(user, "has_master_profile", False)
+    ):
         role_items += f"""
                     <a class="sidebar-link {is_active('business_dashboard')}" href="/business/dashboard">
                         {ICON_BRIEFCASE} Панель бизнеса
