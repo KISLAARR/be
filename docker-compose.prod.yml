@@ -36,6 +36,7 @@ services:
       WEB_CONCURRENCY: "2"
     volumes:
       - ./keys:/app/keys:ro           # RS256-ключи монтируем, не пекём в образ
+      - uploads_prod:/app/uploads     # загруженные фото; переживают деплой
     networks:
       - default
       - edge                          # виден edge-Caddy как rumi-prod-app
@@ -72,3 +73,6 @@ services:
 networks:
   edge:
     external: true
+
+volumes:
+  uploads_prod:

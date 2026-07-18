@@ -23,7 +23,51 @@ _ERROR_MESSAGES = {
 
 async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_params=None) -> str:
     """Страница редактирования своего салона."""
+    from app.models.models import SalonPhoto  # локальный импорт: избегаем циклов
+
     query_params = query_params or {}
+
+    # Фото галереи — явный select (ленивая подгрузка в async уронила бы рендер)
+    photos = (
+        await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
+    ).scalars().all()
+    def _photo_card(p) -> str:
+        is_cover = salon.logo_url == p.url
+        cover_badge = (
+            '<span style="position:absolute;bottom:0.25rem;left:0.25rem;background:var(--color-primary);'
+            'color:#fff;font-size:0.65rem;padding:0.1rem 0.45rem;border-radius:1rem">★ Обложка</span>'
+            if is_cover else
+            f'''<form method="post" action="/api/v1/upload/salon/{salon.id}/photo/{p.id}/cover" style="position:absolute;bottom:0.25rem;left:0.25rem;margin:0">
+                    <button type="submit" title="Показывать это фото на карточке салона в общем списке"
+                        style="background:rgba(0,0,0,0.55);color:#fff;border:none;font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:1rem;cursor:pointer">Сделать обложкой</button>
+                </form>'''
+        )
+        border = "2px solid var(--color-primary)" if is_cover else "1px solid var(--color-border)"
+        return f'''<div style="position:relative">
+                <img src="{p.url}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:0.5rem;border:{border}">
+                <form method="post" action="/api/v1/upload/salon/{salon.id}/photo/{p.id}/delete" style="position:absolute;top:0.25rem;right:0.25rem;margin:0">
+                    <button type="submit" title="Удалить фото" onclick="return confirm('Удалить фото?')"
+                        style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:1.5rem;height:1.5rem;cursor:pointer;line-height:1">&times;</button>
+                </form>
+                {cover_badge}
+            </div>'''
+
+    photo_cards = "".join(_photo_card(p) for p in photos)
+    photos_section = f'''
+            <!-- Фото салона -->
+            <div class="card" style="margin-top: 2rem;">
+                <h2 class="text-subtitle" style="font-size: 1.25rem; margin-bottom: 1rem;">Фото салона</h2>
+                <div id="photoDropZone" data-upload-url="/api/v1/upload/salon/{salon.id}/photo"
+                     style="border:2px dashed var(--color-border);border-radius:0.75rem;padding:1.5rem;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:1rem">
+                    <p style="margin:0;font-weight:500">Перетащите фото сюда или нажмите, чтобы выбрать</p>
+                    <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--color-muted)">Можно несколько сразу · JPG/PNG до 5 МБ · появятся на странице салона</p>
+                </div>
+                <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
+                <div id="photoUploadStatus"></div>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.5rem">
+                    {photo_cards or '<p style="color:var(--color-muted);margin:0">Пока нет фотографий</p>'}
+                </div>
+            </div>'''
     error_banner = ""
     error_code = query_params.get("error")
     if error_code:
@@ -290,6 +334,8 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
                 </table>
             </div>
             
+            {photos_section}
+
             <!-- Акции -->
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -430,6 +476,7 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
             </form>
         </div>
     </div>
+
 
     <!-- Модальное окно: Добавить именную скидку/промокод -->
     <div class="modal-overlay" id="addLoyaltyOfferModal">

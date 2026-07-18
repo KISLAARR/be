@@ -17,6 +17,7 @@ from app.core.security import (
     validate_password_strength,
 )
 from app.core.limiter import limiter, is_account_locked, register_login_failure, reset_login_failures
+from app.services import otp
 
 router = APIRouter()
 
@@ -39,8 +40,10 @@ def _set_auth_cookie(response: RedirectResponse, user_id: int) -> None:
         path="/",
     )
 
+
 @router.post("/login-web")
-@limiter.limit("5/minute")
+@limiter.limit("5/minute")  # лимит по IP
+
 async def login_web(
     request: Request,
     phone: str = Form(...),
@@ -83,15 +86,24 @@ async def login_web(
     _set_auth_cookie(response, user.id)
     return response
 
+
 @router.post("/register-web")
 async def register_web(
     request: Request,
     phone: str = Form(...),
     password: str = Form(...),
     full_name: str = Form(""),
+    request_id: str = Form(""),
+    code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    """Регистрация через веб-форму. Роль всегда CLIENT."""
+    """Регистрация через веб-форму. Роль всегда CLIENT (назначает сервер).
+
+    ВНИМАНИЕ ПРИ MERGE: поля request_id/code и блок verify_code ниже — это
+    подтверждение телефона (блоки 07 SMS + 18 Telegram). Эта обвязка уже
+    трижды терялась при разрешении конфликтов «в пользу frontend-ветки» —
+    не удалять; без неё регистрация не проверяет телефон вовсе.
+    """
     norm_phone = try_normalize_phone(phone)
     keep = f"phone={quote(norm_phone or phone)}&full_name={quote(full_name)}"
 
@@ -107,6 +119,21 @@ async def register_web(
     if existing.scalar_one_or_none():
         return RedirectResponse(url=f"/register?error=phone_exists&{keep}", status_code=302)
 
+    # При выключенном OTP (нет каналов) поля подтверждения не требуем вовсе —
+    # страница их и не показывает; verify_code в этом режиме всегда True.
+    # Требуем только request_id: код нужен лишь СМС-каналу, для Telegram
+    # его нет по устройству — какой канал и что проверять, решает verify_code.
+    if settings.OTP_ENABLED and not request_id:
+        return RedirectResponse(url=f"/register?error=no_code&{keep}", status_code=302)
+
+    try:
+        code_valid = await otp.verify_code(request_id, code, norm_phone)
+    except otp.OTPError:
+        return RedirectResponse(url=f"/register?error=otp_unavailable&{keep}", status_code=302)
+
+    if not code_valid:
+        return RedirectResponse(url=f"/register?error=bad_code&{keep}", status_code=302)
+
     user = User(
         phone=norm_phone,
         full_name=full_name,
@@ -117,6 +144,13 @@ async def register_web(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Если номер подтверждали через Telegram — бот оставил chat_id, забираем
+    # его в профиль: уведомления о записях заработают с первого дня.
+    tg_chat_id = await otp.pop_tg_chat_id(norm_phone)
+    if tg_chat_id:
+        user.tg_chat_id = tg_chat_id
+        await db.commit()
 
     response = RedirectResponse(url="/profile", status_code=302)
     _set_auth_cookie(response, user.id)

@@ -12,3 +12,5 @@ import './bookings.js';
 import './favorites.js';
 import './business/dashboard.js';
 import './business/tabs/overview.js';
+import './verify-messenger.js';
+import './salon-photos.js';

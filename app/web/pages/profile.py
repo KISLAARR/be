@@ -423,7 +423,7 @@ def _render_guest_page() -> str:
                 </div>
             </div>
         </div>
-        {render_footer(user)}
+        {render_footer(None)}
     </main>
 </body>
 </html>"""

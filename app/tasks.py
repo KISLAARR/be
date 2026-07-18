@@ -63,6 +63,111 @@ async def send_sms(ctx: dict[str, Any], phone: str, message: str) -> str:
     return "sent"
 
 
+# ── Telegram-уведомления (бот @rumi_beauty_bot) ──────────────────
+
+
+async def _send_via_telegram(chat_id: int, text: str) -> None:
+    """Отправка сообщения ботом через Bot API (без aiogram: воркеру не нужен
+    polling, достаточно одного HTTPS-вызова; конфликтов с процессом бота нет).
+
+    Сетевые ошибки и 5xx/429 — TransientTaskError (ретрай); 403 «bot was
+    blocked» и прочие 4xx — постоянные, не ретраим.
+    """
+    import httpx
+
+    from app.core.config import settings
+
+    if not settings.TG_BOT_TOKEN:
+        logger.info("[dev-заглушка TG] chat=%s: %s", chat_id, text[:60])
+        return
+
+    url = f"https://api.telegram.org/bot{settings.TG_BOT_TOKEN}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json={"chat_id": chat_id, "text": text})
+    except httpx.HTTPError as exc:
+        raise TransientTaskError(f"сеть: {exc}") from exc
+
+    if resp.status_code >= 500 or resp.status_code == 429:
+        raise TransientTaskError(f"Bot API {resp.status_code}")
+    if resp.status_code != 200:
+        # 403 = пользователь заблокировал бота и т.п. — ретрай не поможет
+        logger.warning("telegram chat=%s: постоянный отказ %s %s",
+                       chat_id, resp.status_code, resp.text[:120])
+
+
+async def send_tg_message(ctx: dict[str, Any], chat_id: int, text: str) -> str:
+    """Уведомление в Telegram вне запроса (записи, напоминания)."""
+    try:
+        await _send_via_telegram(chat_id, text)
+    except TransientTaskError as exc:
+        logger.warning(
+            "send_tg_message chat=%s: временный сбой (попытка %d): %s",
+            chat_id, ctx["job_try"], exc,
+        )
+        raise _retry(ctx, exc) from exc
+    logger.info("send_tg_message chat=%s: отправлено (попытка %d)", chat_id, ctx["job_try"])
+    return "sent"
+
+
+async def send_booking_reminder(ctx: dict[str, Any], booking_id: int) -> str:
+    """Напоминание клиенту за N часов до визита (ставится отложенно при
+    создании записи, _job_id = booking-reminder:{id} — дубли не плодятся).
+
+    Статус проверяем в момент отправки: запись могли отменить — тогда
+    молчим. Ошибки БД — транзиентные (ретрай), «нет записи» — постоянная.
+    """
+    from sqlalchemy import select
+
+    from app.db.session import AsyncSessionLocal
+    from app.models.models import Booking, BookingStatus, Master, Salon, Service, User
+
+    try:
+        async with AsyncSessionLocal() as db:
+            booking = (
+                await db.execute(select(Booking).where(Booking.id == booking_id))
+            ).scalar_one_or_none()
+            if booking is None:
+                return "skipped:missing"
+            if booking.status not in (BookingStatus.PENDING, BookingStatus.CONFIRMED):
+                return f"skipped:{booking.status.value}"
+
+            client = (
+                await db.execute(select(User).where(User.id == booking.client_id))
+            ).scalar_one_or_none()
+            if client is None or not client.tg_chat_id:
+                return "skipped:no-chat"
+
+            master = (
+                await db.execute(select(Master).where(Master.id == booking.master_id))
+            ).scalar_one()
+            salon = (
+                await db.execute(select(Salon).where(Salon.id == master.salon_id))
+            ).scalar_one()
+            service = (
+                await db.execute(select(Service).where(Service.id == booking.service_id))
+            ).scalar_one_or_none()
+
+        text = (
+            f"⏰ Напоминаем: сегодня в {booking.start_time.strftime('%H:%M')} — "
+            f"{service.name if service else 'услуга'} в «{salon.name}»\n"
+            f"Адрес: {salon.address or 'уточните у салона'}"
+        )
+        chat_id = client.tg_chat_id
+    except TransientTaskError:
+        raise
+    except Exception as exc:  # БД недоступна и т.п. — пробуем позже
+        logger.warning("send_booking_reminder %s: сбой (попытка %d): %s",
+                       booking_id, ctx["job_try"], exc)
+        raise _retry(ctx, exc) from exc
+
+    try:
+        await _send_via_telegram(chat_id, text)
+    except TransientTaskError as exc:
+        raise _retry(ctx, exc) from exc
+    return "sent"
+
+
 # ── Вебхуки оплаты (Т-Касса) ─────────────────────────────────────
 
 

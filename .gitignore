@@ -20,3 +20,4 @@ docker-compose.override.yml
 keys-staging/
 node_modules/
 .mcp.json
+uploads/

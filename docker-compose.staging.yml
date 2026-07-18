@@ -51,6 +51,7 @@ services:
       WEB_CONCURRENCY: "2"
     volumes:
       - ./keys-staging:/app/keys:ro   # у staging СВОИ RS256-ключи (не боевые!)
+      - uploads_staging:/app/uploads  # загруженные фото; переживают деплой
     networks:
       - default
       - edge                          # виден edge-Caddy как rumi-staging-app
@@ -59,6 +60,42 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Telegram-бот подтверждения номера (блок 18): long polling, наружу портов
+  # нет — только исходящие к api.telegram.org и Redis. Стартует осмысленно
+  # лишь при TG_VERIFY_ENABLED=true + TG_BOT_TOKEN в .env.staging.
+  tg-bot:
+    image: rumi-app:staging
+    container_name: rumi-staging-tg-bot
+    env_file: .env.staging
+    command: ["python", "-m", "app.tg_bot"]
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    # HEALTHCHECK из Dockerfile проверяет HTTP /health — у бота его нет
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  # MAX-бот подтверждения номера (блок 18, этап 2): зеркало tg-bot.
+  # До MAX_BOT_TOKEN в .env.staging контейнер спит.
+  max-bot:
+    image: rumi-app:staging
+    container_name: rumi-staging-max-bot
+    env_file: .env.staging
+    command: ["python", "-m", "app.max_bot"]
+    environment:
+      ENVIRONMENT: production
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
     restart: unless-stopped
 
   arq-worker:
@@ -92,3 +129,4 @@ networks:
 
 volumes:
   pgdata_staging:
+  uploads_staging:

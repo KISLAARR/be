@@ -66,6 +66,30 @@ class Settings(BaseSettings):
     SMSC_SENDER_ID: str = ""
     SMSRU_API_ID: str = ""
 
+    # --- Подтверждение телефона через Telegram-бота (блок 18) ---
+    # Бесплатная альтернатива СМС: бот просит «Поделиться контактом», номер
+    # отдаёт сам Telegram (он его верифицировал при регистрации аккаунта).
+    # Токен бота — секрет, только из окружения. Username — без @, нужен для
+    # deep link вида https://t.me/<username>?start=<request_id>.
+    TG_VERIFY_ENABLED: bool = False
+    TG_BOT_TOKEN: str = ""
+    TG_BOT_USERNAME: str = ""
+
+    # --- Подтверждение через MAX-бота (блок 18, этап 2) ---
+    # Механика зеркальна Telegram: кнопка request_contact, номер отдаёт
+    # платформа. Токен — из кабинета dev.max.ru, username — без @.
+    MAX_VERIFY_ENABLED: bool = False
+    MAX_BOT_TOKEN: str = ""
+    MAX_BOT_USERNAME: str = ""
+    # Уведомления о записях в Telegram (клиенту/мастеру/бизнесу через того же
+    # бота + ARQ). Требует TG_BOT_TOKEN; получают только привязавшие Telegram.
+    TG_NOTIFY_ENABLED: bool = False
+
+    # Каталог загруженных изображений (аватары, фото салонов). В docker —
+    # volume, переживает деплой. ВРЕМЕННО локально: переезд на S3 Timeweb,
+    # когда возьмут креды из панели (см. app/services/uploads.py).
+    UPLOADS_DIR: str = "uploads"
+
     # Временный рубильник: пока нет официального подключения SMS-провайдера,
     # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py
     # возвращает фиктивный request_id и считает любой код верным).
@@ -94,13 +118,25 @@ class Settings(BaseSettings):
             self.ENVIRONMENT == "production"
             and self.OTP_ENABLED
             and self.SMS_MODE == "mock"
+            and not (self.TG_VERIFY_ENABLED or self.MAX_VERIFY_ENABLED)
         ):
             raise ValueError(
-                "SMS_MODE=mock в production при включённом OTP: коды не уходят "
-                "на телефон, а возвращаются в ответе /send-code любому, кто их "
-                "запросил (dev_code) — проверка телефона превращается в бутафорию. "
-                "Настройте SMS_MODE=live с кредами SMSC, либо отключите OTP "
-                "осознанно (OTP_ENABLED=false + OTP_DISABLED_ACK=true)."
+                "OTP включён в production, но нет ни одного живого канала "
+                "подтверждения: SMS_MODE=mock (коды не уходят на телефон, "
+                "а dev_code превращает проверку в бутафорию), Telegram и MAX "
+                "выключены. Настройте SMS_MODE=live с кредами SMSC и/или "
+                "TG_VERIFY_ENABLED/MAX_VERIFY_ENABLED=true, либо отключите "
+                "OTP осознанно (OTP_ENABLED=false + OTP_DISABLED_ACK=true)."
+            )
+        if self.TG_VERIFY_ENABLED and not (self.TG_BOT_TOKEN and self.TG_BOT_USERNAME):
+            raise ValueError(
+                "TG_VERIFY_ENABLED=true, но не заданы TG_BOT_TOKEN/TG_BOT_USERNAME — "
+                "кнопка на странице вела бы в никуда. Заполните оба или выключите флаг."
+            )
+        if self.MAX_VERIFY_ENABLED and not (self.MAX_BOT_TOKEN and self.MAX_BOT_USERNAME):
+            raise ValueError(
+                "MAX_VERIFY_ENABLED=true, но не заданы MAX_BOT_TOKEN/MAX_BOT_USERNAME — "
+                "кнопка на странице вела бы в никуда. Заполните оба или выключите флаг."
             )
         return self
 

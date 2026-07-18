@@ -127,7 +127,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (slotsContainer && titleEl && gridEl) {
                 titleEl.innerHTML = `
                     📅 Время для «${serviceName}» (${price} ₽)
-                    <input type="date" id="date-${masterId}" value="${new Date().toISOString().split('T')[0]}" style="margin-top:8px;">
+                    <input type="date" id="date-${masterId}" value="${new Date().toISOString().split('T')[0]}"
+                        min="${new Date().toISOString().split('T')[0]}"
+                        max="${new Date(Date.now() + (window.MAX_BOOKING_DAYS || 60) * 864e5).toISOString().split('T')[0]}"
+                        style="margin-top:8px;">
                 `;
                 slotsContainer.classList.remove('hidden');
                 loadSlots(masterId, selectedServiceId, serviceName, price);

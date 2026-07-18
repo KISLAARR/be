@@ -32,7 +32,7 @@ def render_model_landing_page(user=None) -> str:
     <main class="home-main">
         <!-- Hero -->
         <section class="model-hero">
-            <!-- Фоновое изображение УДАЛЕНО, оставлен только градиент из CSS -->
+            <!-- Фоновое изображение удалено, оставлен только градиент из CSS -->
             <div class="section-container">
                 <div class="model-hero-content">
                     <div class="model-hero-badge">

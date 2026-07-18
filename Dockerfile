@@ -55,7 +55,10 @@ COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
 # .env и keys/ НЕ копируются (см. .dockerignore) — секреты монтируются в рантайме
-RUN chown -R app:app /app
+# /app/uploads создаётся заранее с владельцем app: docker инициализирует новый
+# volume правами каталога из образа — иначе mountpoint был бы root:root и
+# приложение (uid app) ловило PermissionError на первой загрузке фото
+RUN mkdir -p /app/uploads && chown -R app:app /app
 USER app
 
 EXPOSE 8000
