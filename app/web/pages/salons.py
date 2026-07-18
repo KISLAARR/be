@@ -44,11 +44,23 @@ async def render_salons_page(db: AsyncSession, user=None) -> str:
         heart_svg = ICON_HEART.replace('"', '&quot;')
         heart_filled_svg = ICON_HEART_FILLED.replace('"', '&quot;')
 
+        # Обложка (logo_url, назначается в «Мой салон»); без неё — градиент
+        # с первой буквой: файла default-salon.jpg больше нет, битую картинку
+        # не показываем
+        if s.logo_url:
+            image_html = f'<img src="{s.logo_url}" alt="{s.name}">'
+        else:
+            image_html = (
+                f'<div style="width:100%;height:100%;display:flex;align-items:center;'
+                f'justify-content:center;background:linear-gradient(135deg,var(--color-primary),var(--color-accent));'
+                f'color:#fff;font-size:3rem;font-weight:700">{s.name[0].upper()}</div>'
+            )
+
         salon_cards += f"""
         <div class="salon-card" data-salon-id="{s.id}">
             <div class="salon-card-inner">
                 <div class="salon-image">
-                    <img src="{s.logo_url or '/static/images/default-salon.jpg'}" alt="{s.name}">
+                    {image_html}
                     <button class="favorite-btn" 
                             data-type="salon" 
                             data-id="{s.id}" 

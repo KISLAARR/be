@@ -137,8 +137,33 @@ async def test_salon_photo_upload_and_delete_by_owner(client, db_session):
             select(SalonPhoto).where(SalonPhoto.salon_id == salon_id)
         )).scalars().first()
 
+    from app.models.models import Salon as SalonModel
+
+    async with db_session() as db:
+        photos = (await db.execute(
+            select(SalonPhoto).where(SalonPhoto.salon_id == salon_id).order_by(SalonPhoto.id)
+        )).scalars().all()
+        fresh_salon = (await db.execute(
+            select(SalonModel).where(SalonModel.id == salon_id)
+        )).scalar_one()
+        # Первое загруженное фото автоматически стало обложкой
+        assert fresh_salon.logo_url == photos[0].url
+
+    # Смена обложки на второе фото
     r = await client.post(
-        f"/api/v1/upload/salon/{salon_id}/photo/{photo.id}/delete",
+        f"/api/v1/upload/salon/{salon_id}/photo/{photos[1].id}/cover",
+        data={"next": "/business/my-salon"},
+    )
+    assert r.status_code == 302
+    async with db_session() as db:
+        fresh_salon = (await db.execute(
+            select(SalonModel).where(SalonModel.id == salon_id)
+        )).scalar_one()
+        assert fresh_salon.logo_url == photos[1].url
+
+    # Удаление обложки → обложка переезжает на оставшееся фото
+    r = await client.post(
+        f"/api/v1/upload/salon/{salon_id}/photo/{photos[1].id}/delete",
         data={"next": "/business/my-salon"},
     )
     assert r.status_code == 302
@@ -146,4 +171,8 @@ async def test_salon_photo_upload_and_delete_by_owner(client, db_session):
         left = (await db.execute(
             select(SalonPhoto).where(SalonPhoto.salon_id == salon_id)
         )).scalars().all()
-        assert len(left) == 1  # из двух загруженных удалили одно
+        assert len(left) == 1
+        fresh_salon = (await db.execute(
+            select(SalonModel).where(SalonModel.id == salon_id)
+        )).scalar_one()
+        assert fresh_salon.logo_url == left[0].url

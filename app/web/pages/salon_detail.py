@@ -66,6 +66,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     salon_photos = (
         await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
     ).scalars().all()
+    # Обложка (salon.logo_url) — первой в ленте
+    salon_photos = sorted(salon_photos, key=lambda p: p.url != salon.logo_url)
     photos_strip = ""
     if salon_photos:
         photos_strip = (

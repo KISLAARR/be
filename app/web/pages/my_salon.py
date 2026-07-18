@@ -31,16 +31,28 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
     photos = (
         await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
     ).scalars().all()
-    photo_cards = "".join(
-        f'''<div style="position:relative">
-                <img src="{p.url}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:0.5rem;border:1px solid var(--color-border)">
+    def _photo_card(p) -> str:
+        is_cover = salon.logo_url == p.url
+        cover_badge = (
+            '<span style="position:absolute;bottom:0.25rem;left:0.25rem;background:var(--color-primary);'
+            'color:#fff;font-size:0.65rem;padding:0.1rem 0.45rem;border-radius:1rem">★ Обложка</span>'
+            if is_cover else
+            f'''<form method="post" action="/api/v1/upload/salon/{salon.id}/photo/{p.id}/cover" style="position:absolute;bottom:0.25rem;left:0.25rem;margin:0">
+                    <button type="submit" title="Показывать это фото на карточке салона в общем списке"
+                        style="background:rgba(0,0,0,0.55);color:#fff;border:none;font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:1rem;cursor:pointer">Сделать обложкой</button>
+                </form>'''
+        )
+        border = "2px solid var(--color-primary)" if is_cover else "1px solid var(--color-border)"
+        return f'''<div style="position:relative">
+                <img src="{p.url}" alt="" style="width:140px;height:100px;object-fit:cover;border-radius:0.5rem;border:{border}">
                 <form method="post" action="/api/v1/upload/salon/{salon.id}/photo/{p.id}/delete" style="position:absolute;top:0.25rem;right:0.25rem;margin:0">
                     <button type="submit" title="Удалить фото" onclick="return confirm('Удалить фото?')"
                         style="background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;width:1.5rem;height:1.5rem;cursor:pointer;line-height:1">&times;</button>
                 </form>
+                {cover_badge}
             </div>'''
-        for p in photos
-    )
+
+    photo_cards = "".join(_photo_card(p) for p in photos)
     photos_section = f'''
             <!-- Фото салона -->
             <div class="card" style="margin-top: 2rem;">

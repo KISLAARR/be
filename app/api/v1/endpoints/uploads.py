@@ -76,11 +76,40 @@ async def upload_salon_photos(
         db.add(SalonPhoto(salon_id=salon_id, url=url))
         saved.append(url)
     if saved:
+        # Первое фото салона автоматически становится обложкой (logo_url —
+        # именно его показывают карточки в списке и на главной)
+        if not salon.logo_url:
+            salon.logo_url = saved[0]
         await db.commit()
 
     if not saved and errors:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=errors[0]["detail"])
     return {"saved": saved, "errors": errors}
+
+
+@router.post("/salon/{salon_id}/photo/{photo_id}/cover")
+async def set_salon_cover(
+    salon_id: int,
+    photo_id: int,
+    next: str = Form("/business/my-salon"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Назначает фото обложкой: карточка салона в списке и на главной
+    показывает salon.logo_url — сюда оно и записывается."""
+    await check_salon_permission(db, current_user, salon_id, "manage_salon")
+    photo = (
+        await db.execute(
+            select(SalonPhoto).where(SalonPhoto.id == photo_id, SalonPhoto.salon_id == salon_id)
+        )
+    ).scalar_one_or_none()
+    if photo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Фото не найдено")
+
+    salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one()
+    salon.logo_url = photo.url
+    await db.commit()
+    return RedirectResponse(url=_safe_next(next, "/business/my-salon"), status_code=302)
 
 
 @router.post("/salon/{salon_id}/photo/{photo_id}/delete")
@@ -102,6 +131,19 @@ async def delete_salon_photo(
 
     url = photo.url
     await db.delete(photo)
+
+    # Если удалили обложку — переназначаем на первое оставшееся фото
+    salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one()
+    if salon.logo_url == url:
+        remaining = (
+            await db.execute(
+                select(SalonPhoto)
+                .where(SalonPhoto.salon_id == salon_id, SalonPhoto.id != photo_id)
+                .order_by(SalonPhoto.id)
+            )
+        ).scalars().first()
+        salon.logo_url = remaining.url if remaining else None
+
     await db.commit()
     if url.startswith("/uploads/"):
         delete_stored(url)
