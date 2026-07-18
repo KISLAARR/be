@@ -1,9 +1,14 @@
-// staticsrc/js/salon-detail.js
+// static/js/pages/salon-detail.js
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что мы на странице деталей салона
+    if (!document.getElementById('masters-list-container')) {
+        return;
+    }
+
+    let selectedSlot = null;
     let selectedMasterId = null;
     let selectedServiceId = null;
-    let selectedSlot = null;
 
     // ===== ИЗБРАННОЕ (салон и мастера) =====
     async function loadFavorites() {
@@ -190,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.location.href = `/book?master_id=${selectedMasterId}&service_id=${selectedServiceId}&time=${encodeURIComponent(selectedSlot)}`;
     };
 
-    // Закрытие панели при клике на фон (опционально)
+    // Закрытие панели при клике на фон
     document.getElementById('bookPanel').addEventListener('click', function(e) {
         if (e.target.id === 'bookPanel') this.classList.add('hidden');
     });

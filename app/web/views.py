@@ -91,12 +91,15 @@ async def favorites_page(request: Request, db: AsyncSession = Depends(get_db)):
     from app.web.pages.favorites import render_favorites_page
     return HTMLResponse(content=await render_favorites_page(db, user))
 
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница настроек."""
-    from app.web.pages.settings import render_settings_page
-    user = await get_current_user_from_cookie(request, db)
-    return HTMLResponse(content=render_settings_page(user))
+
+# Перенесены в профиль, возможно понадобится для бизнеса...
+# @router.get("/settings", response_class=HTMLResponse)
+# async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
+#     """Страница настроек."""
+#     from app.web.pages.settings import render_settings_page
+#     user = await get_current_user_from_cookie(request, db)
+#     return HTMLResponse(content=render_settings_page(user))
+
 
 
 @router.get("/business", response_class=HTMLResponse)

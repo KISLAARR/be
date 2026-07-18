@@ -19,7 +19,6 @@ def render_footer(user=None) -> str:
         # Все авторизованные видят Мои записи, Избранное, Настройки
         client_links.append(("Мои записи", "/bookings"))
         client_links.append(("Избранное", "/favorites"))
-        about_links.append(("Настройки", "/settings"))
 
         # Ролевые особенности
         if role in ('client', 'admin'):
