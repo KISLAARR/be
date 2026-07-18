@@ -94,7 +94,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             </a>
             <div class="salon-header-grid">
                 <div class="salon-image-wrapper">
-                    <img alt="{salon.name}" src="{salon.logo_url or '/static/images/default-salon.jpg'}">
+                    {f'<img alt="{salon.name}" src="{salon.logo_url}">' if salon.logo_url else f'<div style="width:100%;height:100%;min-height:200px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--color-primary),var(--color-accent));color:#fff;font-size:4rem;font-weight:700;border-radius:1rem">{salon.name[0].upper()}</div>'}
                     <button class="favorite-btn top-fav-btn salon-top-fav" 
                             data-type="salon" 
                             data-id="{salon.id}" 
@@ -308,7 +308,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     {booking_panel}
 
     <script>window.MAX_BOOKING_DAYS = {MAX_BOOKING_DAYS_AHEAD};</script>
-    <script src="/static/src/js/salon-detail.js"></script>
 </body>
 </html>"""
     return html

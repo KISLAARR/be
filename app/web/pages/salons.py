@@ -142,7 +142,6 @@ async def render_salons_page(db: AsyncSession, user=None) -> str:
         {render_footer(user)}
     </main>
 
-    <script src="/static/src/js/salons.js"></script>
 </body>
 </html>"""
 

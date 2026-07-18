@@ -500,7 +500,6 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
 
     {render_footer(user)}
 
-    <script src="/static/src/js/salon-photos.js"></script>
     <script>
     function editMaster(id, name, spec, exp) {{
         document.getElementById('editMasterId').value = id;

@@ -315,6 +315,20 @@ class Favorite(Base):
     salon: Mapped[Optional["Salon"]] = relationship()
     master: Mapped[Optional["Master"]] = relationship()
 
+    __table_args__ = (
+        # Один салон/мастер — один раз в избранном пользователя. Частичные
+        # уникальные индексы (salon_id/master_id взаимоисключающе NULL);
+        # страховка от гонки двух параллельных toggle-запросов.
+        Index(
+            "uq_favorite_user_salon", "user_id", "salon_id", unique=True,
+            postgresql_where=text("salon_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_favorite_user_master", "user_id", "master_id", unique=True,
+            postgresql_where=text("master_id IS NOT NULL"),
+        ),
+    )
+
 # ========== Аудит действий администратора ==========
 class AdminAudit(Base):
     __tablename__ = "admin_audit"

@@ -10,3 +10,5 @@ import './salon-detail.js';
 import './settings.js';
 import './bookings.js';
 import './favorites.js';
+import './verify-messenger.js';
+import './salon-photos.js';

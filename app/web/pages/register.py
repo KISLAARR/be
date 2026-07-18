@@ -99,18 +99,10 @@ def render_register_page(request: Request) -> str:
         if sms_available:
             verify_blocks = _sms_code_block() + verify_blocks
 
-    scripts = """
-    <script src="/static/src/js/phone-mask.js"></script>
-    <script src="/static/src/js/password-validator.js"></script>
-    """
-    if sms_available:
-        scripts += """
-    <script src="/static/src/js/otp-code.js"></script>
-    """
-    if tg_available or max_available:
-        scripts += """
-    <script src="/static/src/js/verify-messenger.js"></script>
-    """
+    # Все скрипты приходят из общего vite-бандла (get_base_styles → dist/main.js)
+    # и сами проверяют наличие своих элементов. Отдельные <script src=...> здесь
+    # НЕ добавлять: второй тег = двойные обработчики = двойные запросы.
+    scripts = ""
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
