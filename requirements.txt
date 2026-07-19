@@ -51,3 +51,6 @@ Pillow==12.3.0
 
 # Транзакционные письма (noreply@rrumi.ru через SMTP Timeweb)
 aiosmtplib==5.1.2
+
+# Мониторинг ошибок (блок 05): GlitchTip/Sentry — активен только при SENTRY_DSN
+sentry-sdk[fastapi]==2.66.0

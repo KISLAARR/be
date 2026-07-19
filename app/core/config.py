@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # Хост и Postgres остаются в UTC — timestamptz-метки от этого не зависят.
     DEFAULT_TIMEZONE: str = "Asia/Novosibirsk"
 
+    # --- Мониторинг и логи (блок 05) ---
+    # Трекинг ошибок: GlitchTip (self-host, Sentry-совместим) или Sentry.
+    # DSN пуст → SDK не инициализируется (no-op, поведение не меняется).
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0  # perf-трейсинг выключен по умолчанию
+    # Формат логов: text (дефолт, читаемо в dev) | json (одна строка на событие).
+    LOG_FORMAT: str = "text"
+    LOG_LEVEL: str = "INFO"
+
     # --- Аутентификация (JWT RS256, асимметричная подпись) ---
     ALGORITHM: str = "RS256"
     # Пути к PEM-ключам. Приватным подписываем, публичным проверяем.

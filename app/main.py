@@ -22,6 +22,12 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.middleware import SecurityHeadersMiddleware, CSRFOriginMiddleware
 from app.core.worker import close_arq_pool
+from app.core.observability import setup_logging, init_sentry
+
+# Мониторинг и логи (блок 05): настроить логи и включить трекинг ошибок
+# (Sentry/GlitchTip активируется только при заданном SENTRY_DSN).
+setup_logging()
+init_sentry()
 
 from app.models.models import Salon, Master, User, Service
 from app.schemas.salon import SalonResponse, SalonWithDistance
