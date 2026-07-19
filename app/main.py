@@ -39,6 +39,7 @@ from app.api.v1.endpoints import inventory
 from app.api.v1.endpoints import payroll
 from app.api.v1.endpoints import loyalty
 from app.api.v1.endpoints import uploads
+from app.api.v1.endpoints import auth_yandex
 from app.api.v1.endpoints import schedule as schedule_endpoints
 from app.api.v1.endpoints import reports
 
@@ -97,6 +98,7 @@ app.include_router(staff.router, prefix="/api/v1/business/staff", tags=["staff"]
 app.include_router(inventory.router, prefix="/api/v1/inventory", tags=["inventory"])
 app.include_router(payroll.router, prefix="/api/v1/payroll", tags=["payroll"])
 app.include_router(uploads.router, prefix="/api/v1/upload", tags=["uploads"])
+app.include_router(auth_yandex.router, prefix="/api/v1/auth", tags=["auth-yandex"])
 app.include_router(loyalty.router, prefix="/api/v1/loyalty", tags=["loyalty"])
 app.include_router(schedule_endpoints.router, prefix="/api/v1/schedule", tags=["schedule"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
