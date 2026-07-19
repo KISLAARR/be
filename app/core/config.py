@@ -96,11 +96,11 @@ class Settings(BaseSettings):
     # когда возьмут креды из панели (см. app/services/uploads.py).
     UPLOADS_DIR: str = "uploads"
 
-    # --- Почта @rrumi.ru (SMTP Timeweb; MX/SPF уже в DNS) ---
+    # --- Почта @rrumi.ru (SMTP Beget — домен куплен там, ящики бесплатные) ---
     # EMAIL_MODE=mock — письма в лог (dev/до кредов), live — реальная отправка.
-    # Креды ящика noreply@ создаются в панели Timeweb → «Почта».
+    # Ящики созданы в панели Beget (домен куплен там).
     EMAIL_MODE: str = "mock"
-    SMTP_HOST: str = "smtp.timeweb.ru"
+    SMTP_HOST: str = "mail.beget.com"
     SMTP_PORT: int = 465
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
