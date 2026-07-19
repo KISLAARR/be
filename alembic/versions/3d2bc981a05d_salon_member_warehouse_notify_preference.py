@@ -7,7 +7,7 @@
 NOT NULL в несвязанных таблицах) — снова не включён.
 
 Revision ID: 3d2bc981a05d
-Revises: 78a6031c004b
+Revises: f7a8b9c0d1e2
 Create Date: 2026-07-19 15:57:33.493067
 
 """
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '3d2bc981a05d'
-down_revision: Union[str, None] = '78a6031c004b'
+down_revision: Union[str, None] = 'f7a8b9c0d1e2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -19,6 +19,13 @@
     }
 }
 
+# ── www → apex ───────────────────────────────────────────────────
+# Канонический адрес — без www; www-вариант навсегда переадресуется.
+www.{$DOMAIN:localhost} {
+    tls {$PROD_TLS:internal}
+    redir https://{$DOMAIN:localhost}{uri} permanent
+}
+
 # ── Прод ─────────────────────────────────────────────────────────
 {$DOMAIN:localhost} {
     # Пока DOMAIN = IP сервера, сертификат только самоподписанный: Let's Encrypt
