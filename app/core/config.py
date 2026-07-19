@@ -96,6 +96,14 @@ class Settings(BaseSettings):
     # когда возьмут креды из панели (см. app/services/uploads.py).
     UPLOADS_DIR: str = "uploads"
 
+    # --- Вход через Яндекс (OAuth, стало возможно с доменом rrumi.ru) ---
+    # Приложение регистрируется на oauth.yandex.ru (физлицо, без ООО).
+    # Scope login:default_phone даёт ПРОВЕРЕННЫЙ Яндексом номер — вход
+    # одновременно закрывает подтверждение телефона (третий канал после TG).
+    YANDEX_OAUTH_ENABLED: bool = False
+    YANDEX_CLIENT_ID: str = ""
+    YANDEX_CLIENT_SECRET: str = ""
+
     # Временный рубильник: пока нет официального подключения SMS-провайдера,
     # OTP_ENABLED=false пропускает реальную отправку/проверку кода (otp.py
     # возвращает фиктивный request_id и считает любой код верным).
