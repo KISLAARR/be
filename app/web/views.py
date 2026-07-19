@@ -515,6 +515,19 @@ async def sitemap_xml(db: AsyncSession = Depends(get_db)):
     return Response(content=xml, media_type="application/xml")
 
 
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    from app.web.pages.password_reset import render_forgot_password_page
+    return HTMLResponse(content=render_forgot_password_page(request))
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    from app.web.pages.password_reset import render_reset_password_page
+    return HTMLResponse(content=render_reset_password_page(request))
+
+
 @router.get("/{path:path}", response_class=HTMLResponse)
 async def not_found_page(request: Request, path: str):
     """Страница 404 — для всех несуществующих маршрутов."""
