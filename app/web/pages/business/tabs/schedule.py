@@ -23,9 +23,19 @@ WEEKDAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 async def render_schedule_tab(
     db: AsyncSession, salon, masters, can_manage_schedule: bool = False,
-    schedule_master_id: int = None,
+    schedule_master_id: int = None, can_close_dates: bool = None,
 ) -> str:
-    """Вкладка «Расписание»: выбор мастера → месяц → неделя → сетка."""
+    """Вкладка «Расписание»: выбор мастера → месяц → неделя → сетка
+    дни×часы на MAX_BOOKING_DAYS_AHEAD (2 месяца) вперёд, плюс закрытие дат.
+
+    can_manage_schedule — можно отмечать записи выполненными/неявкой (владелец/
+    админ салона, либо сам мастер — на своих записях это уже разрешено бэкендом
+    независимо от SalonMember). can_close_dates по умолчанию равен
+    can_manage_schedule (владелец/админ), но у мастера, просматривающего только
+    свой календарь, эти права разные: закрытие дат требует SalonMember,
+    которого у мастера нет, поэтому вызывающий код передаёт False явно."""
+    if can_close_dates is None:
+        can_close_dates = can_manage_schedule
 
     if not masters:
         return ('<div id="tab-schedule" class="tab-content"><div class="card" '
@@ -210,8 +220,9 @@ async def render_schedule_tab(
         for m in masters
     )
 
+    # Закрытие дат — отдельное право от отметки записей (см. docstring)
     closures_section = ""
-    if can_manage_schedule:
+    if can_close_dates:
         upcoming_closures = await ScheduleService.list_closures(db, salon.id)
         closures_html = ""
         for c in upcoming_closures:

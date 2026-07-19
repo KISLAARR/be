@@ -52,40 +52,34 @@ document.addEventListener('DOMContentLoaded', function() {
             avatarInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
-
-                // Мгновенное превью + индикатор загрузки
+                // Мгновенное превью + индикатор, пока грузится
                 const container = document.getElementById('profile-avatar-container');
-                const oldImg = container.querySelector('img');
-                if (oldImg) oldImg.remove();
                 const letter = container.querySelector('.profile-avatar-letter');
-                if (letter) letter.style.display = 'none';
-
-                const img = document.createElement('img');
+                if (letter) letter.remove();
+                let img = container.querySelector('img');
+                if (!img) { 
+                    img = document.createElement('img'); 
+                    container.prepend(img); 
+                }
                 img.src = URL.createObjectURL(file);
                 img.style.opacity = '0.5';
-                container.prepend(img);
-
                 avatarEditBtn.disabled = true;
                 const formData = new FormData();
                 formData.append('file', file);
-
                 try {
-                    const res = await fetch('/api/v1/upload/avatar', {
-                        method: 'POST',
-                        body: formData
-                    });
+                    const res = await fetch('/api/v1/upload/avatar', { method: 'POST', body: formData });
                     const data = await res.json();
+                    const img = container.querySelector('img');
                     if (!res.ok) {
-                        img.remove();
-                        if (letter) letter.style.display = '';
+                        if (img) img.remove();
                         alert(data.detail || 'Не удалось загрузить фото');
                         return;
                     }
                     img.src = data.url + '?t=' + Date.now();
                     img.style.opacity = '';
                 } catch (err) {
-                    img.remove();
-                    if (letter) letter.style.display = '';
+                    const img = container.querySelector('img');
+                    if (img) img.remove();
                     alert('Сеть недоступна, попробуйте ещё раз');
                 } finally {
                     avatarEditBtn.disabled = false;

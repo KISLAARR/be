@@ -58,7 +58,9 @@ async def render_salons_page(db: AsyncSession, user=None) -> str:
         heart_svg = ICON_HEART.replace('"', '&quot;')
         heart_filled_svg = ICON_HEART_FILLED.replace('"', '&quot;')
 
-        # Обложка (logo_url, назначается в «Мой салон»); без неё — градиент с первой буквой
+        # Обложка (logo_url, назначается в «Мой салон»); без неё — градиент
+        # с первой буквой: файла default-salon.jpg больше нет, битую картинку
+        # не показываем
         if s.logo_url:
             image_html = f'<img src="{s.logo_url}" alt="{s.name}">'
         else:
@@ -194,6 +196,7 @@ async def render_salons_page(db: AsyncSession, user=None) -> str:
 
         {render_footer(user)}
     </main>
+    <script src="/static/src/js/pages/salons.js"></script>
 </body>
 </html>"""
 

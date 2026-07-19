@@ -124,16 +124,27 @@ async def business_dashboard_page(
     if not user:
         return RedirectResponse(url="/login?redirect=/business/dashboard", status_code=302)
 
+    # Владелец/админ салона (SalonMember) — в приоритете, если пользователь
+    # одновременно и мастер, и владелец другого салона.
     resolved_id = await get_user_primary_salon_id(db, user.id, salon_id)
-    if resolved_id is None:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
+    if resolved_id is not None:
+        salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
+        membership = await get_salon_membership(db, user.id, resolved_id)
+        if salon and membership:
+            return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership, request.query_params))
 
-    salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
-    membership = await get_salon_membership(db, user.id, resolved_id)
-    if not salon or not membership:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
+    # Не владелец/админ ни одного салона — проверяем, не мастер ли он
+    # (по факту записи в Master, а не по полю role — оно не всегда
+    # синхронизировано, см. has_master_profile в auth.py).
+    master = (await db.execute(select(Master).where(Master.user_id == user.id, Master.is_active == True))).scalar_one_or_none()
+    if master is not None:
+        from app.web.pages.business.master_dashboard import render_master_business_dashboard
 
-    return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership, request.query_params))
+        salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
+        if salon is not None:
+            return HTMLResponse(content=await render_master_business_dashboard(db, user, salon, master, request.query_params))
+
+    return RedirectResponse(url="/business/register-salon", status_code=302)
 
 
 @router.get("/business/register-salon", response_class=HTMLResponse)
@@ -207,18 +218,9 @@ async def client_card_page(
 
 
 @router.get("/master/dashboard", response_class=HTMLResponse)
-async def master_dashboard_page_route(request: Request, db: AsyncSession = Depends(get_db)):
-    """Кабинет мастера: свои записи + списание расходников."""
-    from app.web.pages.master.dashboard import render_master_dashboard
-    from app.models.models import UserRole
-
-    user = await get_current_user_from_cookie(request, db)
-    if not user:
-        return RedirectResponse(url="/login?redirect=/master/dashboard", status_code=302)
-    if user.role != UserRole.MASTER:
-        return RedirectResponse(url="/", status_code=302)
-
-    return HTMLResponse(content=await render_master_dashboard(db, user))
+async def master_dashboard_page_route():
+    """Кабинет мастера переехал в общую «Панель бизнеса» (Обзор + Расписание)."""
+    return RedirectResponse(url="/business/dashboard", status_code=302)
 
 
 @router.get("/master/inventory", response_class=HTMLResponse)

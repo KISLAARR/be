@@ -1,9 +1,12 @@
 # app/web/pages/salon_detail.py
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from datetime import datetime, timedelta
-from app.models.models import Salon, SalonPhoto, Master, Service, Promotion, User, Review
+from app.models.models import (
+    Salon, SalonPhoto, Master, Service, Promotion, User, Booking, BookingStatus,
+    Review, ReviewPhoto, ReviewTargetType, SalonMember,
+)
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
@@ -48,6 +51,20 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     reviews = reviews_result.scalars().all()
 
     # Лояльность
+    verified_count = (await db.execute(
+        select(func.count(Review.id)).where(Review.salon_id == salon.id, Review.is_verified == True)
+    )).scalar() or 0
+
+    # Сотрудники (владелец/админ) салона — цель отзыва «Сотрудник»
+    staff_result = await db.execute(
+        select(SalonMember, User)
+        .join(User, User.id == SalonMember.user_id)
+        .where(SalonMember.salon_id == salon.id, SalonMember.is_active == True)
+    )
+    staff_members = staff_result.all()
+
+    # Лояльность видна клиенту заранее, до записи — скидку/бонусы даёт салон,
+    # не РУМИ
     loyalty_html = ""
     if user:
         loyalty = await LoyaltyService.get_client_status(db, salon.id, user.id)
@@ -153,10 +170,10 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                 <div class="salon-info-wrapper">
                     <h1 class="salon-title">{salon.name}</h1>
                     <div class="salon-meta">
-                        <div class="salon-rating">
+                        <div class="salon-rating" title="{verified_count} из {salon.reviews_count or 0} отзывов подтверждены реальной записью">
                             {star_svg}
                             <span class="rating-val">{salon.rating or 0.0:.1f}</span>
-                            <span class="rating-count">({salon.reviews_count or 0} отзывов)</span>
+                            <span class="rating-count">({salon.reviews_count or 0} отзывов, {verified_count} подтверждено)</span>
                         </div>
                         <div class="salon-tags">
                             {_get_service_tags(salon)}
@@ -189,7 +206,122 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             """
         promos_html += '</div></section>'
 
-    # Отзывы
+    # ----- Мастера и запись -----
+    masters_list_html_2 = ""
+    detail_html = ""
+
+    for m in masters:
+        user_result = await db.execute(select(User).where(User.id == m.user_id))
+        master_user = user_result.scalar_one_or_none()
+        user_name = master_user.full_name if master_user else "Мастер"
+        avatar = master_user.avatar_url or ""
+
+        # Карточка в списке
+        masters_list_html_2 += f"""
+        <div class="master-card" data-master-id="{m.id}">
+            <div class="master-image-box">
+                {f'<img src="{avatar}" alt="{user_name}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
+            </div>
+            <div class="master-info-box">
+                <div>
+                    <div class="master-name">{user_name}</div>
+                    <div class="master-spec">{m.specialization or "Барбер"}</div>
+                </div>
+                <div class="master-stats">
+                    <span>опыт: {m.experience_years} лет</span>
+                    <span>⭐ {m.rating or 0.0:.1f}</span>
+                </div>
+                <button class="btn-primary master-book-btn" data-master-id="{m.id}">Записаться</button>
+            </div>
+        </div>
+        """
+
+        # Детальный вид
+        services_result = await db.execute(select(Service).where(Service.master_id == m.id))
+        services = services_result.scalars().all()
+
+        services_html = ""
+        for s in services:
+            services_html += f"""
+            <button class="service-btn" 
+                    data-master-id="{m.id}"
+                    data-service-id="{s.id}"
+                    data-service-name="{s.name}"
+                    data-price="{s.price}"
+                    data-duration="{s.duration_minutes}">
+                <div>
+                    <div class="service-name">{s.name}</div>
+                    <div class="service-duration">{s.duration_minutes} мин</div>
+                </div>
+                <div class="service-price">{s.price} ₽</div>
+            </button>
+            """
+
+        detail_html += f"""
+        <div class="master-detail hidden" data-master-id="{m.id}">
+            <button class="back-to-masters">← Назад к мастерам</button>
+            
+            <div class="master-detail-profile">
+                <div class="master-detail-avatar">
+                    {f'<img src="{avatar}" alt="{user_name}">' if avatar else f'<div class="master-avatar-placeholder">{user_name[0].upper()}</div>'}
+                </div>
+                <div>
+                    <div class="master-detail-name">{user_name}</div>
+                    <div class="master-spec">{m.specialization or "Барбер"}</div>
+                    <div class="master-stats">
+                        <span>опыт: {m.experience_years} лет</span>
+                        <span>⭐ {m.rating or 0.0:.1f}</span>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin: 1.5rem 0 1rem; font-weight:600;">Выберите услугу:</h3>
+            <div class="services-grid">
+                {services_html}
+            </div>
+
+            <div class="slots-container hidden" id="detail-slots-{m.id}">
+                <div class="slots-title" id="detail-slots-title-{m.id}"></div>
+                <div class="slots-grid" id="detail-slot-grid-{m.id}"></div>
+            </div>
+        </div>
+        """
+
+    masters_block = f"""
+    <section class="section-container masters-section">
+        <div class="section-header">
+            <h2 class="section-title">Выберите мастера</h2>
+        </div>
+        <div id="masters-list-container">
+            <div class="masters-list">
+                {masters_list_html_2 or '<p>В салоне пока нет мастеров.</p>'}
+            </div>
+        </div>
+        {detail_html}
+    </section>
+    """
+
+    # Плавающая панель записи
+    booking_panel = """
+    <div class="booking-panel hidden" id="bookPanel">
+        <div class="booking-panel-inner">
+            <div class="booking-info">
+                <span class="booking-master" id="panelMaster"></span>
+                <span class="booking-dot"> · </span>
+                <span class="booking-time" id="panelTime"></span>
+            </div>
+            <button class="btn-primary" onclick="confirmBooking()">Записаться</button>
+        </div>
+    </div>
+    """
+
+    # ----- Отзывы -----
+    TARGET_LABELS = {
+        ReviewTargetType.MASTER: "👤 Мастер",
+        ReviewTargetType.SALON: "🏠 Салон",
+        ReviewTargetType.STAFF: "🧑‍💼 Сотрудник",
+    }
+
     reviews_html = ""
     if reviews:
         for r in reviews:
@@ -198,14 +330,63 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             client_name = client_user.full_name if client_user else "Клиент"
             stars = "★" * r.rating + "☆" * (5 - r.rating)
             date_str = r.created_at.strftime("%d.%m.%Y") if r.created_at else ""
+
+            target_label = TARGET_LABELS[r.target_type]
+            if r.target_type == ReviewTargetType.MASTER and r.master_id:
+                mu = await db.execute(
+                    select(User).join(Master, Master.user_id == User.id).where(Master.id == r.master_id)
+                )
+                mu_row = mu.scalar_one_or_none()
+                if mu_row:
+                    target_label += f": {mu_row.full_name}"
+            elif r.target_type == ReviewTargetType.STAFF and r.staff_user_id:
+                su = await db.execute(select(User).where(User.id == r.staff_user_id))
+                su_row = su.scalar_one_or_none()
+                if su_row:
+                    target_label += f": {su_row.full_name}"
+
+            verified_badge = (
+                '<span class="badge-tag" style="background:#dcfce7;color:#166534" '
+                'title="Клиент реально был на завершённой записи">✅ Подтверждено записью</span>'
+                if r.is_verified else
+                '<span class="badge-tag" style="background:#f3f4f6;color:var(--color-muted)">Без подтверждения</span>'
+            )
+
+            photos_result = await db.execute(select(ReviewPhoto).where(ReviewPhoto.review_id == r.id))
+            review_photos = photos_result.scalars().all()
+            photos_html = ""
+            if review_photos:
+                items = ""
+                for p in review_photos:
+                    delete_btn = (
+                        f'<button class="review-photo-delete" data-review-id="{r.id}" data-photo-id="{p.id}" '
+                        f'title="Удалить фото">✕</button>'
+                        if user and user.id == r.client_id else ""
+                    )
+                    report_btn = (
+                        f'<button class="review-photo-report" data-photo-id="{p.id}" title="Пожаловаться">⚑</button>'
+                        if user else ""
+                    )
+                    items += (
+                        f'<div class="review-photo-item" style="position:relative;display:inline-block">'
+                        f'<img src="{p.url}" alt="" loading="lazy" style="width:100px;height:100px;'
+                        f'object-fit:cover;border-radius:0.5rem;margin:0.25rem">{delete_btn}{report_btn}</div>'
+                    )
+                photos_html = f'<div class="review-photos" style="display:flex;flex-wrap:wrap">{items}</div>'
+
             reviews_html += f"""
-            <div class="review-item">
+            <div class="review-item" data-target-type="{r.target_type.value}" data-verified="{'1' if r.is_verified else '0'}">
                 <div class="review-header">
                     <strong class="review-author">{client_name}</strong>
                     <span class="review-date">{date_str}</span>
                 </div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.35rem 0">
+                    <span class="badge-tag">{target_label}</span>
+                    {verified_badge}
+                </div>
                 <div class="review-stars">{stars}</div>
                 <p class="review-text">{r.comment or 'Без комментария'}</p>
+                {photos_html}
             </div>
             """
     else:
@@ -418,6 +599,109 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     </section>
     """
 
+    # ----- Форма отзыва -----
+    if user:
+        master_options = ""
+        for m in masters:
+            mu = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
+            master_options += f'<option value="{m.id}">{mu.full_name if mu else "Мастер"}</option>'
+        staff_options = "".join(
+            f'<option value="{su.id}">{su.full_name or su.phone}</option>' for _sm, su in staff_members
+        )
+        review_form_html = f"""
+        <div class="card" style="padding:1.5rem;margin-bottom:1.5rem">
+            <h3 style="margin-bottom:1rem">Оставить отзыв</h3>
+            <form id="reviewForm" action="/api/v1/reviews/create" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="salon_id" value="{salon.id}">
+                <div style="margin-bottom:0.75rem">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">О чём отзыв</label>
+                    <select name="target_type" id="reviewTargetType" onchange="reviewToggleTarget()" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                        <option value="salon">Салон в целом (помещение, сервис)</option>
+                        <option value="master">Конкретный мастер</option>
+                        <option value="staff">Администратор/сотрудник</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:0.75rem" id="reviewMasterField">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Мастер</label>
+                    <select name="master_id" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                        {master_options}
+                    </select>
+                </div>
+                <div style="margin-bottom:0.75rem;display:none" id="reviewStaffField">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Сотрудник</label>
+                    <select name="staff_user_id" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                        {staff_options}
+                    </select>
+                </div>
+                <div style="margin-bottom:0.75rem">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Оценка</label>
+                    <select name="rating" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                        <option value="5">★★★★★</option>
+                        <option value="4">★★★★☆</option>
+                        <option value="3">★★★☆☆</option>
+                        <option value="2">★★☆☆☆</option>
+                        <option value="1">★☆☆☆☆</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:0.75rem">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Комментарий</label>
+                    <textarea name="comment" rows="3" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem"></textarea>
+                </div>
+                <div style="margin-bottom:1rem">
+                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Фото работ (до 5)</label>
+                    <input type="file" name="files" accept="image/*" multiple>
+                </div>
+                <button type="submit" class="btn-primary">Отправить отзыв</button>
+            </form>
+        </div>
+        <script>
+            function reviewToggleTarget() {{
+                const v = document.getElementById('reviewTargetType').value;
+                document.getElementById('reviewMasterField').style.display = v === 'master' ? 'block' : 'none';
+                document.getElementById('reviewStaffField').style.display = v === 'staff' ? 'block' : 'none';
+            }}
+        </script>
+        """
+    else:
+        review_form_html = '<p class="empty-state">Чтобы оставить отзыв, <a href="/login">войдите</a>.</p>'
+
+    reviews_filter_html = """
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+        <button class="btn-outline review-filter-btn active" data-filter="all" onclick="reviewFilter('all', this)">Все</button>
+        <button class="btn-outline review-filter-btn" data-filter="master" onclick="reviewFilter('master', this)">О мастерах</button>
+        <button class="btn-outline review-filter-btn" data-filter="salon" onclick="reviewFilter('salon', this)">О салоне</button>
+        <button class="btn-outline review-filter-btn" data-filter="staff" onclick="reviewFilter('staff', this)">О сотрудниках</button>
+        <button class="btn-outline review-filter-btn" data-filter="verified" onclick="reviewFilter('verified', this)">Только подтверждённые</button>
+    </div>
+    <script>
+        function reviewFilter(kind, btn) {
+            document.querySelectorAll('.review-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.review-item').forEach(el => {
+                let show = true;
+                if (kind === 'verified') show = el.dataset.verified === '1';
+                else if (kind !== 'all') show = el.dataset.targetType === kind;
+                el.style.display = show ? '' : 'none';
+            });
+        }
+        document.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('review-photo-delete')) {
+                if (!confirm('Удалить это фото?')) return;
+                const { reviewId, photoId } = e.target.dataset;
+                const res = await fetch(`/api/v1/upload/review/${reviewId}/photo/${photoId}/delete`, { method: 'POST' });
+                if (res.ok) location.reload(); else alert('Не удалось удалить фото');
+            }
+            if (e.target.classList.contains('review-photo-report')) {
+                const reason = prompt('Опишите проблему с этим фото (необязательно):', '');
+                if (reason === null) return;
+                const body = new URLSearchParams({ review_photo_id: e.target.dataset.photoId, reason: reason || '' });
+                const res = await fetch('/api/v1/reports/photo', { method: 'POST', body });
+                if (res.ok) alert('Жалоба отправлена, спасибо'); else alert('Не удалось отправить жалобу');
+            }
+        });
+    </script>
+    """
+
     html = f"""<!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
@@ -439,6 +723,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             {booking_flow_html}
             <section class="section-container reviews-section">
                 <h2 class="section-title">Отзывы</h2>
+                {review_form_html}
+                {reviews_filter_html}
                 <div class="reviews-list">
                     {reviews_html}
                 </div>

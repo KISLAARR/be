@@ -48,6 +48,19 @@ class InventoryAuditStatus(str, enum.Enum):
     DRAFT = "draft"          # акт открыт, идёт пересчёт
     CONFIRMED = "confirmed"  # акт закрыт, остатки скорректированы
 
+class EquipmentStatus(str, enum.Enum):
+    WORKING = "working"
+    BROKEN = "broken"
+
+class WarehouseRequestType(str, enum.Enum):
+    CONSUMABLE_LOW = "consumable_low"    # расходник заканчивается (без точного остатка)
+    EQUIPMENT_BROKEN = "equipment_broken"  # техника сломалась/нужна замена
+
+class WarehouseRequestStatus(str, enum.Enum):
+    PENDING = "pending"      # заявка открыта
+    RESOLVED = "resolved"    # админ отреагировал (закупил/заменил)
+    DISMISSED = "dismissed"  # отклонена
+
 class LoyaltyStatusSource(str, enum.Enum):
     AUTO = "auto"      # статус выставлен автоматически по числу визитов
     MANUAL = "manual"  # статус выставлен/снят вручную админом
@@ -57,6 +70,16 @@ class LoyaltyPointsMovementType(str, enum.Enum):
     MANUAL_ADD = "manual_add"      # ручное начисление админом
     REDEEMED = "redeemed"          # списание баллов клиентом при оплате
     MANUAL_REMOVE = "manual_remove"  # ручное списание админом (коррекция)
+
+class ReviewTargetType(str, enum.Enum):
+    MASTER = "master"  # отзыв о конкретном мастере
+    SALON = "salon"    # отзыв о салоне в целом (помещение, сервис)
+    STAFF = "staff"    # отзыв об админе/владельце салона (не мастере)
+
+class PhotoReportStatus(str, enum.Enum):
+    PENDING = "pending"      # жалоба открыта, ждёт решения
+    RESOLVED = "resolved"    # жалоба удовлетворена, фото удалено
+    DISMISSED = "dismissed"  # жалоба отклонена, фото осталось
 
 # Ключи прав салона. Значение — можно ли делать соответствующее действие.
 # У создателя салона (SalonMember.is_creator=True) все права всегда True
@@ -114,7 +137,7 @@ class User(Base):
     created_salons: Mapped[List["Salon"]] = relationship(back_populates="creator")
     salon_memberships: Mapped[List["SalonMember"]] = relationship(back_populates="user", foreign_keys="SalonMember.user_id")
     bookings: Mapped[List["Booking"]] = relationship(back_populates="client", foreign_keys="Booking.client_id")
-    reviews: Mapped[List["Review"]] = relationship(back_populates="client")
+    reviews: Mapped[List["Review"]] = relationship(back_populates="client", foreign_keys="Review.client_id")
     favorites: Mapped[List["Favorite"]] = relationship(back_populates="user")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -148,7 +171,9 @@ class Salon(Base):
 
     working_hours: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    timezone: Mapped[str] = mapped_column(String(50), default="Europe/Moscow", server_default="Europe/Moscow", nullable=False)
+    # Зона продукта по умолчанию — Сибирь (запуск в Новосибирске); салоны в
+    # других поясах задают свою явно
+    timezone: Mapped[str] = mapped_column(String(50), default="Asia/Novosibirsk", server_default="Asia/Novosibirsk", nullable=False)
 
     masters: Mapped[List["Master"]] = relationship(back_populates="salon")
     promotions: Mapped[List["Promotion"]] = relationship(back_populates="salon")
@@ -287,18 +312,103 @@ class Review(Base):
     __tablename__ = "reviews"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id"))
     salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id"))
+
+    # Цель отзыва: конкретный мастер / салон в целом / сотрудник (не мастер).
+    # master_id/staff_user_id заполняется в зависимости от target_type — оба
+    # nullable, ровно один из них задан при target_type=master/staff.
+    target_type: Mapped[ReviewTargetType] = mapped_column(
+        Enum(ReviewTargetType), default=ReviewTargetType.MASTER, server_default="MASTER", nullable=False
+    )
+    # nullable: если мастер уходит из салона (Master.is_active=False),
+    # привязка снимается (см. toggle_master_web) — отзыв остаётся в общем
+    # списке салона, но перестаёт быть отзывом «про конкретного мастера».
+    master_id: Mapped[Optional[int]] = mapped_column(ForeignKey("masters.id", ondelete="SET NULL"), nullable=True)
+    # Цель отзыва при target_type=staff — user_id участника SalonMember
+    # (владелец/админ), не мастера.
+    staff_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Подтверждение реальным визитом: заполняется автоматически при создании
+    # отзыва по факту COMPLETED-записи этого клиента (см. ReviewService) —
+    # никогда не принимается со стороны клиента как есть. booking_id хранит
+    # конкретную запись-доказательство (для аудита), is_verified — сам факт,
+    # переживает удаление записи (ondelete=SET NULL не трогает is_verified).
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    booking_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+
     rating: Mapped[int] = mapped_column(Integer)
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    client: Mapped["User"] = relationship(back_populates="reviews")
-    master: Mapped["Master"] = relationship(back_populates="reviews")
+    client: Mapped["User"] = relationship(back_populates="reviews", foreign_keys=[client_id])
+    master: Mapped[Optional["Master"]] = relationship(back_populates="reviews")
     salon: Mapped["Salon"] = relationship(back_populates="reviews")
+    staff_user: Mapped[Optional["User"]] = relationship(foreign_keys=[staff_user_id])
+    booking: Mapped[Optional["Booking"]] = relationship()
+    photos: Mapped[List["ReviewPhoto"]] = relationship(back_populates="review", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint('rating >= 1 AND rating <= 5', name='check_rating_range'),
+        Index("ix_reviews_master", "master_id"),
+        Index("ix_reviews_salon", "salon_id"),
+    )
+
+class ReviewPhoto(Base):
+    """Фото, приложенное клиентом к отзыву — доказательство результата работы."""
+    __tablename__ = "review_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"))
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    review: Mapped["Review"] = relationship(back_populates="photos")
+
+class MasterPhoto(Base):
+    """Фото портфолио, которое мастер выкладывает сам (не из отзывов)."""
+    __tablename__ = "master_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    master: Mapped["Master"] = relationship()
+
+class PhotoReport(Base):
+    """Жалоба на фото (из портфолио мастера или из отзыва) — модерация."""
+    __tablename__ = "photo_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # SET NULL, не CASCADE: при разрешении жалобы (resolve) фото удаляется —
+    # если бы тут был CASCADE, тот же delete() стёр бы саму запись жалобы
+    # вместе с фото, уничтожив историю модерации в момент её создания.
+    master_photo_id: Mapped[Optional[int]] = mapped_column(ForeignKey("master_photos.id", ondelete="SET NULL"), nullable=True)
+    review_photo_id: Mapped[Optional[int]] = mapped_column(ForeignKey("review_photos.id", ondelete="SET NULL"), nullable=True)
+    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[PhotoReportStatus] = mapped_column(
+        Enum(PhotoReportStatus), default=PhotoReportStatus.PENDING, server_default="PENDING", nullable=False
+    )
+    resolved_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    master_photo: Mapped[Optional["MasterPhoto"]] = relationship()
+    review_photo: Mapped[Optional["ReviewPhoto"]] = relationship()
+    reporter: Mapped["User"] = relationship(foreign_keys=[reporter_id])
+    resolved_by: Mapped[Optional["User"]] = relationship(foreign_keys=[resolved_by_id])
+
+    __table_args__ = (
+        # На создании (см. create_photo_report) — ровно одна цель. После
+        # resolve обе могут стать NULL (SET NULL при удалении фото) — поэтому
+        # <= 1, а не строго = 1, иначе разрешённая жалоба не смогла бы
+        # физически существовать в БД.
+        CheckConstraint(
+            "(master_photo_id IS NOT NULL)::int + (review_photo_id IS NOT NULL)::int <= 1",
+            name="check_photo_report_at_most_one_target",
+        ),
+        Index("ix_photo_reports_status", "status"),
     )
 
 # ========== НОВАЯ МОДЕЛЬ: Избранное ==========
@@ -427,6 +537,65 @@ class InventoryAuditItem(Base):
 
     audit: Mapped["InventoryAudit"] = relationship(back_populates="items")
     item: Mapped["InventoryItem"] = relationship()
+
+# ========== Техника и инструменты (общий склад салона) ==========
+class Equipment(Base):
+    """Единица техники/инструментов салона (кресла, фены и т.п.) — общий
+    склад на весь салон, не привязан к конкретному мастеру (в отличие от
+    расходников в InventoryItem)."""
+    __tablename__ = "equipment"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+    status: Mapped[EquipmentStatus] = mapped_column(
+        Enum(EquipmentStatus), default=EquipmentStatus.WORKING, server_default="WORKING", nullable=False
+    )
+    purchased_at: Mapped[Optional[date_]] = mapped_column(Date, nullable=True)
+    service_life_months: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cost_per_unit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+
+# ========== Заявки склада: расходник заканчивается / техника сломалась ==========
+class WarehouseRequest(Base):
+    """Единая «заявка» мастера администратору салона — по расходнику
+    (заканчивается, без точного остатка) или по технике (сломалась,
+    нужна замена). Обе ветки решает один и тот же админ-воркфлоу."""
+    __tablename__ = "warehouse_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))
+    type: Mapped[WarehouseRequestType] = mapped_column(Enum(WarehouseRequestType), nullable=False)
+    # SET NULL, не CASCADE — та же логика, что у PhotoReport: разрешённая
+    # заявка должна пережить исчезновение позиции, иначе теряется история.
+    item_id: Mapped[Optional[int]] = mapped_column(ForeignKey("inventory_items.id", ondelete="SET NULL"), nullable=True)
+    equipment_id: Mapped[Optional[int]] = mapped_column(ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[WarehouseRequestStatus] = mapped_column(
+        Enum(WarehouseRequestStatus), default=WarehouseRequestStatus.PENDING, server_default="PENDING", nullable=False
+    )
+    resolved_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    salon: Mapped["Salon"] = relationship()
+    item: Mapped[Optional["InventoryItem"]] = relationship()
+    equipment: Mapped[Optional["Equipment"]] = relationship()
+    created_by: Mapped["User"] = relationship(foreign_keys=[created_by_id])
+    resolved_by: Mapped[Optional["User"]] = relationship(foreign_keys=[resolved_by_id])
+
+    __table_args__ = (
+        CheckConstraint(
+            "(item_id IS NOT NULL)::int + (equipment_id IS NOT NULL)::int <= 1",
+            name="check_warehouse_request_at_most_one_target",
+        ),
+        Index("ix_warehouse_requests_salon_status", "salon_id", "status"),
+    )
 
 # ========== Зарплаты: ставка мастера + ручные бонусы/штрафы ==========
 class MasterPayrollSettings(Base):
