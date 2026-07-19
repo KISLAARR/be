@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from datetime import datetime, timedelta
 from app.models.models import (
     Salon, SalonPhoto, Master, Service, Promotion, User, Booking, BookingStatus,
-    Review, ReviewPhoto, ReviewTargetType, SalonMember,
+    Review, ReviewPhoto, ReviewTargetType, SalonMember, SalonModerationStatus,
 )
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
@@ -29,7 +29,12 @@ from app.web.components.icons import (
 
 
 async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str:
-    result = await db.execute(select(Salon).where(Salon.id == salon_id))
+    # Публично видны только одобренные активные салоны (модерация регистрации).
+    result = await db.execute(select(Salon).where(
+        Salon.id == salon_id,
+        Salon.is_active == True,
+        Salon.moderation_status == SalonModerationStatus.APPROVED,
+    ))
     salon = result.scalar_one_or_none()
 
     if not salon:

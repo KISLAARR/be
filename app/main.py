@@ -29,7 +29,11 @@ from app.core.observability import setup_logging, init_sentry
 setup_logging()
 init_sentry()
 
-from app.models.models import Salon, Master, User, Service
+from app.models.models import Salon, Master, User, Service, SalonModerationStatus
+
+# Публичный салон = активен И заявка одобрена (pending/rejected не показываем
+# и не даём записаться — модерация регистрации бизнеса).
+_PUBLIC_SALON = (Salon.is_active == True) & (Salon.moderation_status == SalonModerationStatus.APPROVED)  # noqa: E712
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
 from app.api.v1.endpoints import auth
@@ -123,7 +127,7 @@ app.include_router(web_router, include_in_schema=False)
 @app.get("/api/v1/salons", response_model=List[SalonResponse])
 async def get_salons(db: AsyncSession = Depends(get_db)):
     """Получить список всех салонов"""
-    result = await db.execute(select(Salon).where(Salon.is_active == True))
+    result = await db.execute(select(Salon).where(_PUBLIC_SALON))
     salons = result.scalars().all()
     return salons
 
@@ -136,7 +140,7 @@ async def get_nearby_salons(
 ):
     """Получить салоны в радиусе N километров от указанных координат"""
     
-    result = await db.execute(select(Salon).where(Salon.is_active == True))
+    result = await db.execute(select(Salon).where(_PUBLIC_SALON))
     salons = result.scalars().all()
     
     user_location = (lat, lon)
@@ -156,7 +160,7 @@ async def get_nearby_salons(
 @app.get("/api/v1/salons/{salon_id}", response_model=SalonResponse)
 async def get_salon(salon_id: int, db: AsyncSession = Depends(get_db)):
     """Получить информацию о конкретном салоне"""
-    result = await db.execute(select(Salon).where(Salon.id == salon_id))
+    result = await db.execute(select(Salon).where(Salon.id == salon_id, _PUBLIC_SALON))
     salon = result.scalar_one_or_none()
     if not salon:
         raise HTTPException(status_code=404, detail="Салон не найден")

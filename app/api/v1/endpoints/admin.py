@@ -3,8 +3,11 @@
 каждое изменяющее действие пишется в admin_audit. Защиты: нельзя тронуть себя и
 нельзя оставить платформу без активного админа.
 """
+import logging
 import secrets
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
@@ -15,6 +18,7 @@ from app.db.session import get_db
 from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, Promotion,
     SalonPhoto, Favorite, AdminAudit, SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
+    SalonModerationStatus,
 )
 from app.core.security import get_password_hash
 from app.web.auth import get_current_user_from_cookie
@@ -159,7 +163,71 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
     return _back("users", ok=f"Пользователь {phone} удалён")
 
 
+async def _notify_owner_moderation(db, salon, approved: bool):
+    """Уведомить владельца салона о решении по заявке (TG + email через ARQ)."""
+    if not salon.creator_id:
+        return
+    owner = (await db.execute(select(User).where(User.id == salon.creator_id))).scalar_one_or_none()
+    if not owner:
+        return
+    if approved:
+        tg = f"✅ Салон «{salon.name}» одобрен — кабинет и запись клиентов открыты."
+        subj = "Заявка одобрена — Руми"
+        body = (f"Салон «{salon.name}» подтверждён. Он появился в каталоге, "
+                "клиенты могут записываться.")
+    else:
+        why = f"\nПричина: {salon.rejection_reason}" if salon.rejection_reason else ""
+        tg = f"⚠️ Заявка по салону «{salon.name}» отклонена.{why}"
+        subj = "Заявка отклонена — Руми"
+        body = f"Заявка по салону «{salon.name}» отклонена.{why}"
+    try:
+        from app.core.worker import get_arq_pool
+        pool = await get_arq_pool()
+        if owner.tg_chat_id:
+            await pool.enqueue_job("send_tg_message", owner.tg_chat_id, tg)
+        if owner.email:
+            await pool.enqueue_job("send_email", owner.email, subj, body)
+    except Exception:
+        logger.exception("не удалось уведомить владельца о модерации salon=%s", salon.id)
+
+
 # ── САЛОНЫ ───────────────────────────────────────────────────────────────────
+@router.post("/salons/{sid}/approve")
+async def salon_approve(sid: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Одобрить заявку салона: договор подтверждён → салон работает."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    salon = (await db.execute(select(Salon).where(Salon.id == sid))).scalar_one_or_none()
+    if not salon:
+        return _back("applications", err="Салон не найден")
+    salon.moderation_status = SalonModerationStatus.APPROVED
+    salon.rejection_reason = None
+    salon.is_active = True
+    _audit(db, admin.id, "salon_approve", "salon", sid, salon.name)
+    await db.commit()
+    await _notify_owner_moderation(db, salon, approved=True)
+    return _back("applications", ok=f"«{salon.name}» одобрен")
+
+
+@router.post("/salons/{sid}/reject")
+async def salon_reject(sid: int, request: Request, reason: str = Form(""), db: AsyncSession = Depends(get_db)):
+    """Отклонить заявку салона (с причиной)."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    salon = (await db.execute(select(Salon).where(Salon.id == sid))).scalar_one_or_none()
+    if not salon:
+        return _back("applications", err="Салон не найден")
+    salon.moderation_status = SalonModerationStatus.REJECTED
+    salon.rejection_reason = reason.strip() or None
+    salon.is_active = False
+    _audit(db, admin.id, "salon_reject", "salon", sid, f"{salon.name}: {reason.strip()[:200]}")
+    await db.commit()
+    await _notify_owner_moderation(db, salon, approved=False)
+    return _back("applications", ok=f"«{salon.name}» отклонён")
+
+
 @router.post("/salons/{sid}/toggle-active")
 async def salon_toggle(sid: int, request: Request, db: AsyncSession = Depends(get_db)):
     admin = await _get_admin(request, db)

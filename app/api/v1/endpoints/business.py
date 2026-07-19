@@ -13,7 +13,7 @@ from app.db.session import get_db
 from app.models.models import (
     User, Salon, SalonPhoto, Master, Service, Promotion,
     SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS, AdminAudit, ClientNote,
-    SalonModel, UserRole,
+    SalonModel, UserRole, SalonModerationStatus,
 )
 from app.schemas.business import (
     SalonUpdateRequest,
@@ -72,6 +72,7 @@ async def create_or_update_salon(
     phone: str = Form(...),
     method_override: str = Form(""),
     salon_id: Optional[int] = Form(None),
+    offer_accepted: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание ИЛИ обновление салона через веб-форму."""
@@ -99,9 +100,19 @@ async def create_or_update_salon(
         await db.commit()
         return RedirectResponse(url="/business/dashboard?updated=1", status_code=302)
 
-    # Иначе — создание нового салона. Лимита на число салонов на владельца
-    # сейчас нет (тарифы нигде не enforced — вводить гейт только по числу
-    # салонов было бы непоследовательно; появится вместе с логикой тарифов).
+    # Иначе — создание нового салона (ЗАЯВКА). Требуем согласие с офертой;
+    # салон создаётся в статусе pending (модель по умолчанию) — виден только
+    # владельцу для настройки, публично не показывается и запись закрыта, пока
+    # платформа не подтвердит договор (см. модерацию в админ-панели).
+    if offer_accepted != "1":
+        from app.web.pages.register_salon import render_register_salon_page
+        return HTMLResponse(
+            content=render_register_salon_page(user, error="Нужно принять условия оферты."),
+            status_code=400,
+        )
+
+    from datetime import datetime, timezone as _tz
+    # Лимита на число салонов на владельца сейчас нет (тарифы нигде не enforced).
     salon = Salon(
         creator_id=user.id,
         name=name,
@@ -112,7 +123,9 @@ async def create_or_update_salon(
         longitude=37.6173,
         rating=0.0,
         reviews_count=0,
-        is_active=True
+        is_active=True,
+        moderation_status=SalonModerationStatus.PENDING,
+        offer_accepted_at=datetime.now(_tz.utc),
     )
     db.add(salon)
     await db.flush()  # получить salon.id до commit

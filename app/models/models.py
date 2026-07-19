@@ -147,6 +147,19 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class SalonModerationStatus(str, enum.Enum):
+    """Статус заявки салона (модерация регистрации бизнеса).
+
+    pending  — заявка подана: салон можно настраивать, но публично НЕ виден и
+               запись к нему закрыта, пока платформа не подтвердит договор;
+    approved — договор подтверждён, салон работает;
+    rejected — отклонён (причина в rejection_reason).
+    """
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class Salon(Base):
     __tablename__ = "salons"
 
@@ -185,6 +198,20 @@ class Salon(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Модерация регистрации бизнеса: новый салон = pending (виден только
+    # владельцу для настройки), админ подтверждает договор → approved.
+    # server_default=pending — страховка; существующие салоны миграция
+    # переводит в approved, чтобы не отрезать текущих владельцев.
+    moderation_status: Mapped[SalonModerationStatus] = mapped_column(
+        Enum(SalonModerationStatus),
+        default=SalonModerationStatus.PENDING,
+        server_default="PENDING",  # SQLAlchemy хранит ИМЯ члена (конвенция проекта)
+        nullable=False,
+    )
+    rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Факт и время принятия оферты при подаче заявки.
+    offer_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class SalonPhoto(Base):
     __tablename__ = "salon_photos"

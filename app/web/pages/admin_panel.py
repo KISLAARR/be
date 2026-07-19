@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, BookingStatus, AdminAudit,
+    SalonModerationStatus,
 )
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
@@ -30,6 +31,55 @@ def _badge(text, color):
 
 def _active_badge(is_active):
     return _badge("активен", "#16a34a") if is_active else _badge("заблокирован", "#dc2626")
+
+
+def _moderation_badge(status):
+    m = {
+        SalonModerationStatus.PENDING: ("на модерации", "#d97706"),
+        SalonModerationStatus.APPROVED: ("одобрен", "#16a34a"),
+        SalonModerationStatus.REJECTED: ("отклонён", "#dc2626"),
+    }
+    text, color = m.get(status, (str(status), "#6b7280"))
+    return _badge(text, color)
+
+
+# ── ВКЛАДКА: ЗАЯВКИ (модерация регистрации бизнеса) ──────────────────────────
+def _applications_tab(pending, owner_phone_by_id):
+    rows = ""
+    for s in pending:
+        owner = owner_phone_by_id.get(s.creator_id, "—") if s.creator_id else "нет"
+        submitted = s.created_at.strftime("%d.%m.%Y") if s.created_at else "—"
+        approve = (
+            f'<form method="post" action="/api/v1/admin/salons/{s.id}/approve" style="display:inline">'
+            f'<button class="btn-mini" style="border-color:#16a34a;color:#16a34a">✓ Одобрить</button></form>'
+        )
+        reject = (
+            f'<form method="post" action="/api/v1/admin/salons/{s.id}/reject" style="display:inline-flex;gap:0.25rem" '
+            f'onsubmit="return confirm(\'Отклонить заявку «{_esc(s.name)}»?\')">'
+            f'<input name="reason" placeholder="причина" '
+            f'style="padding:0.3rem 0.5rem;border:1px solid var(--color-border);border-radius:0.4rem;width:140px">'
+            f'<button class="btn-mini btn-danger">✕ Отклонить</button></form>'
+        )
+        rows += f"""<tr>
+            <td>{s.id}</td>
+            <td>{_esc(s.name)}</td>
+            <td>{_esc(owner)}</td>
+            <td>{_esc(s.address)}</td>
+            <td>{submitted}</td>
+            <td style="white-space:nowrap">{approve} {reject}</td>
+        </tr>"""
+    if not rows:
+        rows = '<tr><td colspan="6" class="text-muted" style="padding:1.5rem;text-align:center">Новых заявок нет</td></tr>'
+    return f"""
+    <div class="tab-content" id="tab-applications">
+        <h2 style="margin-bottom:1rem">Заявки на регистрацию ({len(pending)})</h2>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">Салон работает только после одобрения: до этого он не виден в каталоге и запись закрыта.</p>
+        <div style="overflow-x:auto"><table>
+            <thead><tr><th>ID</th><th>Название</th><th>Владелец</th><th>Адрес</th><th>Подана</th><th>Действия</th></tr></thead>
+            <tbody>{rows}</tbody>
+        </table></div>
+    </div>
+    """
 
 
 # ── ВКЛАДКА: ОБЗОР ───────────────────────────────────────────────────────────
@@ -155,7 +205,7 @@ def _salons_tab(salons, owner_phone_by_id):
             <td>{_esc(s.name)}</td>
             <td>{_esc(owner)}</td>
             <td>⭐ {s.rating} ({s.reviews_count})</td>
-            <td>{_active_badge(s.is_active)}</td>
+            <td>{_active_badge(s.is_active)} {_moderation_badge(s.moderation_status)}</td>
             <td style="white-space:nowrap">{owner_form} {toggle} {delete}</td>
         </tr>"""
     return f"""
@@ -251,13 +301,17 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
     salon_name_by_id = {s.id: s.name for s in salons}
     master_name_by_id = {m.id: name_by_uid.get(m.user_id, "Мастер") for m in masters}
 
+    pending = [s for s in salons if s.moderation_status == SalonModerationStatus.PENDING]
+
     overview = await _overview(db, users)
     users_tab = _users_tab(users, user.id)
+    applications_tab = _applications_tab(pending, phone_by_id)
     salons_tab = _salons_tab(salons, phone_by_id)
     reviews_tab = _reviews_tab(reviews, phone_by_id, master_name_by_id, salon_name_by_id)
     audit_tab = _audit_tab(audits, phone_by_id)
     _tab = q.get("tab", "overview")
-    active_tab = _tab if _tab in {"overview", "users", "salons", "reviews", "audit"} else "overview"
+    active_tab = _tab if _tab in {"overview", "users", "applications", "salons", "reviews", "audit"} else "overview"
+    pending_badge = f' <span style="background:#d97706;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(pending)}</span>' if pending else ""
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -298,12 +352,14 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         <div class="tab-nav">
             <button class="tab-btn" data-tab="overview" onclick="switchTab('overview')">📊 Обзор</button>
             <button class="tab-btn" data-tab="users" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="tab-btn" data-tab="applications" onclick="switchTab('applications')">📋 Заявки{pending_badge}</button>
             <button class="tab-btn" data-tab="salons" onclick="switchTab('salons')">🏢 Салоны</button>
             <button class="tab-btn" data-tab="reviews" onclick="switchTab('reviews')">💬 Отзывы</button>
             <button class="tab-btn" data-tab="audit" onclick="switchTab('audit')">📝 Аудит</button>
         </div>
         {overview}
         {users_tab}
+        {applications_tab}
         {salons_tab}
         {reviews_tab}
         {audit_tab}
