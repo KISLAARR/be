@@ -71,9 +71,11 @@ async def create_photo_report(
     db.add(report)
     await db.commit()
 
-    from app.services.notifications import notify_photo_report
+    from app.services.notifications import notify_admins, notify_photo_report
     _, report_salon_id = await _photo_and_salon_id(db, report)
     await notify_photo_report(db, report_salon_id)
+    await notify_admins(db, "Новая жалоба на фото",
+                        f"Причина: {reason}" if reason else "Загляните в модерацию (админ-панель → Жалобы).")
     return {"status": "reported"}
 
 

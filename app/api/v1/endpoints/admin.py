@@ -5,6 +5,7 @@
 """
 import logging
 import secrets
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ from app.db.session import get_db
 from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, Promotion,
     SalonPhoto, Favorite, AdminAudit, SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
-    SalonModerationStatus,
+    SalonModerationStatus, PhotoReport, PhotoReportStatus, MasterPhoto, ReviewPhoto,
 )
 from app.core.security import get_password_hash
 from app.web.auth import get_current_user_from_cookie
@@ -189,6 +190,53 @@ async def _notify_owner_moderation(db, salon, approved: bool):
             await pool.enqueue_job("send_email", owner.email, subj, body)
     except Exception:
         logger.exception("не удалось уведомить владельца о модерации salon=%s", salon.id)
+
+
+# ── ЖАЛОБЫ НА ФОТО ───────────────────────────────────────────────────────────
+@router.post("/reports/{rid}/resolve")
+async def report_resolve(rid: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Жалоба обоснована: удаляем фото, жалобу закрываем."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    from app.api.v1.endpoints.reports import _photo_and_salon_id
+    from app.services.uploads import delete_stored
+
+    report = (await db.execute(select(PhotoReport).where(PhotoReport.id == rid))).scalar_one_or_none()
+    if not report or report.status != PhotoReportStatus.PENDING:
+        return _back("reports", err="Жалоба не найдена или уже обработана")
+    url, _sid = await _photo_and_salon_id(db, report)
+    if report.master_photo_id:
+        photo = (await db.execute(select(MasterPhoto).where(MasterPhoto.id == report.master_photo_id))).scalar_one_or_none()
+    else:
+        photo = (await db.execute(select(ReviewPhoto).where(ReviewPhoto.id == report.review_photo_id))).scalar_one_or_none()
+    if photo:
+        await db.delete(photo)
+    report.status = PhotoReportStatus.RESOLVED
+    report.resolved_by_id = admin.id
+    report.resolved_at = datetime.now(timezone.utc)
+    _audit(db, admin.id, "report_resolve", "photo_report", rid, "фото удалено")
+    await db.commit()
+    if url and url.startswith("/uploads/"):
+        delete_stored(url)
+    return _back("reports", ok="Фото удалено, жалоба закрыта")
+
+
+@router.post("/reports/{rid}/dismiss")
+async def report_dismiss(rid: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Жалоба необоснована: фото остаётся, жалобу закрываем."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    report = (await db.execute(select(PhotoReport).where(PhotoReport.id == rid))).scalar_one_or_none()
+    if not report or report.status != PhotoReportStatus.PENDING:
+        return _back("reports", err="Жалоба не найдена или уже обработана")
+    report.status = PhotoReportStatus.DISMISSED
+    report.resolved_by_id = admin.id
+    report.resolved_at = datetime.now(timezone.utc)
+    _audit(db, admin.id, "report_dismiss", "photo_report", rid, "оставлено")
+    await db.commit()
+    return _back("reports", ok="Жалоба отклонена, фото оставлено")
 
 
 # ── САЛОНЫ ───────────────────────────────────────────────────────────────────

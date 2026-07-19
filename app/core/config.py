@@ -115,6 +115,8 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAIL_FROM: str = "noreply@rrumi.ru"
     EMAIL_FROM_NAME: str = "Руми"
+    # Ящик для алертов платформенным админам (новые заявки/жалобы и т.п.).
+    ADMIN_ALERT_EMAIL: str = "hello@rrumi.ru"
 
     # --- Вход через Яндекс (OAuth, стало возможно с доменом rrumi.ru) ---
     # Приложение регистрируется на oauth.yandex.ru (физлицо, без ООО).

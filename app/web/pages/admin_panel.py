@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, BookingStatus, AdminAudit,
-    SalonModerationStatus,
+    SalonModerationStatus, PhotoReport, PhotoReportStatus,
 )
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
@@ -219,6 +219,42 @@ def _salons_tab(salons, owner_phone_by_id):
     """
 
 
+# ── ВКЛАДКА: ЖАЛОБЫ НА ФОТО ──────────────────────────────────────────────────
+def _reports_tab(reports):
+    rows = ""
+    for r in reports:
+        thumb = (f'<a href="{_esc(r["url"])}" target="_blank"><img src="{_esc(r["url"])}" '
+                 f'style="width:64px;height:64px;object-fit:cover;border-radius:0.5rem"></a>') if r["url"] else "—"
+        resolve = (
+            f'<form method="post" action="/api/v1/admin/reports/{r["id"]}/resolve" style="display:inline" '
+            f'onsubmit="return confirm(\'Удалить фото и закрыть жалобу?\')">'
+            f'<button class="btn-mini btn-danger">🗑 Удалить фото</button></form>'
+        )
+        dismiss = (
+            f'<form method="post" action="/api/v1/admin/reports/{r["id"]}/dismiss" style="display:inline">'
+            f'<button class="btn-mini">Оставить</button></form>'
+        )
+        rows += f"""<tr>
+            <td>{thumb}</td>
+            <td>{_esc(r["salon"])}</td>
+            <td>{_esc(r["reporter"])}</td>
+            <td>{_esc(r["reason"]) or '<span class="text-muted">—</span>'}</td>
+            <td style="white-space:nowrap">{resolve} {dismiss}</td>
+        </tr>"""
+    if not rows:
+        rows = '<tr><td colspan="5" class="text-muted" style="padding:1.5rem;text-align:center">Открытых жалоб нет</td></tr>'
+    return f"""
+    <div class="tab-content" id="tab-reports">
+        <h2 style="margin-bottom:1rem">Жалобы на фото ({len(reports)})</h2>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">«Удалить фото» — жалоба обоснована, фото убирается. «Оставить» — жалоба отклонена.</p>
+        <div style="overflow-x:auto"><table>
+            <thead><tr><th>Фото</th><th>Салон</th><th>Пожаловался</th><th>Причина</th><th>Действия</th></tr></thead>
+            <tbody>{rows}</tbody>
+        </table></div>
+    </div>
+    """
+
+
 # ── ВКЛАДКА: ОТЗЫВЫ ──────────────────────────────────────────────────────────
 def _reviews_tab(reviews, client_by_id, master_name_by_id, salon_name_by_id):
     rows = ""
@@ -303,15 +339,31 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
 
     pending = [s for s in salons if s.moderation_status == SalonModerationStatus.PENDING]
 
+    # Открытые жалобы на фото (модерация платформы)
+    from app.api.v1.endpoints.reports import _photo_and_salon_id
+    pending_reports_raw = (await db.execute(
+        select(PhotoReport).where(PhotoReport.status == PhotoReportStatus.PENDING).order_by(PhotoReport.id.desc())
+    )).scalars().all()
+    reports_data = []
+    for rep in pending_reports_raw:
+        url, sid = await _photo_and_salon_id(db, rep)
+        reports_data.append({
+            "id": rep.id, "url": url or "", "reason": rep.reason or "",
+            "reporter": phone_by_id.get(rep.reporter_id, "—"),
+            "salon": salon_name_by_id.get(sid, "—") if sid else "—",
+        })
+
     overview = await _overview(db, users)
     users_tab = _users_tab(users, user.id)
     applications_tab = _applications_tab(pending, phone_by_id)
+    reports_tab = _reports_tab(reports_data)
     salons_tab = _salons_tab(salons, phone_by_id)
     reviews_tab = _reviews_tab(reviews, phone_by_id, master_name_by_id, salon_name_by_id)
     audit_tab = _audit_tab(audits, phone_by_id)
     _tab = q.get("tab", "overview")
-    active_tab = _tab if _tab in {"overview", "users", "applications", "salons", "reviews", "audit"} else "overview"
+    active_tab = _tab if _tab in {"overview", "users", "applications", "reports", "salons", "reviews", "audit"} else "overview"
     pending_badge = f' <span style="background:#d97706;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(pending)}</span>' if pending else ""
+    reports_badge = f' <span style="background:#dc2626;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(reports_data)}</span>' if reports_data else ""
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -353,6 +405,7 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
             <button class="tab-btn" data-tab="overview" onclick="switchTab('overview')">📊 Обзор</button>
             <button class="tab-btn" data-tab="users" onclick="switchTab('users')">👥 Пользователи</button>
             <button class="tab-btn" data-tab="applications" onclick="switchTab('applications')">📋 Заявки{pending_badge}</button>
+            <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')">🚩 Жалобы{reports_badge}</button>
             <button class="tab-btn" data-tab="salons" onclick="switchTab('salons')">🏢 Салоны</button>
             <button class="tab-btn" data-tab="reviews" onclick="switchTab('reviews')">💬 Отзывы</button>
             <button class="tab-btn" data-tab="audit" onclick="switchTab('audit')">📝 Аудит</button>
@@ -360,6 +413,7 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         {overview}
         {users_tab}
         {applications_tab}
+        {reports_tab}
         {salons_tab}
         {reviews_tab}
         {audit_tab}

@@ -141,6 +141,9 @@ async def create_or_update_salon(
     await db.commit()
     await db.refresh(salon)
 
+    from app.services.notifications import notify_admins
+    await notify_admins(db, "Новая заявка на подключение салона",
+                        f"«{salon.name}», тел. {salon.phone}. Одобрить/отклонить — админ-панель → Заявки.")
     return RedirectResponse(url="/business/dashboard?success=1", status_code=302)
 
 
@@ -195,6 +198,10 @@ async def apply_business(
     if user.role != UserRole.BUSINESS:
         user.role = UserRole.BUSINESS
     await db.commit()
+
+    from app.services.notifications import notify_admins
+    await notify_admins(db, "Новая заявка на подключение салона",
+                        f"«{salon.name}», тел. {salon.phone}. Одобрить/отклонить — админ-панель → Заявки.")
     return {"ok": True, "redirect": "/business/dashboard?submitted=1"}
 
 

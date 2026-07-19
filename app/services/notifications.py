@@ -347,8 +347,35 @@ async def notify_new_review(db: AsyncSession, review: Review) -> None:
         logger.exception("notify_new_review(%s): не поставлено", review.id)
 
 
+async def notify_admins(db: AsyncSession, subject: str, body: str = "") -> None:
+    """Алерт платформенным админам о событии, требующем их действия:
+    Telegram всем ADMIN с привязкой + письмо на ADMIN_ALERT_EMAIL (hello@).
+
+    Это админ-обязанность, поэтому личные mute-подписки НЕ учитываются
+    (в отличие от тематических уведомлений через _Fanout).
+    """
+    text = subject if not body else f"{subject}\n{body}"
+    try:
+        pool = await get_arq_pool()
+        admins = (await db.execute(
+            select(User).where(User.role == UserRole.ADMIN, User.tg_chat_id.isnot(None))
+        )).scalars().all()
+        seen: set[int] = set()
+        for admin in admins:
+            if admin.tg_chat_id and admin.tg_chat_id not in seen:
+                seen.add(admin.tg_chat_id)
+                await pool.enqueue_job("send_tg_message", admin.tg_chat_id, f"🛡️ {text}")
+        if settings.ADMIN_ALERT_EMAIL:
+            await pool.enqueue_job(
+                "send_email", settings.ADMIN_ALERT_EMAIL, f"[Руми] {subject}", body or subject
+            )
+    except Exception:
+        logger.exception("notify_admins: не удалось разослать алерт (%s)", subject)
+
+
 async def notify_photo_report(db: AsyncSession, salon_id: int | None) -> None:
-    """Жалоба на фото → модераторам салона и платформенным админам с Telegram."""
+    """Жалоба на фото → модераторам салона (платформенных админов покрывает
+    notify_admins из ручки создания жалобы)."""
     if not settings.TG_NOTIFY_ENABLED:
         return
     try:
@@ -356,12 +383,5 @@ async def notify_photo_report(db: AsyncSession, salon_id: int | None) -> None:
         if salon_id is not None:
             for member in await _members_with_permission(db, salon_id, "manage_reviews"):
                 await fanout.send(member, "🚩 Новая жалоба на фото — загляните в модерацию", topic=TOPIC_REPORTS)
-        admins = (
-            await db.execute(
-                select(User).where(User.role == UserRole.ADMIN, User.tg_chat_id.isnot(None))
-            )
-        ).scalars().all()
-        for admin in admins:
-            await fanout.send(admin, "🚩 Новая жалоба на фото (платформа)", topic=TOPIC_REPORTS)
     except Exception:
         logger.exception("notify_photo_report: не поставлено")
