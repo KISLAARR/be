@@ -126,6 +126,34 @@ async def test_admin_approve_makes_salon_public(client, db_session):
     assert "КОдобрениюZZ" in (await client.get("/salons")).text
 
 
+async def test_checkout_apply_requires_login(client):
+    r = await client.post("/api/v1/business/apply", data={
+        "salon_name": "X", "phone": "+70000000000", "offer_accepted": "1"})
+    assert r.status_code == 401
+
+
+async def test_checkout_apply_creates_pending_and_upgrades_role(client, db_session):
+    data = await register_user(client, "+79995551030")  # регистрируется как CLIENT
+    client.cookies.set("access_token", data["access_token"])
+    # без согласия — 400
+    r = await client.post("/api/v1/business/apply", data={
+        "salon_name": "Нео", "phone": "+79990000001"})
+    assert r.status_code == 400
+    # с согласием — заявка pending + роль BUSINESS + владелец
+    r = await client.post("/api/v1/business/apply", data={
+        "salon_name": "НовыйБиз", "phone": "+79990000001",
+        "offer_accepted": "1", "plan": "business"})
+    assert r.status_code == 200, r.text
+    assert "/business/dashboard" in r.json()["redirect"]
+    async with db_session() as db:
+        s = (await db.execute(select(Salon).where(Salon.name == "НовыйБиз"))).scalar_one()
+        assert s.moderation_status == SalonModerationStatus.PENDING
+        assert s.offer_accepted_at is not None
+        assert s.creator_id is not None
+        u = (await db.execute(select(User).where(User.phone == "+79995551030"))).scalar_one()
+        assert u.role == UserRole.BUSINESS
+
+
 async def test_admin_reject_stores_reason(client, db_session):
     await _mk_user(db_session, ADMIN_PHONE, role=UserRole.ADMIN, pw="Adminpass1")
     sid = await _mk_salon(db_session, SalonModerationStatus.PENDING, name="К отклонению")

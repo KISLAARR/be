@@ -144,6 +144,60 @@ async def create_or_update_salon(
     return RedirectResponse(url="/business/dashboard?success=1", status_code=302)
 
 
+@router.post("/apply")
+async def apply_business(
+    request: Request,
+    salon_name: str = Form(...),
+    phone: str = Form(...),
+    contact_name: str = Form(""),
+    email: str = Form(""),
+    experience: str = Form(""),
+    plan: str = Form("business"),
+    offer_accepted: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Заявка на подключение салона со страницы /business/checkout.
+
+    Создаёт салон-заявку (pending), повышает пользователя до BUSINESS и заводит
+    владельцем — чтобы он мог дозаполнить салон в кабинете. Публично салон не
+    виден и запись закрыта до одобрения администратором (см. модерацию).
+    """
+    from datetime import datetime, timezone as _tz
+
+    from app.web.auth import get_current_user_from_cookie
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Войдите или зарегистрируйтесь, чтобы подать заявку.")
+    if offer_accepted != "1":
+        raise HTTPException(status_code=400, detail="Нужно принять условия использования.")
+
+    salon = Salon(
+        creator_id=user.id,
+        name=salon_name.strip() or "Салон",
+        description="",
+        address="",  # владелец дозаполнит в кабинете, пока заявка на модерации
+        phone=phone.strip(),
+        latitude=55.7558, longitude=37.6173,
+        rating=0.0, reviews_count=0, is_active=True,
+        moderation_status=SalonModerationStatus.PENDING,
+        offer_accepted_at=datetime.now(_tz.utc),
+        business_tier=(plan.strip() or None),
+    )
+    db.add(salon)
+    await db.flush()
+    db.add(SalonMember(
+        salon_id=salon.id, user_id=user.id, role=SalonRole.OWNER,
+        is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS), is_active=True,
+    ))
+    # Повышаем до BUSINESS: владелец получает кабинет (с баннером «на модерации»),
+    # но салон невидим публично и запись закрыта до одобрения.
+    if user.role != UserRole.BUSINESS:
+        user.role = UserRole.BUSINESS
+    await db.commit()
+    return {"ok": True, "redirect": "/business/dashboard?submitted=1"}
+
+
 @router.delete("/my-salon")
 async def delete_salon(
     salon_id: int,
