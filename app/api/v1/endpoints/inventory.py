@@ -10,6 +10,10 @@ from app.db.session import get_db
 from app.models.models import InventoryItem, Master, User, UserRole, Booking, WarehouseRequestType
 from app.api.deps import check_salon_permission, get_current_user, require_role
 from app.services.inventory_service import InventoryService, InventoryError
+from app.services.notifications import (
+    notify_warehouse_request_created,
+    notify_warehouse_request_resolved,
+)
 
 router = APIRouter()
 
@@ -306,6 +310,7 @@ async def create_warehouse_request_web(
     except InventoryError as e:
         raise HTTPException(status_code=e.status, detail=e.message)
 
+    await notify_warehouse_request_created(db, req)
     return {"id": req.id, "status": req.status.value}
 
 
@@ -321,6 +326,7 @@ async def resolve_warehouse_request_web(
         req = await InventoryService.resolve_request(db, request_id=request_id, salon_id=salon_id, actor=current_user)
     except InventoryError as e:
         raise HTTPException(status_code=e.status, detail=e.message)
+    await notify_warehouse_request_resolved(db, req)
     return {"id": req.id, "status": req.status.value}
 
 
@@ -336,4 +342,5 @@ async def dismiss_warehouse_request_web(
         req = await InventoryService.dismiss_request(db, request_id=request_id, salon_id=salon_id, actor=current_user)
     except InventoryError as e:
         raise HTTPException(status_code=e.status, detail=e.message)
+    await notify_warehouse_request_resolved(db, req)
     return {"id": req.id, "status": req.status.value}
