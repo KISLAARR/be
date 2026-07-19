@@ -393,3 +393,35 @@ async def test_available_topics_follow_roles(db_session):
         assert set(await _available_topics(db, master)) == {"bookings", "reminders", "warehouse", "reviews"}
         assert set(await _available_topics(db, inv_admin)) == {"bookings", "reminders", "warehouse", "reviews", "reports"}
         assert set(await _available_topics(db, creator)) == {"bookings", "reminders", "warehouse", "reviews", "reports"}
+
+
+async def test_warehouse_respects_both_personal_filters(db_session, fake_pool):
+    """Пуш склада фильтруется И per-салонным тумблером (SalonMember),
+    И глобальной темой в боте (tg_notify_prefs)."""
+    from app.models.models import SalonMember, WarehouseRequest, WarehouseRequestStatus, WarehouseRequestType
+
+    ids = await _matrix_fixture(db_session)
+    async with db_session() as db:
+        # Создатель выключает per-салонный тумблер, админ-склад — глобальную тему
+        creator_member = (await db.execute(
+            select(SalonMember).join(User, User.id == SalonMember.user_id)
+            .where(User.tg_chat_id == 1001)
+        )).scalar_one()
+        creator_member.notify_warehouse_requests = False
+        inv_admin = (await db.execute(select(User).where(User.tg_chat_id == 1003))).scalar_one()
+        inv_admin.tg_notify_prefs = {"warehouse": False}
+        await db.commit()
+
+        master_user_id = (
+            await db.execute(select(User.id).where(User.tg_chat_id == 1005))
+        ).scalar_one()
+        req = WarehouseRequest(
+            salon_id=ids["salon_id"], type=WarehouseRequestType.EQUIPMENT_BROKEN,
+            created_by_id=master_user_id, status=WarehouseRequestStatus.PENDING,
+        )
+        db.add(req)
+        await db.commit()
+        await db.refresh(req)
+        await notif.notify_warehouse_request_created(db, req)
+
+    assert _chats(fake_pool) == []  # оба замьютились каждый своим способом

@@ -264,10 +264,28 @@ async def notify_warehouse_request_created(db: AsyncSession, request: WarehouseR
         author_name = (author.full_name or "мастер") if author else "мастер"
         label = _REQUEST_TYPE_LABEL.get(request.type, "заявка")
 
+        # Два личных фильтра поверх права manage_inventory:
+        # 1) SalonMember.notify_warehouse_requests — тумблер ЭТОГО салона
+        #    (переключается во вкладке «Склад» панели, идея руководителя);
+        # 2) тема TOPIC_WAREHOUSE в боте — глобальный выключатель человека.
+        rows = (
+            await db.execute(
+                select(User, SalonMember)
+                .join(SalonMember, SalonMember.user_id == User.id)
+                .where(
+                    SalonMember.salon_id == request.salon_id,
+                    SalonMember.is_active == True,  # noqa: E712
+                    SalonMember.notify_warehouse_requests == True,  # noqa: E712
+                    User.tg_chat_id.isnot(None),
+                )
+            )
+        ).all()
         fanout = _Fanout()
-        for member in await _members_with_permission(db, request.salon_id, "manage_inventory"):
+        for member_user, member in rows:
+            if not (member.is_creator or bool((member.permissions or {}).get("manage_inventory"))):
+                continue
             await fanout.send(
-                member,
+                member_user,
                 f"📦 Заявка от {author_name}: {label} — «{subject_name}»"
                 + (f"\nКомментарий: {request.comment}" if request.comment else ""),
                 topic=TOPIC_WAREHOUSE,
