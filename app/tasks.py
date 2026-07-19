@@ -172,6 +172,61 @@ async def send_booking_reminder(ctx: dict[str, Any], booking_id: int) -> str:
     return "sent"
 
 
+# ── Email (noreply@rrumi.ru через SMTP Timeweb) ──────────────────
+
+
+async def _send_via_smtp(to: str, subject: str, body: str) -> None:
+    """Единственная точка отправки писем. mock — в лог (dev/до кредов).
+
+    Сетевые сбои и 4xx-коды SMTP (временные) — TransientTaskError;
+    постоянные отказы (несуществующий ящик, 5xx) не ретраим.
+    """
+    from app.core.config import settings
+
+    if settings.EMAIL_MODE == "mock" or not settings.SMTP_PASSWORD:
+        logger.info("[dev-заглушка email] %s: %s", to, subject)
+        return
+
+    from email.message import EmailMessage
+
+    import aiosmtplib
+
+    msg = EmailMessage()
+    msg["From"] = f"{settings.EMAIL_FROM_NAME} <{settings.EMAIL_FROM}>"
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
+            use_tls=True,  # 465 = implicit TLS
+            timeout=15,
+        )
+    except aiosmtplib.SMTPResponseException as exc:
+        if 400 <= exc.code < 500:
+            raise TransientTaskError(f"SMTP {exc.code}") from exc
+        logger.warning("email %s: постоянный отказ SMTP %s %s", to, exc.code, exc.message)
+    except (aiosmtplib.SMTPException, OSError) as exc:
+        raise TransientTaskError(f"SMTP: {exc}") from exc
+
+
+async def send_email(ctx: dict[str, Any], to: str, subject: str, body: str) -> str:
+    """Отправка письма вне запроса (сброс пароля, сервисные письма)."""
+    try:
+        await _send_via_smtp(to, subject, body)
+    except TransientTaskError as exc:
+        logger.warning("send_email %s: временный сбой (попытка %d): %s",
+                       to, ctx["job_try"], exc)
+        raise _retry(ctx, exc) from exc
+    logger.info("send_email %s: отправлено (попытка %d)", to, ctx["job_try"])
+    return "sent"
+
+
 # ── Вебхуки оплаты (Т-Касса) ─────────────────────────────────────
 
 
