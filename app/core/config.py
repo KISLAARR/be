@@ -100,7 +100,7 @@ class Settings(BaseSettings):
     # EMAIL_MODE=mock — письма в лог (dev/до кредов), live — реальная отправка.
     # Ящики созданы в панели Beget (домен куплен там).
     EMAIL_MODE: str = "mock"
-    SMTP_HOST: str = "mail.beget.com"
+    SMTP_HOST: str = "smtp.beget.com"
     SMTP_PORT: int = 465
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
