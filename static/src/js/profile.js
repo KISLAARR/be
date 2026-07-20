@@ -233,6 +233,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     })();
 
+    // Смена email — с подтверждением кодом, отправленным на новый адрес.
+    (function initEmailChange() {
+        const sendBtn = document.getElementById('email-send-code-btn');
+        const saveBtn = document.getElementById('email-save-btn');
+        const emailInput = document.getElementById('settings-email');
+        const reqIdInput = document.getElementById('email-request-id');
+        const codeGroup = document.getElementById('email-code-group');
+        const codeInput = document.getElementById('settings-email-code');
+        const hint = document.getElementById('email-verify-hint');
+        if (!sendBtn || !saveBtn || !emailInput || !reqIdInput) return;
+        const setHint = (t) => { if (hint) hint.textContent = t; };
+
+        sendBtn.addEventListener('click', async function () {
+            const email = emailInput.value.trim();
+            if (!email) { alert('Сначала введите новый email'); return; }
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Отправляем…';
+            try {
+                const res = await fetch('/api/v1/users/me/email/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'email=' + encodeURIComponent(email)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.detail || 'Не удалось отправить код');
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Отправить код';
+                    return;
+                }
+                reqIdInput.value = data.request_id;
+                if (codeGroup) codeGroup.style.display = '';
+                saveBtn.disabled = false;
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Отправить код ещё раз';
+                setHint('Код отправлен на ' + email + '. Введите его и сохраните.');
+                if (codeInput) codeInput.focus();
+            } catch (e) {
+                alert('Сеть недоступна, попробуйте ещё раз');
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Отправить код';
+            }
+        });
+
+        // Сменил адрес — прежний код больше не годится, требуем новый
+        emailInput.addEventListener('input', function () {
+            reqIdInput.value = '';
+            saveBtn.disabled = true;
+            if (codeGroup) codeGroup.style.display = 'none';
+            sendBtn.textContent = 'Отправить код';
+        });
+    })();
+
     // Удаление аккаунта — нативная форма с паролем, подтверждаем намерение
     const deleteForm = document.getElementById('delete-account-form');
     if (deleteForm) {

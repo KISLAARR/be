@@ -1,6 +1,6 @@
 # app/api/v1/endpoints/users.py
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.models import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.api.deps import get_current_user
+from app.core.limiter import limiter
 
 router = APIRouter()
 
@@ -162,31 +163,79 @@ async def update_password_form(
         status_code=302
     )
 
-@router.post("/me/email-form")
-async def update_email_form(
+@router.post("/me/email/send-code")
+@limiter.limit("3/minute")
+async def email_send_code(
     request: Request,
     email: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Смена email через веб-форму (аккордеон «Смена данных»)."""
+    """Шлёт код подтверждения на НОВЫЙ email (шаг 1 смены email)."""
     from app.web.auth import get_current_user_from_cookie
+    from app.services import email_verify
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return JSONResponse({"detail": "Не авторизованы"}, status_code=401)
+
+    email = (email or "").strip().lower()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        return JSONResponse({"detail": "Некорректный email"}, status_code=400)
+    if email == (user.email or "").lower():
+        return JSONResponse({"detail": "Это ваш текущий email"}, status_code=400)
+
+    existing = await db.execute(
+        select(User).where(User.email == email, User.id != user.id)
+    )
+    if existing.scalar_one_or_none():
+        return JSONResponse({"detail": "Этот email уже используется"}, status_code=409)
+
+    try:
+        result = await email_verify.send_email_code(email)
+    except email_verify.EmailVerifyError as e:
+        return JSONResponse({"detail": str(e)}, status_code=503)
+
+    return JSONResponse(result)
+
+
+@router.post("/me/email-form")
+async def update_email_form(
+    request: Request,
+    email: str = Form(...),
+    request_id: str = Form(""),
+    code: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Смена email — шаг 2: применяет новый адрес после ввода кода из письма."""
+    from app.web.auth import get_current_user_from_cookie
+    from app.services import email_verify
 
     user = await get_current_user_from_cookie(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    email = (email or "").strip()
+    email = (email or "").strip().lower()
     if not email:
         return RedirectResponse(url="/profile?error=update_failed", status_code=302)
 
-    if email != user.email:
-        existing = await db.execute(
-            select(User).where(User.email == email, User.id != user.id)
-        )
-        if existing.scalar_one_or_none():
-            return RedirectResponse(url="/profile?error=email_taken", status_code=302)
-        user.email = email
-        await db.commit()
+    if email == (user.email or "").lower():
+        return RedirectResponse(url="/profile?success=email_updated", status_code=302)
+
+    existing = await db.execute(
+        select(User).where(User.email == email, User.id != user.id)
+    )
+    if existing.scalar_one_or_none():
+        return RedirectResponse(url="/profile?error=email_taken", status_code=302)
+
+    try:
+        ok = await email_verify.verify_email_code(request_id, code, email)
+    except email_verify.EmailVerifyError:
+        return RedirectResponse(url="/profile?error=otp_unavailable", status_code=302)
+    if not ok:
+        return RedirectResponse(url="/profile?error=email_not_verified", status_code=302)
+
+    user.email = email
+    await db.commit()
 
     return RedirectResponse(url="/profile?success=email_updated", status_code=302)
 

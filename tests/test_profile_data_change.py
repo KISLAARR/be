@@ -44,22 +44,80 @@ async def test_city_update(client, db_session):
     assert user.city is None
 
 
-async def test_email_update_and_conflict(client, db_session):
-    phone_a = "+79993330002"
-    phone_b = "+79993330003"
+@pytest.fixture()
+def fake_arq(monkeypatch):
+    """send_email_code ставит письмо в очередь — подменяем пул, ловим джобы."""
+    jobs = []
+
+    class FakePool:
+        async def enqueue_job(self, fn, *args, **kwargs):
+            jobs.append((fn, args))
+
+    async def _pool():
+        return FakePool()
+
+    monkeypatch.setattr("app.services.email_verify.get_arq_pool", _pool)
+    return jobs
+
+
+async def test_email_update_with_code(client, db_session, fake_arq):
+    phone = "+79993330002"
+    await register_user(client, phone)
+    await _login_web(client, phone)
+
+    # Шаг 1: запросить код на новый адрес
+    r = await client.post("/api/v1/users/me/email/send-code", data={"email": "me@rrumi.ru"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    code = d["dev_code"]
+    assert code  # mock-режим отдаёт код
+    assert any(j[0] == "send_email" for j in fake_arq)  # письмо поставлено в очередь
+
+    # Шаг 2: применить с кодом
+    r = await client.post(
+        "/api/v1/users/me/email-form",
+        data={"email": "me@rrumi.ru", "request_id": d["request_id"], "code": code},
+    )
+    assert r.status_code == 302 and "success=email_updated" in r.headers["location"]
+    user = await _get_user(db_session, phone)
+    assert user.email == "me@rrumi.ru"
+
+
+async def test_email_wrong_code_rejected(client, db_session, fake_arq):
+    phone = "+79993330012"
+    await register_user(client, phone)
+    await _login_web(client, phone)
+
+    r = await client.post("/api/v1/users/me/email/send-code", data={"email": "new@rrumi.ru"})
+    d = r.json()
+    r = await client.post(
+        "/api/v1/users/me/email-form",
+        data={"email": "new@rrumi.ru", "request_id": d["request_id"], "code": "9999"},
+    )
+    assert r.status_code == 302 and "error=email_not_verified" in r.headers["location"]
+    user = await _get_user(db_session, phone)
+    assert user.email != "new@rrumi.ru"
+
+
+async def test_email_send_code_conflict(client, db_session, fake_arq):
+    phone_a = "+79993330003"
+    phone_b = "+79993330013"
     await register_user(client, phone_a)
     await register_user(client, phone_b)
 
+    # A занимает email (через код)
     await _login_web(client, phone_a)
-    r = await client.post("/api/v1/users/me/email-form", data={"email": "me@rrumi.ru"})
-    assert r.status_code == 302 and "success=email_updated" in r.headers["location"]
-    user = await _get_user(db_session, phone_a)
-    assert user.email == "me@rrumi.ru"
+    r = await client.post("/api/v1/users/me/email/send-code", data={"email": "taken@rrumi.ru"})
+    d = r.json()
+    await client.post(
+        "/api/v1/users/me/email-form",
+        data={"email": "taken@rrumi.ru", "request_id": d["request_id"], "code": d["dev_code"]},
+    )
 
-    # Второй юзер не может занять тот же email
+    # B даже не может запросить код на занятый адрес
     await _login_web(client, phone_b)
-    r = await client.post("/api/v1/users/me/email-form", data={"email": "me@rrumi.ru"})
-    assert r.status_code == 302 and "error=email_taken" in r.headers["location"]
+    r = await client.post("/api/v1/users/me/email/send-code", data={"email": "taken@rrumi.ru"})
+    assert r.status_code == 409
 
 
 async def test_password_change(client, db_session):

@@ -37,6 +37,7 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
             "phone_exists": "Пользователь с таким телефоном уже зарегистрирован",
             "bad_phone": "Некорректный номер телефона",
             "phone_not_verified": "Номер не подтверждён — подтвердите его в Telegram",
+            "email_not_verified": "Код неверный или истёк — запросите новый",
             "otp_unavailable": "Сервис подтверждения временно недоступен, попробуйте позже",
             "update_failed": "Не удалось обновить профиль",
         }
@@ -276,12 +277,19 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
                         <span class="accordion-chevron">{ICON_CHEVRON_DOWN}</span>
                     </button>
                     <div class="accordion-body" id="accordion-email">
-                        <form action="/api/v1/users/me/email-form" method="post">
+                        <form id="email-change-form" action="/api/v1/users/me/email-form" method="post">
                             <div class="settings-form-group">
                                 <label for="settings-email">Новый email</label>
                                 <input type="email" id="settings-email" name="email" value="{email}" placeholder="example@mail.ru" required>
                             </div>
-                            <button type="submit" class="btn-primary settings-save-btn">Сохранить</button>
+                            <input type="hidden" id="email-request-id" name="request_id" value="">
+                            <button type="button" id="email-send-code-btn" class="btn-outline settings-save-btn">Отправить код</button>
+                            <div class="settings-form-group" id="email-code-group" style="display:none;">
+                                <label for="settings-email-code">Код из письма</label>
+                                <input type="text" id="settings-email-code" name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="0000">
+                            </div>
+                            <p class="settings-card-hint" id="email-verify-hint">Введите новый email и получите на него код подтверждения.</p>
+                            <button type="submit" id="email-save-btn" class="btn-primary settings-save-btn" disabled>Подтвердить и сохранить</button>
                         </form>
                     </div>
                 </div>
