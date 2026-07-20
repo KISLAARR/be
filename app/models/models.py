@@ -119,6 +119,7 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(15), unique=True, index=True, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(100), unique=True, index=True, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.CLIENT, nullable=False)

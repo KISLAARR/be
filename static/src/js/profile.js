@@ -151,30 +151,94 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Формы смены данных
-    const accordionForms = document.querySelectorAll('.accordion-form');
-    accordionForms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const type = this.dataset.type;
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData);
+    // Смена телефона — с подтверждением владения новым номером через Telegram.
+    // Пароль/email/город отправляются нативным POST-ом формы (обработчик не нужен).
+    (function initPhoneChange() {
+        const verifyBtn = document.getElementById('phone-verify-btn');
+        const saveBtn = document.getElementById('phone-save-btn');
+        const phoneInput = document.getElementById('settings-phone');
+        const reqIdInput = document.getElementById('phone-request-id');
+        const hint = document.getElementById('phone-verify-hint');
+        if (!verifyBtn || !saveBtn || !phoneInput || !reqIdInput) return;
 
-            console.log(`Смена данных (${type}):`, data);
-            alert(`Данные для "${type}" успешно изменены (имитация).`);
-        });
-    });
+        let pollTimer = null;
+        let deadline = 0;
+        const setHint = (t) => { if (hint) hint.textContent = t; };
+        const stopPoll = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+        const resetVerify = () => {
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Подтвердить в Telegram';
+        };
 
-    // Удаление аккаунта
-    const deleteBtn = document.getElementById('delete-account-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', function() {
-            if (confirm('Вы уверены, что хотите удалить аккаунт? Это действие необратимо!')) {
-                const password = prompt('Введите ваш пароль для подтверждения:');
-                if (password) {
-                    console.log('Удаление аккаунта с паролем:', password);
-                    alert('Аккаунт удалён (имитация).');
+        async function poll() {
+            if (Date.now() > deadline) {
+                stopPoll(); resetVerify();
+                setHint('Время подтверждения вышло — нажмите кнопку ещё раз.');
+                return;
+            }
+            try {
+                const res = await fetch('/api/v1/auth/register/tg-status?request_id=' + encodeURIComponent(reqIdInput.value));
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status === 'confirmed') {
+                    stopPoll();
+                    verifyBtn.disabled = true;
+                    verifyBtn.textContent = 'Номер подтверждён ✓';
+                    saveBtn.disabled = false;
+                    setHint('Готово! Нажмите «Сохранить».');
+                } else if (data.status === 'not_found') {
+                    stopPoll(); resetVerify();
+                    setHint('Подтверждение устарело — нажмите кнопку ещё раз.');
                 }
+            } catch (e) { /* сеть моргнула — ждём следующий тик */ }
+        }
+
+        verifyBtn.addEventListener('click', async function () {
+            const phone = phoneInput.value.trim();
+            if (!phone) { alert('Сначала введите новый номер'); return; }
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Открываем Telegram…';
+            saveBtn.disabled = true;
+            try {
+                const res = await fetch(verifyBtn.dataset.startUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phone })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.detail || 'Не удалось начать подтверждение');
+                    resetVerify();
+                    return;
+                }
+                reqIdInput.value = data.request_id;
+                deadline = Date.now() + (data.expires_in_seconds || 600) * 1000;
+                window.open(data.deep_link, '_blank');
+                verifyBtn.textContent = 'Ждём подтверждения…';
+                setHint('В боте нажмите «Поделиться контактом». Страница поймёт всё сама.');
+                stopPoll();
+                pollTimer = setInterval(poll, 2500);
+            } catch (e) {
+                alert('Сеть недоступна, попробуйте ещё раз');
+                resetVerify();
+            }
+        });
+
+        // Изменил номер после подтверждения — требуем верификацию заново
+        phoneInput.addEventListener('input', function () {
+            stopPoll();
+            reqIdInput.value = '';
+            saveBtn.disabled = true;
+            resetVerify();
+        });
+    })();
+
+    // Удаление аккаунта — нативная форма с паролем, подтверждаем намерение
+    const deleteForm = document.getElementById('delete-account-form');
+    if (deleteForm) {
+        deleteForm.addEventListener('submit', function (e) {
+            if (!confirm('Деактивировать аккаунт? Вы выйдете из системы. Восстановление — через поддержку.')) {
+                e.preventDefault();
             }
         });
     }

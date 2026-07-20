@@ -7,7 +7,6 @@ import './profile.js';
 import './salons.js';
 import './otp-code.js';
 import './salon-detail.js';
-import './settings.js';
 import './bookings.js';
 import './favorites.js';
 import './business/dashboard.js';
