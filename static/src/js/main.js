@@ -17,4 +17,5 @@ import './salon-photos.js';
 import './business/tabs/schedule.js';
 import './business/tabs/employees.js';
 import './business/tabs/records.js';
+import './business/tabs/analytics.js';
 import './my-salon.js';

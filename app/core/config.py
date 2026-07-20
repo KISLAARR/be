@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "text"
     LOG_LEVEL: str = "INFO"
 
+
     # --- Аутентификация (JWT RS256, асимметричная подпись) ---
     ALGORITHM: str = "RS256"
     # Пути к PEM-ключам. Приватным подписываем, публичным проверяем.
