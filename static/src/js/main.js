@@ -18,3 +18,4 @@ import './business/tabs/schedule.js';
 import './business/tabs/employees.js';
 import './business/tabs/records.js';
 import './my-salon.js';
+import './info-hint.js';

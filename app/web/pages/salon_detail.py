@@ -12,7 +12,7 @@ from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
 from app.services.loyalty_service import LoyaltyService
-from app.services.schedule_utils import MAX_BOOKING_DAYS_AHEAD
+from app.services.schedule_utils import MAX_BOOKING_DAYS_AHEAD, format_working_hours_summary
 from app.web.components.icons import (
     ICON_ARROW_LEFT,
     ICON_HEART,
@@ -189,7 +189,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                     <div class="salon-contacts">
                         <span class="contact-item">{ICON_MAP_PIN} {salon.address or 'Адрес не указан'}</span>
                         <span class="contact-item">{ICON_PHONE} {salon.phone or '—'}</span>
-                        <span class="contact-item">{ICON_CLOCK} {salon.working_hours or 'Пн-Вс: 10:00 — 21:00'}</span>
+                        <span class="contact-item">{ICON_CLOCK} {format_working_hours_summary(salon.working_hours)}</span>
                     </div>
                 </div>
             </div>
