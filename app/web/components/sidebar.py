@@ -9,7 +9,6 @@ from app.web.components.icons import (
     ICON_HEART,
     ICON_LOGOUT,
     ICON_CALENDAR_DAYS_SIDEBAR,
-    ICON_SETTINGS_SIDEBAR,
 )
 
 def render_sidebar(current_page: str = "home", user=None) -> str:
@@ -46,7 +45,10 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     <a class="sidebar-link {is_active('admin')}" href="/admin">
                         {ICON_USER} Админ-панель
                     </a>"""
-    if role == "business":
+    if (
+        role == "business" or role == "master"
+        or getattr(user, "has_salon_access", False) or getattr(user, "has_master_profile", False)
+    ):
         role_items += f"""
                     <a class="sidebar-link {is_active('business_dashboard')}" href="/business/dashboard">
                         {ICON_BRIEFCASE} Панель бизнеса
@@ -69,9 +71,6 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     </a>
                     <a class="sidebar-link {is_active('favorites')}" href="/favorites">
                         {ICON_HEART} Избранное
-                    </a>
-                    <a class="sidebar-link {is_active('settings')}" href="/settings">
-                        {ICON_SETTINGS_SIDEBAR} Настройки
                     </a>
                     <a class="sidebar-link sidebar-logout" href="/logout">
                         {ICON_LOGOUT} Выход

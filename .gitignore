@@ -9,7 +9,8 @@ __pycache__/
 .coverage
 htmlcov/
 alembic/versions/*.pyc
-node_modules/ 
+node_modules/
+static/dist/ 
 # Приватные ключи JWT и любые PEM — никогда в git
 keys/
 *.pem
@@ -17,6 +18,8 @@ keys/
 # локальный оверрайд портов (не коммитить)
 docker-compose.override.yml
 .env.staging
+.env.glitchtip
 keys-staging/
 node_modules/
 .mcp.json
+uploads/

@@ -1,10 +1,10 @@
 # app/services/booking_service.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
 
 from app.models.models import Booking, Master, Service, Salon, BookingStatus
-from app.services.schedule_utils import get_salon_work_hours
+from app.services.schedule_utils import get_effective_work_hours
 
 class BookingService:
     
@@ -76,12 +76,16 @@ class BookingService:
         if len(existing) > 0:
             return False
 
-        # Проверяем, что слот в реальные рабочие часы салона (не хардкод)
+        # Проверяем: реальные рабочие часы салона, окно записи (2 месяца) и
+        # закрытые даты (весь салон / этот мастер) — всё через одну точку
+        # правды, чтобы список слотов и создание записи не расходились.
         master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
         if master is None:
             return False
         salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
-        work_hours = get_salon_work_hours(salon.working_hours if salon else None, start_time)
+        if salon is None:
+            return False
+        work_hours = await get_effective_work_hours(db, salon, master_id, start_time)
         if work_hours is None:
             return False
         work_start, work_end = work_hours
@@ -121,7 +125,9 @@ class BookingService:
         discount = 0
         
         if user.subscription_tier and user.subscription_expires_at:
-            if user.subscription_expires_at > datetime.now():
+            # subscription_expires_at — timestamptz (tz-aware); сравнивать с
+            # tz-aware UTC, иначе naive datetime.now() даёт TypeError.
+            if user.subscription_expires_at > datetime.now(timezone.utc):
                 discount_map = {
                     'start': 30,
                     'pro': 50,

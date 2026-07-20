@@ -6,6 +6,14 @@
 #
 # Запуск (обычно через ./deploy.sh staging):
 #   docker compose -p rumi-staging -f docker-compose.staging.yml --env-file .env.staging up -d
+
+# Ротация docker-логов (блок 05): json-file, 10 МБ × 3 файла (см. прод-compose).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:15-alpine
@@ -43,14 +51,18 @@ services:
       # ENVIRONMENT=production сознательно: staging должен вести себя как прод
       # (secure-cookie, HSTS, guard'ы). Отличия — только в .env.staging.
       ENVIRONMENT: production
+      TZ: Asia/Novosibirsk
       COOKIE_SECURE: "true"
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: '["https://${STAGING_DOMAIN:-staging.201-24-60-247.sslip.io}"]'
       WEB_CONCURRENCY: "2"
+      LOG_FORMAT: json                # структурные логи (блок 05)
+    logging: *default-logging
     volumes:
       - ./keys-staging:/app/keys:ro   # у staging СВОИ RS256-ключи (не боевые!)
+      - uploads_staging:/app/uploads  # загруженные фото; переживают деплой
     networks:
       - default
       - edge                          # виден edge-Caddy как rumi-staging-app
@@ -71,11 +83,42 @@ services:
     command: ["python", "-m", "app.tg_bot"]
     environment:
       ENVIRONMENT: production
+      TZ: Asia/Novosibirsk
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json                # структурные логи (блок 05)
+    logging: *default-logging
     depends_on:
+      db:
+        condition: service_healthy
       redis:
         condition: service_healthy
     # HEALTHCHECK из Dockerfile проверяет HTTP /health — у бота его нет
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  # MAX-бот подтверждения номера (блок 18, этап 2): зеркало tg-bot.
+  # До MAX_BOT_TOKEN в .env.staging контейнер спит.
+  max-bot:
+    image: rumi-app:staging
+    container_name: rumi-staging-max-bot
+    env_file: .env.staging
+    command: ["python", "-m", "app.max_bot"]
+    environment:
+      ENVIRONMENT: production
+      TZ: Asia/Novosibirsk
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json                # структурные логи (блок 05)
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       disable: true
     restart: unless-stopped
@@ -87,9 +130,12 @@ services:
     command: ["arq", "app.core.worker.WorkerSettings"]
     environment:
       ENVIRONMENT: production
+      TZ: Asia/Novosibirsk
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       REDIS_URL: redis://redis:6379/0
+      LOG_FORMAT: json                # структурные логи (блок 05)
+    logging: *default-logging
     volumes:
       - ./keys-staging:/app/keys:ro
     depends_on:
@@ -111,3 +157,4 @@ networks:
 
 volumes:
   pgdata_staging:
+  uploads_staging:

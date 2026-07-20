@@ -11,6 +11,16 @@ from app.web.components.icons import (
     ICON_CALENDAR_SMALL,
     ICON_EDIT,
     ICON_MAP_PIN_SMALL,
+    ICON_PALETTE,
+    ICON_BELL,
+    ICON_EDIT_DATA,
+    ICON_PHONE_FILLED,
+    ICON_MAIL_FILLED,
+    ICON_MAP_PIN_FILLED,
+    ICON_LOCK_FILLED,
+    ICON_TRASH,
+    ICON_CHEVRON_DOWN,
+    ICON_SETTINGS_GEAR,
 )
 
 def render_profile_page(user=None, master_profile=None, salon=None, stats=None, error=None, success=None) -> str:
@@ -145,6 +155,157 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
         </div>
         """
 
+    # ========== БЛОКИ НАСТРОЕК (без заголовка) ==========
+    settings_blocks = f"""
+    <!-- Настройки -->
+    <div class="profile-settings-wrapper">
+
+        <!-- Тема -->
+        <div class="settings-card">
+            <h2 class="settings-card-title">
+                <span class="settings-icon-wrapper">{ICON_PALETTE}</span>
+                Тема
+            </h2>
+            <div class="settings-theme-toggle">
+                <button class="theme-btn active" data-theme="light">☀️ Светлая</button>
+                <button class="theme-btn" data-theme="dark">🌙 Тёмная</button>
+            </div>
+            <p class="settings-card-hint">Выберите оформление интерфейса.</p>
+        </div>
+
+        <!-- Уведомления -->
+        <div class="settings-card">
+            <h2 class="settings-card-title">
+                <span class="settings-icon-wrapper">{ICON_BELL}</span>
+                Уведомления
+            </h2>
+            <div class="settings-notification-group">
+                <div class="settings-switch-item">
+                    <label class="settings-switch">
+                        <input type="checkbox" checked id="notify-bookings">
+                        <span class="settings-slider"></span>
+                    </label>
+                    <span>Напоминания о записях</span>
+                </div>
+                <div class="settings-switch-item">
+                    <label class="settings-switch">
+                        <input type="checkbox" checked id="notify-promotions">
+                        <span class="settings-slider"></span>
+                    </label>
+                    <span>Новые акции салонов</span>
+                </div>
+            </div>
+            <div class="settings-select-group">
+                <label for="notify-method">Способ получения:</label>
+                <select id="notify-method" class="settings-select">
+                    <option value="email">Email</option>
+                    <option value="vk">VK</option>
+                    <option value="telegram">Telegram</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Смена данных (аккордеон) -->
+        <div class="settings-card">
+            <h2 class="settings-card-title">
+                <span class="settings-icon-wrapper">{ICON_EDIT_DATA}</span>
+                Смена данных
+            </h2>
+            <div class="settings-accordion">
+                <!-- Телефон -->
+                <div class="accordion-item">
+                    <button class="accordion-header" data-target="accordion-phone">
+                        <span class="accordion-icon">{ICON_PHONE_FILLED}</span>
+                        <span class="accordion-label">Сменить телефон</span>
+                        <span class="accordion-chevron">{ICON_CHEVRON_DOWN}</span>
+                    </button>
+                    <div class="accordion-body" id="accordion-phone">
+                        <form class="accordion-form" data-type="phone">
+                            <div class="settings-form-group">
+                                <label for="settings-phone">Новый телефон</label>
+                                <input type="tel" id="settings-phone" name="phone" value="{phone}" placeholder="+7XXXXXXXXXX" required>
+                            </div>
+                            <button type="submit" class="btn-primary settings-save-btn">Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Город -->
+                <div class="accordion-item">
+                    <button class="accordion-header" data-target="accordion-city">
+                        <span class="accordion-icon">{ICON_MAP_PIN_FILLED}</span>
+                        <span class="accordion-label">Сменить город</span>
+                        <span class="accordion-chevron">{ICON_CHEVRON_DOWN}</span>
+                    </button>
+                    <div class="accordion-body" id="accordion-city">
+                        <form class="accordion-form" data-type="city">
+                            <div class="settings-form-group">
+                                <label for="settings-city">Новый город</label>
+                                <input type="text" id="settings-city" name="city" value="{city}" placeholder="Москва" required>
+                            </div>
+                            <button type="submit" class="btn-primary settings-save-btn">Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div class="accordion-item">
+                    <button class="accordion-header" data-target="accordion-email">
+                        <span class="accordion-icon">{ICON_MAIL_FILLED}</span>
+                        <span class="accordion-label">Сменить email</span>
+                        <span class="accordion-chevron">{ICON_CHEVRON_DOWN}</span>
+                    </button>
+                    <div class="accordion-body" id="accordion-email">
+                        <form class="accordion-form" data-type="email">
+                            <div class="settings-form-group">
+                                <label for="settings-email">Новый email</label>
+                                <input type="email" id="settings-email" name="email" value="{email}" placeholder="example@mail.ru" required>
+                            </div>
+                            <button type="submit" class="btn-primary settings-save-btn">Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Пароль -->
+                <div class="accordion-item">
+                    <button class="accordion-header" data-target="accordion-password">
+                        <span class="accordion-icon">{ICON_LOCK_FILLED}</span>
+                        <span class="accordion-label">Сменить пароль</span>
+                        <span class="accordion-chevron">{ICON_CHEVRON_DOWN}</span>
+                    </button>
+                    <div class="accordion-body" id="accordion-password">
+                        <form class="accordion-form" data-type="password">
+                            <div class="settings-form-group">
+                                <label for="settings-current-password">Текущий пароль</label>
+                                <input type="password" id="settings-current-password" name="current_password" required>
+                            </div>
+                            <div class="settings-form-group">
+                                <label for="settings-new-password">Новый пароль</label>
+                                <input type="password" id="settings-new-password" name="new_password" required>
+                            </div>
+                            <div class="settings-form-group">
+                                <label for="settings-confirm-password">Подтвердите пароль</label>
+                                <input type="password" id="settings-confirm-password" name="confirm_password" required>
+                            </div>
+                            <button type="submit" class="btn-primary settings-save-btn">Сохранить</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Удаление аккаунта -->
+        <div class="settings-delete-section">
+            <p class="settings-delete-warning">После удаления аккаунта восстановить его невозможно. Все данные будут безвозвратно удалены.</p>
+            <button class="btn-outline settings-delete-btn" id="delete-account-btn">
+                <span class="settings-icon-sm">{ICON_TRASH}</span>
+                Удалить аккаунт
+            </button>
+        </div>
+
+    </div>
+    """
+
     # HTML
     html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -227,6 +388,9 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
             <!-- Ролевой блок -->
             {role_block}
 
+            <!-- Блоки настроек -->
+            {settings_blocks}
+
         </div>
         {render_footer(user)}
     </main>
@@ -257,7 +421,7 @@ def _render_guest_page() -> str:
                 </div>
             </div>
         </div>
-        {render_footer(user)}
+        {render_footer(None)}
     </main>
 </body>
 </html>"""

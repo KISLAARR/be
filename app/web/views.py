@@ -91,12 +91,15 @@ async def favorites_page(request: Request, db: AsyncSession = Depends(get_db)):
     from app.web.pages.favorites import render_favorites_page
     return HTMLResponse(content=await render_favorites_page(db, user))
 
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
-    """Страница настроек."""
-    from app.web.pages.settings import render_settings_page
-    user = await get_current_user_from_cookie(request, db)
-    return HTMLResponse(content=render_settings_page(user))
+
+# Перенесены в профиль, возможно понадобится для бизнеса...
+# @router.get("/settings", response_class=HTMLResponse)
+# async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
+#     """Страница настроек."""
+#     from app.web.pages.settings import render_settings_page
+#     user = await get_current_user_from_cookie(request, db)
+#     return HTMLResponse(content=render_settings_page(user))
+
 
 
 @router.get("/business", response_class=HTMLResponse)
@@ -121,16 +124,27 @@ async def business_dashboard_page(
     if not user:
         return RedirectResponse(url="/login?redirect=/business/dashboard", status_code=302)
 
+    # Владелец/админ салона (SalonMember) — в приоритете, если пользователь
+    # одновременно и мастер, и владелец другого салона.
     resolved_id = await get_user_primary_salon_id(db, user.id, salon_id)
-    if resolved_id is None:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
+    if resolved_id is not None:
+        salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
+        membership = await get_salon_membership(db, user.id, resolved_id)
+        if salon and membership:
+            return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership, request.query_params))
 
-    salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
-    membership = await get_salon_membership(db, user.id, resolved_id)
-    if not salon or not membership:
-        return RedirectResponse(url="/business/register-salon", status_code=302)
+    # Не владелец/админ ни одного салона — проверяем, не мастер ли он
+    # (по факту записи в Master, а не по полю role — оно не всегда
+    # синхронизировано, см. has_master_profile в auth.py).
+    master = (await db.execute(select(Master).where(Master.user_id == user.id, Master.is_active == True))).scalar_one_or_none()
+    if master is not None:
+        from app.web.pages.business.master_dashboard import render_master_business_dashboard
 
-    return HTMLResponse(content=await render_business_dashboard(db, user, salon, membership, request.query_params))
+        salon = (await db.execute(select(Salon).where(Salon.id == master.salon_id))).scalar_one_or_none()
+        if salon is not None:
+            return HTMLResponse(content=await render_master_business_dashboard(db, user, salon, master, request.query_params))
+
+    return RedirectResponse(url="/business/register-salon", status_code=302)
 
 
 @router.get("/business/register-salon", response_class=HTMLResponse)
@@ -173,7 +187,7 @@ async def my_salon_page(
     if not salon:
         return RedirectResponse(url="/business/register-salon", status_code=302)
 
-    return HTMLResponse(content=await render_my_salon_page(db, salon, user))
+    return HTMLResponse(content=await render_my_salon_page(db, salon, user, request.query_params))
 
 
 @router.get("/business/clients/{client_id}", response_class=HTMLResponse)
@@ -204,18 +218,9 @@ async def client_card_page(
 
 
 @router.get("/master/dashboard", response_class=HTMLResponse)
-async def master_dashboard_page_route(request: Request, db: AsyncSession = Depends(get_db)):
-    """Кабинет мастера: свои записи + списание расходников."""
-    from app.web.pages.master.dashboard import render_master_dashboard
-    from app.models.models import UserRole
-
-    user = await get_current_user_from_cookie(request, db)
-    if not user:
-        return RedirectResponse(url="/login?redirect=/master/dashboard", status_code=302)
-    if user.role != UserRole.MASTER:
-        return RedirectResponse(url="/", status_code=302)
-
-    return HTMLResponse(content=await render_master_dashboard(db, user))
+async def master_dashboard_page_route():
+    """Кабинет мастера переехал в общую «Панель бизнеса» (Обзор + Расписание)."""
+    return RedirectResponse(url="/business/dashboard", status_code=302)
 
 
 @router.get("/master/inventory", response_class=HTMLResponse)
@@ -467,6 +472,60 @@ async def book_page(request: Request, db: AsyncSession = Depends(get_db)):
 </html>"""
     
     return HTMLResponse(content=html)
+
+
+# ── SEO: robots.txt и sitemap.xml (появился домен rrumi.ru) ─────────────────
+# ВАЖНО: строго ВЫШЕ catch-all «/{path:path}» — иначе перехватит 404-страница
+
+@router.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    from fastapi.responses import PlainTextResponse
+
+    # Приватные разделы поисковикам не нужны; staging закрыт basic_auth
+    # и X-Robots-Tag на уровне edge — сюда доходит только прод
+    return PlainTextResponse(
+        "User-agent: *\n"
+        "Disallow: /admin\n"
+        "Disallow: /business/\n"
+        "Disallow: /profile\n"
+        "Disallow: /bookings\n"
+        "Disallow: /favorites\n"
+        "Disallow: /api/\n"
+        "Allow: /\n"
+        f"Sitemap: https://rrumi.ru/sitemap.xml\n"
+    )
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml(db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import Response
+
+    static_pages = ["", "salons", "business", "model", "login", "register"]
+    urls = [f"https://rrumi.ru/{p}" for p in static_pages]
+
+    salons = (await db.execute(select(Salon.id).where(Salon.is_active == True))).scalars().all()  # noqa: E712
+    urls += [f"https://rrumi.ru/salons/{sid}" for sid in salons]
+
+    body = "".join(f"<url><loc>{u}</loc></url>" for u in urls)
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{body}</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    from app.web.pages.password_reset import render_forgot_password_page
+    return HTMLResponse(content=render_forgot_password_page(request))
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    from app.web.pages.password_reset import render_reset_password_page
+    return HTMLResponse(content=render_reset_password_page(request))
 
 
 @router.get("/{path:path}", response_class=HTMLResponse)

@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 from fastapi.responses import HTMLResponse
 
@@ -12,7 +13,7 @@ from app.db.session import get_db
 from app.models.models import (
     User, Salon, SalonPhoto, Master, Service, Promotion,
     SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS, AdminAudit, ClientNote,
-    SalonModel, UserRole,
+    SalonModel, UserRole, SalonModerationStatus,
 )
 from app.schemas.business import (
     SalonUpdateRequest,
@@ -45,7 +46,13 @@ async def get_current_salon(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="У вас пока нет привязанного салона. Заполните заявку на подключение."
         )
-    salon = (await db.execute(select(Salon).where(Salon.id == resolved_id))).scalar_one_or_none()
+    # eager load photos: SalonResponse сериализует salon.photos, а у AsyncSession
+    # нет implicit lazy load для relationship (тот же класс бага, что был в
+    # chat.py) — грузим сразу, чтобы ни один потребитель этой зависимости
+    # не padал на сериализации.
+    salon = (await db.execute(
+        select(Salon).options(selectinload(Salon.photos)).where(Salon.id == resolved_id)
+    )).scalar_one_or_none()
     if salon is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Салон не найден")
     return salon
@@ -65,6 +72,7 @@ async def create_or_update_salon(
     phone: str = Form(...),
     method_override: str = Form(""),
     salon_id: Optional[int] = Form(None),
+    offer_accepted: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
     """Создание ИЛИ обновление салона через веб-форму."""
@@ -92,9 +100,19 @@ async def create_or_update_salon(
         await db.commit()
         return RedirectResponse(url="/business/dashboard?updated=1", status_code=302)
 
-    # Иначе — создание нового салона. Лимита на число салонов на владельца
-    # сейчас нет (тарифы нигде не enforced — вводить гейт только по числу
-    # салонов было бы непоследовательно; появится вместе с логикой тарифов).
+    # Иначе — создание нового салона (ЗАЯВКА). Требуем согласие с офертой;
+    # салон создаётся в статусе pending (модель по умолчанию) — виден только
+    # владельцу для настройки, публично не показывается и запись закрыта, пока
+    # платформа не подтвердит договор (см. модерацию в админ-панели).
+    if offer_accepted != "1":
+        from app.web.pages.register_salon import render_register_salon_page
+        return HTMLResponse(
+            content=render_register_salon_page(user, error="Нужно принять условия оферты."),
+            status_code=400,
+        )
+
+    from datetime import datetime, timezone as _tz
+    # Лимита на число салонов на владельца сейчас нет (тарифы нигде не enforced).
     salon = Salon(
         creator_id=user.id,
         name=name,
@@ -105,7 +123,9 @@ async def create_or_update_salon(
         longitude=37.6173,
         rating=0.0,
         reviews_count=0,
-        is_active=True
+        is_active=True,
+        moderation_status=SalonModerationStatus.PENDING,
+        offer_accepted_at=datetime.now(_tz.utc),
     )
     db.add(salon)
     await db.flush()  # получить salon.id до commit
@@ -121,7 +141,68 @@ async def create_or_update_salon(
     await db.commit()
     await db.refresh(salon)
 
+    from app.services.notifications import notify_admins
+    await notify_admins(db, "Новая заявка на подключение салона",
+                        f"«{salon.name}», тел. {salon.phone}. Одобрить/отклонить — админ-панель → Заявки.")
     return RedirectResponse(url="/business/dashboard?success=1", status_code=302)
+
+
+@router.post("/apply")
+async def apply_business(
+    request: Request,
+    salon_name: str = Form(...),
+    phone: str = Form(...),
+    contact_name: str = Form(""),
+    email: str = Form(""),
+    experience: str = Form(""),
+    plan: str = Form("business"),
+    offer_accepted: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Заявка на подключение салона со страницы /business/checkout.
+
+    Создаёт салон-заявку (pending), повышает пользователя до BUSINESS и заводит
+    владельцем — чтобы он мог дозаполнить салон в кабинете. Публично салон не
+    виден и запись закрыта до одобрения администратором (см. модерацию).
+    """
+    from datetime import datetime, timezone as _tz
+
+    from app.web.auth import get_current_user_from_cookie
+
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Войдите или зарегистрируйтесь, чтобы подать заявку.")
+    if offer_accepted != "1":
+        raise HTTPException(status_code=400, detail="Нужно принять условия использования.")
+
+    salon = Salon(
+        creator_id=user.id,
+        name=salon_name.strip() or "Салон",
+        description="",
+        address="",  # владелец дозаполнит в кабинете, пока заявка на модерации
+        phone=phone.strip(),
+        latitude=55.7558, longitude=37.6173,
+        rating=0.0, reviews_count=0, is_active=True,
+        moderation_status=SalonModerationStatus.PENDING,
+        offer_accepted_at=datetime.now(_tz.utc),
+        business_tier=(plan.strip() or None),
+    )
+    db.add(salon)
+    await db.flush()
+    db.add(SalonMember(
+        salon_id=salon.id, user_id=user.id, role=SalonRole.OWNER,
+        is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS), is_active=True,
+    ))
+    # Повышаем до BUSINESS: владелец получает кабинет (с баннером «на модерации»),
+    # но салон невидим публично и запись закрыта до одобрения.
+    if user.role != UserRole.BUSINESS:
+        user.role = UserRole.BUSINESS
+    await db.commit()
+
+    from app.services.notifications import notify_admins
+    await notify_admins(db, "Новая заявка на подключение салона",
+                        f"«{salon.name}», тел. {salon.phone}. Одобрить/отклонить — админ-панель → Заявки.")
+    return {"ok": True, "redirect": "/business/dashboard?submitted=1"}
 
 
 @router.delete("/my-salon")
@@ -194,6 +275,13 @@ async def update_my_salon(
 
     await db.commit()
     await db.refresh(salon)
+
+    # SalonResponse сериализует salon.photos — у AsyncSession нет implicit
+    # lazy load для relationship (см. тот же класс бага в chat.py), поэтому
+    # грузим явным запросом вместо обращения к непрогретой связи.
+    photos_result = await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id))
+    salon.photos = list(photos_result.scalars().all())
+
     return salon
 
 

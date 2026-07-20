@@ -16,7 +16,15 @@ from app.core.security import (
     needs_rehash,
     validate_password_strength,
 )
-from app.core.limiter import limiter, is_account_locked, register_login_failure, reset_login_failures
+from app.core.limiter import (
+    limiter,
+    is_account_locked,
+    otp_send_allowed,
+    register_login_failure,
+    reset_login_failures,
+)
+from app.services import otp
+from app.services import password_reset
 
 router = APIRouter()
 
@@ -92,9 +100,17 @@ async def register_web(
     phone: str = Form(...),
     password: str = Form(...),
     full_name: str = Form(""),
+    request_id: str = Form(""),
+    code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
-    """Регистрация через веб-форму. Роль всегда CLIENT."""
+    """Регистрация через веб-форму. Роль всегда CLIENT (назначает сервер).
+
+    ВНИМАНИЕ ПРИ MERGE: поля request_id/code и блок verify_code ниже — это
+    подтверждение телефона (блоки 07 SMS + 18 Telegram). Эта обвязка уже
+    трижды терялась при разрешении конфликтов «в пользу frontend-ветки» —
+    не удалять; без неё регистрация не проверяет телефон вовсе.
+    """
     norm_phone = try_normalize_phone(phone)
     keep = f"phone={quote(norm_phone or phone)}&full_name={quote(full_name)}"
 
@@ -110,6 +126,20 @@ async def register_web(
     if existing.scalar_one_or_none():
         return RedirectResponse(url=f"/register?error=phone_exists&{keep}", status_code=302)
 
+    # При выключенном OTP (нет каналов) поля подтверждения не требуем вовсе —
+    # страница их и не показывает; verify_code в этом режиме всегда True.
+    # Требуем только request_id: код нужен лишь СМС-каналу, для Telegram
+    # его нет по устройству — какой канал и что проверять, решает verify_code.
+    if settings.OTP_ENABLED and not request_id:
+        return RedirectResponse(url=f"/register?error=no_code&{keep}", status_code=302)
+
+    try:
+        code_valid = await otp.verify_code(request_id, code, norm_phone)
+    except otp.OTPError:
+        return RedirectResponse(url=f"/register?error=otp_unavailable&{keep}", status_code=302)
+
+    if not code_valid:
+        return RedirectResponse(url=f"/register?error=bad_code&{keep}", status_code=302)
 
     user = User(
         phone=norm_phone,
@@ -122,6 +152,78 @@ async def register_web(
     await db.commit()
     await db.refresh(user)
 
+    # Если номер подтверждали через Telegram — бот оставил chat_id, забираем
+    # его в профиль: уведомления о записях заработают с первого дня.
+    tg_chat_id = await otp.pop_tg_chat_id(norm_phone)
+    if tg_chat_id:
+        user.tg_chat_id = tg_chat_id
+        await db.commit()
+
     response = RedirectResponse(url="/profile", status_code=302)
     _set_auth_cookie(response, user.id)
     return response
+
+@router.post("/forgot-password")
+@limiter.limit("5/minute")
+async def forgot_password_web(
+    request: Request,
+    phone: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """«Забыли пароль»: выпускает токен и шлёт ссылку по каналам пользователя.
+
+    Ответ ОДИНАКОВ для любого номера — существование аккаунта не раскрываем
+    (анти-перебор). Поверх IP-лимита — бюджет попыток на номер (тот же,
+    что у OTP: каналы разные, защита одна).
+    """
+    norm_phone = try_normalize_phone(phone)
+    done_url = "/forgot-password?sent=1"
+
+    if norm_phone is None:
+        return RedirectResponse(url=done_url, status_code=302)
+    if not await otp_send_allowed(norm_phone):
+        return RedirectResponse(url=done_url, status_code=302)
+
+    user = (
+        await db.execute(select(User).where(User.phone == norm_phone))
+    ).scalar_one_or_none()
+    if user and user.is_active:
+        token = await password_reset.issue_token(user)
+        await password_reset.deliver(user, token, request.url.netloc)
+
+    return RedirectResponse(url=done_url, status_code=302)
+
+
+@router.post("/reset-password")
+@limiter.limit("10/minute")
+async def reset_password_web(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Смена пароля по одноразовому токену из ссылки (TG/email)."""
+    try:
+        validate_password_strength(password)
+    except ValueError:
+        return RedirectResponse(
+            url=f"/reset-password?token={quote(token)}&error=weak_password",
+            status_code=302,
+        )
+
+    user_id = await password_reset.consume_token(token)
+    if user_id is None:
+        return RedirectResponse(url="/reset-password?error=bad_token", status_code=302)
+
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None or not user.is_active:
+        return RedirectResponse(url="/reset-password?error=bad_token", status_code=302)
+
+    user.hashed_password = get_password_hash(password)
+    await db.commit()
+
+    # Смена пароля снимает блокировку перебора и уведомляет владельца
+    await reset_login_failures(user.phone)
+    await password_reset.notify_changed(user)
+
+    return RedirectResponse(url="/login?reset=1", status_code=302)

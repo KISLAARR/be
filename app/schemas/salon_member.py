@@ -28,12 +28,5 @@ class SalonMemberResponse(BaseModel):
         from_attributes = True
 
 
-class InviteMemberRequest(BaseModel):
-    phone: str
-    full_name: Optional[str] = None  # используется, только если пользователя с таким телефоном ещё нет
-    role: SalonRole
-    permissions: Optional[Dict[str, bool]] = None  # override дефолтного набора для роли
-
-
 class UpdatePermissionsRequest(BaseModel):
     permissions: Dict[str, bool]

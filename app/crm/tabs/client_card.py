@@ -11,6 +11,7 @@ from app.web.components.footer import render_footer
 from app.web.components.sidebar import render_sidebar
 from app.web.components.styles import get_base_styles
 from app.web.pages.business.utils import get_masters_data, get_master_ids
+from app.services.loyalty_service import LoyaltyService
 
 
 async def render_client_card(db: AsyncSession, salon, user, client_id: int) -> str:
@@ -98,6 +99,8 @@ async def render_client_card(db: AsyncSession, salon, user, client_id: int) -> s
         </div>""" for n, author in notes
     ) or '<p class="text-muted" id="no-notes">Заметок пока нет</p>'
 
+    loyalty = await LoyaltyService.get_client_status(db, salon.id, client_id)
+
     return f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -129,6 +132,35 @@ async def render_client_card(db: AsyncSession, salon, user, client_id: int) -> s
                 <div class="kpi-card"><div class="kpi-label">Потрачено</div><div class="kpi-value" style="color:#22c55e">{f"{total_spent:,}".replace(",", " ")} ₽</div></div>
                 <div class="kpi-card"><div class="kpi-label">Первый визит</div><div class="kpi-value" style="font-size:1.1rem">{first_visit.strftime('%d.%m.%Y') if first_visit else '—'}</div></div>
                 <div class="kpi-card"><div class="kpi-label">Последний визит</div><div class="kpi-value" style="font-size:1.1rem">{last_visit.strftime('%d.%m.%Y') if last_visit else '—'}</div></div>
+            </div>
+
+            <div class="card" style="margin-bottom:1.5rem">
+                <h3 style="margin-bottom:1rem">Лояльность в этом салоне</h3>
+                <div class="grid-2" style="gap:1.5rem">
+                    <div>
+                        <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;cursor:pointer">
+                            <input type="checkbox" id="loyaltyRegularCheckbox" {"checked" if loyalty["is_regular_client"] else ""}
+                                   onchange="toggleRegularStatus(this.checked)">
+                            Статус «постоянный клиент» (скидка {loyalty["regular_client_discount_percent"]}% в этом салоне)
+                        </label>
+                        <label style="display:block;font-weight:500;margin-bottom:0.5rem">Персональная скидка, %</label>
+                        <div style="display:flex;gap:0.5rem">
+                            <input type="number" id="personalDiscountInput" min="1" max="99"
+                                   value="{loyalty["personal_discount_percent"] or ''}" placeholder="Не назначена"
+                                   style="flex:1;padding:0.65rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                            <button type="button" class="btn-outline" style="font-size:0.8rem" onclick="savePersonalDiscount()">Сохранить</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:500;margin-bottom:0.5rem">Баллы: <strong id="bonusPointsValue">{loyalty["bonus_points"]}</strong></label>
+                        <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
+                            <input type="number" id="pointsAmountInput" placeholder="+100 или -50" style="flex:1;padding:0.65rem;border:1px solid var(--color-border);border-radius:0.5rem">
+                            <button type="button" class="btn-outline" style="font-size:0.8rem" onclick="adjustPoints()">Начислить/списать</button>
+                        </div>
+                        <input type="text" id="pointsCommentInput" placeholder="Причина (например: перенос из старой системы салона)"
+                               style="width:100%;padding:0.65rem;border:1px solid var(--color-border);border-radius:0.5rem;font-size:0.85rem">
+                    </div>
+                </div>
             </div>
 
             <div class="card" style="overflow-x:auto;margin-bottom:1.5rem">
@@ -181,6 +213,51 @@ async def render_client_card(db: AsyncSession, salon, user, client_id: int) -> s
                 alert('Ошибка соединения с сервером');
             }}
         }});
+
+        async function toggleRegularStatus(isRegular) {{
+            const res = await fetch('/api/v1/loyalty/salon/{salon.id}/client/{client_id}/status', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ is_regular: isRegular }})
+            }});
+            if (!res.ok) {{
+                const d = await res.json().catch(() => ({{}}));
+                alert(d.detail || 'Не удалось изменить статус');
+                document.getElementById('loyaltyRegularCheckbox').checked = !isRegular;
+            }}
+        }}
+
+        async function savePersonalDiscount() {{
+            const raw = document.getElementById('personalDiscountInput').value;
+            const discount_percent = raw ? parseInt(raw) : null;
+            const res = await fetch('/api/v1/loyalty/salon/{salon.id}/client/{client_id}/personal-discount', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ discount_percent }})
+            }});
+            if (res.ok) {{ alert('Сохранено'); }}
+            else {{ const d = await res.json(); alert(d.detail || 'Ошибка'); }}
+        }}
+
+        async function adjustPoints() {{
+            const amount = parseInt(document.getElementById('pointsAmountInput').value);
+            const comment = document.getElementById('pointsCommentInput').value;
+            if (!amount) {{ alert('Укажите сумму (например 100 или -50)'); return; }}
+            const res = await fetch('/api/v1/loyalty/salon/{salon.id}/client/{client_id}/points', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ amount, comment }})
+            }});
+            if (res.ok) {{
+                const d = await res.json();
+                document.getElementById('bonusPointsValue').textContent = d.bonus_points;
+                document.getElementById('pointsAmountInput').value = '';
+                document.getElementById('pointsCommentInput').value = '';
+            }} else {{
+                const d = await res.json();
+                alert(d.detail || 'Ошибка');
+            }}
+        }}
     </script>
 </body>
 </html>"""

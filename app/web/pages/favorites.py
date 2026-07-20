@@ -109,7 +109,6 @@ async def render_favorites_page(db: AsyncSession, user) -> str:
         </div>
         {render_footer(user)}
     </main>
-    <script src="/static/src/js/favorites.js"></script>
 </body>
 </html>"""
     
