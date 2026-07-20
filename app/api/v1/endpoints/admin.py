@@ -48,10 +48,17 @@ async def _get_senior_admin(request: Request, db: AsyncSession):
     return user
 
 
-def _audit(db, actor_id, action, target_type, target_id, detail):
+def _audit(db, actor_id, action, target_type, target_id, detail, salon_id=None):
+    """salon_id: заполняется для действий модератора над конкретным салоном
+    (одобрение/отклонение заявки, блокировка, смена владельца, удаление,
+    удаление отзыва/фото по жалобе) — иначе они не попадают в собственный
+    лог владельца салона (staff.py фильтрует именно по salon_id). Для
+    чисто платформенных действий (роли, блокировка пользователей и т.п.)
+    остаётся None."""
     db.add(AdminAudit(
         actor_id=actor_id, action=action,
         target_type=target_type, target_id=target_id, detail=detail,
+        salon_id=salon_id,
     ))
 
 
@@ -266,7 +273,7 @@ async def report_resolve(rid: int, request: Request, db: AsyncSession = Depends(
     report.status = PhotoReportStatus.RESOLVED
     report.resolved_by_id = admin.id
     report.resolved_at = datetime.now(timezone.utc)
-    _audit(db, admin.id, "report_resolve", "photo_report", rid, "фото удалено")
+    _audit(db, admin.id, "report_resolve", "photo_report", rid, "фото удалено", salon_id=_sid)
     await db.commit()
     if url and url.startswith("/uploads/"):
         delete_stored(url)
@@ -279,13 +286,16 @@ async def report_dismiss(rid: int, request: Request, db: AsyncSession = Depends(
     admin = await _get_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
+    from app.api.v1.endpoints.reports import _photo_and_salon_id
+
     report = (await db.execute(select(PhotoReport).where(PhotoReport.id == rid))).scalar_one_or_none()
     if not report or report.status != PhotoReportStatus.PENDING:
         return _back("reports", err="Жалоба не найдена или уже обработана")
+    _, sid = await _photo_and_salon_id(db, report)
     report.status = PhotoReportStatus.DISMISSED
     report.resolved_by_id = admin.id
     report.resolved_at = datetime.now(timezone.utc)
-    _audit(db, admin.id, "report_dismiss", "photo_report", rid, "оставлено")
+    _audit(db, admin.id, "report_dismiss", "photo_report", rid, "оставлено", salon_id=sid)
     await db.commit()
     return _back("reports", ok="Жалоба отклонена, фото оставлено")
 
@@ -303,7 +313,7 @@ async def salon_approve(sid: int, request: Request, db: AsyncSession = Depends(g
     salon.moderation_status = SalonModerationStatus.APPROVED
     salon.rejection_reason = None
     salon.is_active = True
-    _audit(db, admin.id, "salon_approve", "salon", sid, salon.name)
+    _audit(db, admin.id, "salon_approve", "salon", sid, salon.name, salon_id=sid)
     await db.commit()
     await _notify_owner_moderation(db, salon, approved=True)
     return _back("applications", ok=f"«{salon.name}» одобрен")
@@ -321,7 +331,7 @@ async def salon_reject(sid: int, request: Request, reason: str = Form(""), db: A
     salon.moderation_status = SalonModerationStatus.REJECTED
     salon.rejection_reason = reason.strip() or None
     salon.is_active = False
-    _audit(db, admin.id, "salon_reject", "salon", sid, f"{salon.name}: {reason.strip()[:200]}")
+    _audit(db, admin.id, "salon_reject", "salon", sid, f"{salon.name}: {reason.strip()[:200]}", salon_id=sid)
     await db.commit()
     await _notify_owner_moderation(db, salon, approved=False)
     return _back("applications", ok=f"«{salon.name}» отклонён")
@@ -338,7 +348,7 @@ async def salon_toggle(sid: int, request: Request, db: AsyncSession = Depends(ge
         return _back("salons", err="Салон не найден")
     salon.is_active = not salon.is_active
     state = "активирован" if salon.is_active else "деактивирован"
-    _audit(db, admin.id, "salon_toggle", "salon", sid, f"{salon.name}: {state}")
+    _audit(db, admin.id, "salon_toggle", "salon", sid, f"{salon.name}: {state}", salon_id=sid)
     await db.commit()
     return _back("salons", ok=f"«{salon.name}» {state}")
 
@@ -365,7 +375,7 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
 
     if not owner_phone:  # снять владельца
         salon.creator_id = None
-        _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец снят")
+        _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец снят", salon_id=sid)
         await db.commit()
         return _back("salons", ok=f"«{salon.name}»: владелец снят")
 
@@ -391,7 +401,7 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
     salon.creator_id = owner.id
     if owner.role != UserRole.ADMIN:
         owner.role = UserRole.BUSINESS  # владелец салона → бизнес-роль (для навигации/UX)
-    _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец → {owner.phone}")
+    _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец → {owner.phone}", salon_id=sid)
     await db.commit()
     return _back("salons", ok=f"«{salon.name}»: владелец → {owner.phone}")
 
@@ -415,6 +425,9 @@ async def salon_delete(sid: int, request: Request, db: AsyncSession = Depends(ge
     await db.execute(delete(Review).where(Review.salon_id == sid))
     await db.execute(delete(SalonPhoto).where(SalonPhoto.salon_id == sid))
     await db.delete(salon)
+    # salon_id тут намеренно не проставляем (не salon_id=sid): салон удалён,
+    # его собственную страницу «Сотрудники» с логом больше некому открыть —
+    # событие остаётся только в платформенном логе для модератора.
     _audit(db, admin.id, "salon_delete", "salon", sid, f"удалён «{name}»")
     await db.commit()
     return _back("salons", ok=f"Салон «{name}» удалён")
@@ -454,6 +467,6 @@ async def review_delete(rid: int, request: Request, db: AsyncSession = Depends(g
         salon.reviews_count = cnt
         salon.rating = round(float(avg or 0.0), 1)
 
-    _audit(db, admin.id, "review_delete", "review", rid, f"удалён отзыв #{rid}")
+    _audit(db, admin.id, "review_delete", "review", rid, f"удалён отзыв #{rid}", salon_id=salon_id)
     await db.commit()
     return _back("reviews", ok="Отзыв удалён, рейтинг пересчитан")
