@@ -239,7 +239,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
 
     # Записи
     tab_buttons.append(('records', ICON_CALENDAR_DAYS, 'Записи', True))
-    tabs_html.append(await render_records_tab(db, salon, masters, master_ids, records_filters))
+    tabs_html.append(await render_records_tab(db, salon, masters, master_ids, records_filters, perms["manage_schedule"]))
 
     # Склад (с правом manage_inventory)
     tab_buttons.append(('warehouse', ICON_PACKAGE, 'Склад', perms["manage_inventory"]))

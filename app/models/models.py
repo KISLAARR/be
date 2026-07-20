@@ -321,6 +321,10 @@ class Booking(Base):
     # (форма склада после клиента). Флаг для напоминаний мастеру/админу —
     # сам факт списания хранится в InventoryMovement(booking_id=...).
     consumption_reported: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Мастер явно отметил, что видел плановую запись в своём расписании
+    # (кнопка «Видел», не влияет на status). NULL — ещё не отмечал; чисто
+    # информационный флаг для владельца/админа салона.
+    master_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     client: Mapped["User"] = relationship(back_populates="bookings", foreign_keys=[client_id])
     master: Mapped["Master"] = relationship()

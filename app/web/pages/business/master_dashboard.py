@@ -127,6 +127,7 @@ async def _render_master_schedule(db: AsyncSession, salon: Salon, master: Master
     разрешено бэкендом), закрытие дат недоступно (нужен SalonMember)."""
     calendar_html = await render_schedule_tab(
         db, salon, [master], can_manage_schedule=True, schedule_master_id=master.id, can_close_dates=False,
+        viewer_master_id=master.id,
     )
 
     unreported_result = await db.execute(
