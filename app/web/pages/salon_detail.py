@@ -25,7 +25,58 @@ from app.web.components.icons import (
     ICON_CHEVRON_RIGHT,
     ICON_USER,
     ICON_SCISSORS,
+    ICON_STAR_FILLED,
 )
+
+DAY_NAMES_RU = {
+    "mon": "Пн", "tue": "Вт", "wed": "Ср", "thu": "Чт",
+    "fri": "Пт", "sat": "Сб", "sun": "Вс"
+}
+
+def format_working_hours(wh_json: str | None) -> str:
+    """Преобразует JSON-строку вида {"mon":"10:00-21:00", ...} в читаемый формат.
+       Пример: "Пн–Пт: 10:00–21:00, Сб: 11:00–19:00, Вс: выходной"
+    """
+    if not wh_json:
+        return "Пн–Вс: 10:00 – 21:00"
+    try:
+        data = json.loads(wh_json)
+    except (json.JSONDecodeError, TypeError):
+        return "Пн–Вс: 10:00 – 21:00"
+
+    days_order = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    groups = []
+    current_group = []
+    last_time = None
+
+    for day in days_order:
+        value = data.get(day, "").strip()
+        if not value or value.lower() in ("выходной", "closed", "day off"):
+            time_str = None
+        else:
+            time_str = value.replace("-", "–")
+        if time_str == last_time:
+            current_group.append(day)
+        else:
+            if current_group:
+                groups.append((current_group, last_time))
+            current_group = [day]
+            last_time = time_str
+    if current_group:
+        groups.append((current_group, last_time))
+
+    parts = []
+    for days, time_str in groups:
+        day_labels = [DAY_NAMES_RU[d] for d in days]
+        if len(day_labels) == 1:
+            label = day_labels[0]
+        else:
+            label = f"{day_labels[0]}–{day_labels[-1]}"
+        if time_str is None:
+            parts.append(f"{label}: выходной")
+        else:
+            parts.append(f"{label}: {time_str}")
+    return ", ".join(parts)
 
 
 async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str:
@@ -81,7 +132,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             chips.append(f'⭐ {loyalty["bonus_points"]} баллов')
         if chips:
             loyalty_html = (
-                '<div class="salon-loyalty" style="margin-top:0.75rem;display:flex;gap:0.75rem;flex-wrap:wrap">'
+                '<div class="salon-loyalty">'
                 + "".join(
                     f'<span class="badge" style="background:var(--color-accent-light);color:var(--color-primary);'
                     f'padding:0.25rem 0.75rem;border-radius:1rem;font-size:0.85rem">{c}</span>'
@@ -90,7 +141,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                 + "</div>"
             )
 
-    # Фото
     salon_photos = (
         await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
     ).scalars().all()
@@ -98,9 +148,9 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     photos_strip = ""
     if salon_photos:
         photos_strip = (
-            '<div class="salon-photos" style="display:flex;gap:0.75rem;overflow-x:auto;padding:1rem 0">'
+            '<div class="salon-photos">'
             + "".join(
-                f'<img src="{p.url}" alt="" loading="lazy" style="height:180px;border-radius:0.75rem;flex-shrink:0">'
+                f'<img src="{p.url}" alt="" loading="lazy">'
                 for p in salon_photos
             )
             + "</div>"
@@ -108,7 +158,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
 
     heart_svg = ICON_HEART.replace('"', '&quot;')
     heart_filled_svg = ICON_HEART_FILLED.replace('"', '&quot;')
-    star_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-star"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path></svg>'
 
     # Подготовка данных для JS (пошаговый флоу записи — booking_flow_html ниже)
     masters_data = []
@@ -130,7 +179,9 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
             ]
         })
 
-    # Шаг 1: список мастеров (если больше одного, иначе сразу переходим к услугам)
+    # Определяем, показывать ли шаг выбора мастера
+    masters_display = "block" if masters_data else "none"
+
     masters_list_html = ""
     for m in masters_data:
         avatar_html = f'<img src="{m["avatar"]}" alt="{m["name"]}">' if m["avatar"] else f'<div class="master-avatar-placeholder">{m["name"][0].upper()}</div>'
@@ -154,6 +205,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         """
 
     # ----- Верхний блок (салон) -----
+    working_hours_display = format_working_hours(salon.working_hours)
+
     top_block = f"""
     <section class="salon-top-section">
         <div class="section-container">
@@ -176,7 +229,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                     <h1 class="salon-title">{salon.name}</h1>
                     <div class="salon-meta">
                         <div class="salon-rating" title="{verified_count} из {salon.reviews_count or 0} отзывов подтверждены реальной записью">
-                            {star_svg}
+                            {ICON_STAR_FILLED}
                             <span class="rating-val">{salon.rating or 0.0:.1f}</span>
                             <span class="rating-count">({salon.reviews_count or 0} отзывов, {verified_count} подтверждено)</span>
                         </div>
@@ -189,7 +242,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
                     <div class="salon-contacts">
                         <span class="contact-item">{ICON_MAP_PIN} {salon.address or 'Адрес не указан'}</span>
                         <span class="contact-item">{ICON_PHONE} {salon.phone or '—'}</span>
-                        <span class="contact-item">{ICON_CLOCK} {salon.working_hours or 'Пн-Вс: 10:00 — 21:00'}</span>
+                        <span class="contact-item">{ICON_CLOCK} {working_hours_display}</span>
                     </div>
                 </div>
             </div>
@@ -216,7 +269,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     <section class="section-container booking-flow">
         <div id="booking-flow-container" data-masters='{json.dumps(masters_data, ensure_ascii=False)}' data-user='{json.dumps({"id": user.id, "full_name": user.full_name, "phone": user.phone} if user else None, ensure_ascii=False)}'>
             <!-- Шаг 1: Выбор мастера -->
-            <div class="booking-step" id="step-masters" style="display: {'none' if len(masters_data) == 1 else 'block'}">
+            <div class="booking-step" id="step-masters" style="display: {masters_display}">
                 <h2 class="step-title">Выберите мастера</h2>
                 <div class="masters-grid">
                     {masters_list_html}
@@ -495,73 +548,8 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         reviews_html = '<p class="empty-state">Пока нет отзывов. Будьте первым!</p>'
 
     # ----- Форма отзыва -----
-    if user:
-        master_options = ""
-        for m in masters:
-            mu = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
-            master_options += f'<option value="{m.id}">{mu.full_name if mu else "Мастер"}</option>'
-        staff_options = "".join(
-            f'<option value="{su.id}">{su.full_name or su.phone}</option>' for _sm, su in staff_members
-        )
-        review_form_html = f"""
-        <div class="card" style="padding:1.5rem;margin-bottom:1.5rem">
-            <h3 style="margin-bottom:1rem">Оставить отзыв</h3>
-            <form id="reviewForm" action="/api/v1/reviews/create" method="post" enctype="multipart/form-data">
-                <input type="hidden" name="salon_id" value="{salon.id}">
-                <div style="margin-bottom:0.75rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">О чём отзыв</label>
-                    <select name="target_type" id="reviewTargetType" onchange="reviewToggleTarget()" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                        <option value="salon">Салон в целом (помещение, сервис)</option>
-                        <option value="master">Конкретный мастер</option>
-                        <option value="staff">Администратор/сотрудник</option>
-                    </select>
-                </div>
-                <div style="margin-bottom:0.75rem" id="reviewMasterField">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Мастер</label>
-                    <select name="master_id" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                        {master_options}
-                    </select>
-                </div>
-                <div style="margin-bottom:0.75rem;display:none" id="reviewStaffField">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Сотрудник</label>
-                    <select name="staff_user_id" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                        {staff_options}
-                    </select>
-                </div>
-                <div style="margin-bottom:0.75rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Оценка</label>
-                    <select name="rating" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem">
-                        <option value="5">★★★★★</option>
-                        <option value="4">★★★★☆</option>
-                        <option value="3">★★★☆☆</option>
-                        <option value="2">★★☆☆☆</option>
-                        <option value="1">★☆☆☆☆</option>
-                    </select>
-                </div>
-                <div style="margin-bottom:0.75rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Комментарий</label>
-                    <textarea name="comment" rows="3" style="width:100%;padding:0.6rem;border:1px solid var(--color-border);border-radius:0.5rem"></textarea>
-                </div>
-                <div style="margin-bottom:1rem">
-                    <label style="display:block;font-weight:500;margin-bottom:0.4rem">Фото работ (до 5)</label>
-                    <input type="file" name="files" accept="image/*" multiple>
-                </div>
-                <button type="submit" class="btn-primary">Отправить отзыв</button>
-            </form>
-        </div>
-        <script>
-            function reviewToggleTarget() {{
-                const v = document.getElementById('reviewTargetType').value;
-                document.getElementById('reviewMasterField').style.display = v === 'master' ? 'block' : 'none';
-                document.getElementById('reviewStaffField').style.display = v === 'staff' ? 'block' : 'none';
-            }}
-        </script>
-        """
-    else:
-        review_form_html = '<p class="empty-state">Чтобы оставить отзыв, <a href="/login">войдите</a>.</p>'
-
     reviews_filter_html = """
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+    <div class="review-filters">
         <button class="btn-outline review-filter-btn active" data-filter="all" onclick="reviewFilter('all', this)">Все</button>
         <button class="btn-outline review-filter-btn" data-filter="master" onclick="reviewFilter('master', this)">О мастерах</button>
         <button class="btn-outline review-filter-btn" data-filter="salon" onclick="reviewFilter('salon', this)">О салоне</button>
@@ -619,7 +607,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
 
             <section class="section-container reviews-section">
                 <h2 class="section-title">Отзывы</h2>
-                {review_form_html}
                 {reviews_filter_html}
                 <div class="reviews-list">
                     {reviews_html}
@@ -634,7 +621,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         window.salonId = {salon.id};
         window.maxBookingDays = {MAX_BOOKING_DAYS_AHEAD};
     </script>
-    <script src="/static/src/js/salon-detail.js"></script>
 </body>
 </html>"""
     return html

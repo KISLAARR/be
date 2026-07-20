@@ -1,9 +1,10 @@
 # app/api/v1/endpoints/reviews.py
-from fastapi import APIRouter, Depends, Request, Form, File, UploadFile
+from fastapi import APIRouter, Depends, Request, Form, File, UploadFile, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.db.session import get_db
-from app.models.models import ReviewPhoto, ReviewTargetType
+from app.models.models import Review, ReviewPhoto, ReviewTargetType
 from app.services.review_service import ReviewService, ReviewError
 from app.services.notifications import notify_new_review
 from app.services.uploads import UploadError, save_image
@@ -23,12 +24,11 @@ async def create_review_web(
     comment: str = Form(""),
     master_id: int = Form(None),
     staff_user_id: int = Form(None),
+    booking_id: int = Form(None),
     files: list[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
 ):
-    """Создание отзыва (любым зарегистрированным пользователем) + до
-    MAX_REVIEW_PHOTOS фото. Вся проверка прав/состояния — в ReviewService;
-    подтверждение реальным визитом сервис проставляет сам."""
+    """Создание отзыва с привязкой к booking_id."""
     from app.web.auth import get_current_user_from_cookie
 
     user = await get_current_user_from_cookie(request, db)
@@ -52,6 +52,7 @@ async def create_review_web(
             staff_user_id=staff_user_id,
             rating=rating,
             comment=comment,
+            booking_id=booking_id,
         )
     except ReviewError as e:
         return HTMLResponse(content=f"<h1>{e.message}</h1>", status_code=e.status)
@@ -63,11 +64,67 @@ async def create_review_web(
         try:
             url = await save_image(file, "reviews")
         except UploadError:
-            continue  # битый файл молча пропускаем — сам отзыв уже создан
+            continue
         db.add(ReviewPhoto(review_id=review.id, url=url))
         saved_any = True
     if saved_any:
         await db.commit()
 
     await notify_new_review(db, review)
-    return RedirectResponse(url=f"/salons/{salon_id}?reviewed=1", status_code=302)
+    return RedirectResponse(url=f"/bookings?reviewed=1", status_code=302)
+
+
+@router.get("/reviews/{review_id}")
+async def get_review(
+    review_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Получить отзыв по ID (только для владельца)."""
+    from app.web.auth import get_current_user_from_cookie
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    review = (await db.execute(select(Review).where(Review.id == review_id))).scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Отзыв не найден")
+    if review.client_id != user.id:
+        raise HTTPException(status_code=403, detail="Это не ваш отзыв")
+
+    return {
+        "id": review.id,
+        "rating": review.rating,
+        "comment": review.comment,
+        "salon_id": review.salon_id,
+        "master_id": review.master_id,
+        "target_type": review.target_type.value,
+        "booking_id": review.booking_id,
+    }
+
+
+@router.patch("/reviews/{review_id}")
+async def update_review(
+    review_id: int,
+    request: Request,
+    rating: int = Form(...),
+    comment: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить отзыв (только для владельца)."""
+    from app.web.auth import get_current_user_from_cookie
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    review = (await db.execute(select(Review).where(Review.id == review_id))).scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Отзыв не найден")
+    if review.client_id != user.id:
+        raise HTTPException(status_code=403, detail="Это не ваш отзыв")
+
+    review.rating = rating
+    review.comment = comment
+    await db.commit()
+
+    return {"status": "updated", "id": review.id}

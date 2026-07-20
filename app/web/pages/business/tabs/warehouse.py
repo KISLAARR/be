@@ -209,6 +209,7 @@ async def render_warehouse_tab(db: AsyncSession, salon, masters, master_ids, war
         </div>
 
         <div class="card" style="overflow-x:auto;margin-bottom:1.5rem">
+            <h3 style="margin-bottom:1rem">Остатки по складам</h3>
             <h3 style="margin-bottom:1rem">Расходники в наличии по мастерам {_hint("Сколько каждого расходника реально есть на руках у мастера прямо сейчас — по этим цифрам система понимает, когда пора пополнять.")}</h3>
             <table>
                 <thead><tr><th>Мастер</th><th>Позиция</th><th>Остаток</th><th>Мин. остаток</th><th>Цена</th></tr></thead>
@@ -250,6 +251,7 @@ async def render_warehouse_tab(db: AsyncSession, salon, masters, master_ids, war
             const res = await fetch('/api/v1/inventory/salon/' + salonId + '/equipment/' + equipmentId + '/toggle', {{ method: 'POST' }});
             if (res.ok) location.reload(); else alert('Не удалось изменить статус');
         }};
+
 
         window.toggleWarehouseNotify = async function() {{
             const checkbox = document.getElementById('notifyWarehouseToggle');

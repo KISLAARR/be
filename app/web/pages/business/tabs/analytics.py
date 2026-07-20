@@ -1,22 +1,37 @@
 # app/web/pages/business/tabs/analytics.py
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
-from app.models.models import Booking, Service, BookingStatus
 from app.web.components.hint import hint as _hint
+from app.models.models import Booking, Service, BookingStatus, User as UserModel
+from app.web.components.icons import (
+    ICON_RUBLE_SIGN,
+    ICON_TRENDING_UP,
+    ICON_STAR_FILLED,
+    ICON_ARROW_UP_RIGHT,
+    ICON_X,
+    ICON_CLOCK,
+)
+
 
 
 async def render_analytics_tab(db: AsyncSession, salon, master_ids):
-    """Вкладка Аналитика."""
+    """Вкладка Аналитика с графиком и топ-услугами."""
     
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     days = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     
     # Выручка по дням недели (текущая неделя)
     revenue_data = {}
+    prev_revenue_data = {}
+    week_operations = {}  # для деталей дня
+
     for i in range(7):
+        # Текущая неделя
         day = today - timedelta(days=today.weekday()) + timedelta(days=i)
         day_end = day + timedelta(days=1)
+        
         if master_ids:
             rev = await db.execute(
                 select(func.coalesce(func.sum(Booking.final_price), 0))
@@ -28,51 +43,48 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
                 )
             )
             revenue_data[i] = rev.scalar() or 0
-        else:
-            revenue_data[i] = 0
-    
-    # Выручка за прошлую неделю
-    prev_revenue_data = {}
-    for i in range(7):
-        day = today - timedelta(days=today.weekday() + 7) + timedelta(days=i)
-        day_end = day + timedelta(days=1)
-        if master_ids:
-            rev = await db.execute(
-                select(func.coalesce(func.sum(Booking.final_price), 0))
+            
+            # Операции за день (для деталей)
+            ops = await db.execute(
+                select(Booking, Service, UserModel)
+                .join(Service, Service.id == Booking.service_id)
+                .join(UserModel, UserModel.id == Booking.client_id)
                 .where(
                     Booking.master_id.in_(master_ids),
                     Booking.start_time >= day,
                     Booking.start_time < day_end,
+                    Booking.status != BookingStatus.CANCELLED
+                )
+                .order_by(Booking.start_time)
+            )
+            week_operations[i] = ops.all()
+        else:
+            revenue_data[i] = 0
+            week_operations[i] = []
+
+        # Прошлая неделя (только выручка)
+        prev_day = today - timedelta(days=today.weekday() + 7) + timedelta(days=i)
+        prev_day_end = prev_day + timedelta(days=1)
+        if master_ids:
+            prev_rev = await db.execute(
+                select(func.coalesce(func.sum(Booking.final_price), 0))
+                .where(
+                    Booking.master_id.in_(master_ids),
+                    Booking.start_time >= prev_day,
+                    Booking.start_time < prev_day_end,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
                 )
             )
-            prev_revenue_data[i] = rev.scalar() or 0
+            prev_revenue_data[i] = prev_rev.scalar() or 0
         else:
             prev_revenue_data[i] = 0
-    
-    # График выручки
-    max_revenue = max(max(revenue_data.values()) if revenue_data else 1, 1)
-    revenue_bars = ""
-    for i in range(7):
-        height = int(revenue_data[i] / max_revenue * 160) if max_revenue > 0 else 5
-        prev_height = int(prev_revenue_data[i] / max_revenue * 160) if max_revenue > 0 else 5
-        is_highest = revenue_data[i] == max(revenue_data.values())
-        rev_val = f"{revenue_data[i]}".replace(",", " ")
-        prev_val = f"{prev_revenue_data[i]}".replace(",", " ")
-        revenue_bars += f"""
-        <div class="chart-column" onclick="showDayDetails({i}, '{days[i]}', {revenue_data[i]}, {prev_revenue_data[i]})" style="cursor:pointer">
-            <div class="chart-value">{rev_val} ₽</div>
-            <div class="chart-fill {'highest' if is_highest else ''}" style="height:{max(height, 5)}px"></div>
-            <div class="chart-fill prev" style="height:{max(prev_height, 5)}px;opacity:0.4"></div>
-            <div class="chart-label">{days[i]}</div>
-        </div>"""
-    
+
     total_revenue = sum(revenue_data.values())
     prev_total_revenue = sum(prev_revenue_data.values())
     revenue_diff = total_revenue - prev_total_revenue
     revenue_trend = "▲" if revenue_diff > 0 else "▼" if revenue_diff < 0 else "—"
     revenue_color = "#22c55e" if revenue_diff > 0 else "#ef4444" if revenue_diff < 0 else "var(--color-muted)"
-    
+
     # Считаем общее количество записей за неделю (все статусы) и оплачиваемых
     # (подтверждённые/завершённые — для среднего чека, чтобы отменённые не занижали его)
     week_total = 0
@@ -95,7 +107,7 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
             ))
             week_paid_total += paid_cnt.scalar() or 0
-    
+
     # Топ услуг
     top_services = []
     if master_ids:
@@ -108,7 +120,7 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
             .limit(5)
         )
         top_services = top_svc.all()
-    
+
     top_services_rows = ""
     for name, cnt, total in top_services:
         total_val = f"{total or 0}".replace(",", " ")
@@ -119,7 +131,55 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
             <td>{cnt_val}</td>
             <td><strong>{total_val} ₽</strong></td>
         </tr>"""
-    
+
+    # Подготовка данных для JS (аккордеон)
+    week_ops_serialized = []
+    for i in range(7):
+        day_ops = []
+        for booking, service, client in week_operations[i]:
+            day_ops.append({
+                "id": booking.id,
+                "start_time": booking.start_time.isoformat(),
+                "final_price": booking.final_price,
+                "status": booking.status.value,
+                "payment_method": getattr(booking, "payment_method", "Карта"),
+                "service": {"name": service.name, "price": service.price},
+                "client": {"full_name": client.full_name, "phone": client.phone}
+            })
+        week_ops_serialized.append(day_ops)
+    week_operations_json = json.dumps(week_ops_serialized, ensure_ascii=False)
+    days_json = json.dumps(days, ensure_ascii=False)
+
+    # График выручки (макс высота 100px)
+    max_revenue = max(max(revenue_data.values()) if revenue_data else 1, 1)
+    chart_height = 100
+    revenue_bars = ""
+    for i in range(7):
+        height = int(revenue_data[i] / max_revenue * chart_height) if max_revenue > 0 else 5
+        height = max(height, 8)  # минимальная видимая высота
+        is_highest = revenue_data[i] == max(revenue_data.values()) if revenue_data else False
+        rev_val = f"{revenue_data[i]}".replace(",", " ")
+        bar_color = "#059669" if is_highest else "#34d399"
+        bar_bg = f"background: linear-gradient(to top, {bar_color}, {bar_color}cc);"
+        revenue_bars += f"""
+        <div class="chart-column" data-day-index="{i}" onclick="showDayDetails({i}, '{days[i]}', {revenue_data[i]}, {prev_revenue_data[i]})" style="cursor:pointer">
+            <div class="chart-value">{rev_val} ₽</div>
+            <div class="chart-fill {'highest' if is_highest else ''}" style="height:{height}px; {bar_bg}"></div>
+            <span class="chart-label">{days[i]}</span>
+        </div>"""
+
+    # Аккордеон для деталей дня
+    accordion_html = f"""
+    <div class="day-accordion" id="dayAccordion" style="display:none;">
+        <div class="day-accordion-header">
+            <h4 id="accordionDayTitle">Операции за день</h4>
+            <span id="accordionDaySummary" class="text-muted"></span>
+            <button class="accordion-close">{ICON_X}</button>
+        </div>
+        <div id="accordionDayOperations" class="day-accordion-body"></div>
+    </div>
+    """
+
     return f"""
     <div id="tab-analytics" class="tab-content">
         <div class="analytics-kpi">
@@ -141,17 +201,19 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
         </div>
 
         <div class="card" style="margin-bottom:1.5rem">
-            <h3 style="margin-bottom:0.5rem">💰 Выручка по дням {_hint("Столбики — выручка по подтверждённым/завершённым записям каждого дня: сплошной — эта неделя, бледный — прошлая, для сравнения.")}</h3>
+            <h3 style="margin-bottom:0.5rem">{ICON_TRENDING_UP} Выручка по дням {_hint("Столбики — выручка по подтверждённым/завершённым записям каждого дня: сплошной — эта неделя, бледный — прошлая, для сравнения.")}</h3>
             <div class="legend">
                 <span><span class="legend-dot" style="background:linear-gradient(to top,var(--color-primary),var(--color-accent))"></span> Эта неделя</span>
                 <span><span class="legend-dot" style="background:var(--color-border)"></span> Прошлая неделя</span>
             </div>
             <div class="chart-bar">{revenue_bars}</div>
             <p style="font-size:0.75rem;color:var(--color-muted);text-align:center;margin-top:0.5rem">Нажмите на столбец, чтобы увидеть детали</p>
+            
+            {accordion_html}
         </div>
         
         <div class="card">
-            <h3 style="margin-bottom:1rem">🏆 Топ услуг по выручке {_hint("Топ-5 услуг за всё время (не только за неделю) по сумме подтверждённых и завершённых записей.")}</h3>
+            <h3 style="margin-bottom:1rem">{ICON_STAR_FILLED} Топ услуг по выручке {_hint("Топ-5 услуг за всё время (не только за неделю) по сумме подтверждённых и завершённых записей.")}</h3>
             <table>
                 <thead>
                     <tr><th>Услуга</th><th>Записей</th><th>Выручка</th></tr>
@@ -161,4 +223,10 @@ async def render_analytics_tab(db: AsyncSession, salon, master_ids):
                 </tbody>
             </table>
         </div>
-    </div>"""
+    </div>
+
+    <script>
+        window.analyticsWeekOperations = {week_operations_json};
+        window.analyticsDays = {days_json};
+    </script>
+    """
