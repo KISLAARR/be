@@ -33,8 +33,17 @@ ASSIGNABLE_ROLES = {UserRole.CLIENT, UserRole.MODEL, UserRole.BUSINESS, UserRole
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 async def _get_admin(request: Request, db: AsyncSession):
+    """Любой модератор (базовый или старший) — доступ к заявкам и жалобам на фото."""
     user = await get_current_user_from_cookie(request, db)
     if not user or user.role != UserRole.ADMIN or not user.is_active:
+        return None
+    return user
+
+
+async def _get_senior_admin(request: Request, db: AsyncSession):
+    """Только старший модератор — пользователи, блокировка салонов, отзывы, аудит."""
+    user = await _get_admin(request, db)
+    if not user or not user.is_senior_admin:
         return None
     return user
 
@@ -53,6 +62,14 @@ async def _active_admins_excluding(db, exclude_id) -> int:
     return (await db.execute(q)).scalar() or 0
 
 
+async def _active_seniors_excluding(db, exclude_id) -> int:
+    q = select(func.count(User.id)).where(
+        User.role == UserRole.ADMIN, User.is_active == True,
+        User.is_senior_admin == True, User.id != exclude_id,
+    )
+    return (await db.execute(q)).scalar() or 0
+
+
 def _back(tab: str, ok: str = "", err: str = "", extra: str = "") -> RedirectResponse:
     url = f"/admin?tab={tab}"
     if ok:
@@ -67,7 +84,7 @@ def _back(tab: str, ok: str = "", err: str = "", extra: str = "") -> RedirectRes
 # ── ПОЛЬЗОВАТЕЛИ ─────────────────────────────────────────────────────────────
 @router.post("/users/{uid}/role")
 async def change_role(uid: int, request: Request, role: str = Form(...), db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -84,8 +101,14 @@ async def change_role(uid: int, request: Request, role: str = Form(...), db: Asy
         return _back("users", err="Нельзя менять собственную роль")
     if target.role == UserRole.ADMIN and new_role != UserRole.ADMIN and await _active_admins_excluding(db, target.id) == 0:
         return _back("users", err="Нельзя разжаловать последнего администратора")
+    if target.role == UserRole.ADMIN and target.is_senior_admin and new_role != UserRole.ADMIN and await _active_seniors_excluding(db, target.id) == 0:
+        return _back("users", err="Нельзя разжаловать последнего старшего модератора")
 
     old = target.role.value
+    # Роль ушла с ADMIN — теряется и старшинство, чтобы не оставалось
+    # мёртвого senior-флага на пользователе без прав модератора.
+    if new_role != UserRole.ADMIN:
+        target.is_senior_admin = False
     target.role = new_role
     _audit(db, admin.id, "change_role", "user", target.id, f"{target.phone}: {old} → {new_role.value}")
     await db.commit()
@@ -94,7 +117,7 @@ async def change_role(uid: int, request: Request, role: str = Form(...), db: Asy
 
 @router.post("/users/{uid}/toggle-active")
 async def toggle_active(uid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -105,6 +128,8 @@ async def toggle_active(uid: int, request: Request, db: AsyncSession = Depends(g
         return _back("users", err="Нельзя заблокировать самого себя")
     if target.role == UserRole.ADMIN and target.is_active and await _active_admins_excluding(db, target.id) == 0:
         return _back("users", err="Нельзя заблокировать последнего администратора")
+    if target.role == UserRole.ADMIN and target.is_active and target.is_senior_admin and await _active_seniors_excluding(db, target.id) == 0:
+        return _back("users", err="Нельзя заблокировать последнего старшего модератора")
 
     target.is_active = not target.is_active
     state = "разблокирован" if target.is_active else "заблокирован"
@@ -113,9 +138,33 @@ async def toggle_active(uid: int, request: Request, db: AsyncSession = Depends(g
     return _back("users", ok=f"{target.phone} {state}")
 
 
+@router.post("/users/{uid}/toggle-senior")
+async def toggle_senior(uid: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Назначить/снять статус старшего модератора — только среди пользователей с role=ADMIN."""
+    admin = await _get_senior_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+
+    target = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+    if not target:
+        return _back("users", err="Пользователь не найден")
+    if target.role != UserRole.ADMIN:
+        return _back("users", err="Статус старшего модератора применим только к модераторам")
+    if target.id == admin.id:
+        return _back("users", err="Нельзя менять собственный статус старшинства")
+    if target.is_senior_admin and await _active_seniors_excluding(db, target.id) == 0:
+        return _back("users", err="Нельзя снять последнего старшего модератора")
+
+    target.is_senior_admin = not target.is_senior_admin
+    state = "назначен старшим модератором" if target.is_senior_admin else "снят со старшего модератора"
+    _audit(db, admin.id, "toggle_senior", "user", target.id, f"{target.phone}: {state}")
+    await db.commit()
+    return _back("users", ok=f"{target.phone} {state}")
+
+
 @router.post("/users/{uid}/reset-password")
 async def reset_password(uid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -133,7 +182,7 @@ async def reset_password(uid: int, request: Request, db: AsyncSession = Depends(
 
 @router.post("/users/{uid}/delete")
 async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -144,6 +193,8 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
         return _back("users", err="Нельзя удалить самого себя")
     if target.role == UserRole.ADMIN and await _active_admins_excluding(db, target.id) == 0:
         return _back("users", err="Нельзя удалить последнего администратора")
+    if target.role == UserRole.ADMIN and target.is_senior_admin and await _active_seniors_excluding(db, target.id) == 0:
+        return _back("users", err="Нельзя удалить последнего старшего модератора")
 
     # Сложные связи блокируем — их надо разрулить явно (заблокируйте пользователя)
     owns_salon = (await db.execute(select(func.count(Salon.id)).where(Salon.creator_id == target.id))).scalar() or 0
@@ -278,7 +329,7 @@ async def salon_reject(sid: int, request: Request, reason: str = Form(""), db: A
 
 @router.post("/salons/{sid}/toggle-active")
 async def salon_toggle(sid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -294,7 +345,7 @@ async def salon_toggle(sid: int, request: Request, db: AsyncSession = Depends(ge
 
 @router.post("/salons/{sid}/owner")
 async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -347,7 +398,7 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
 
 @router.post("/salons/{sid}/delete")
 async def salon_delete(sid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -372,7 +423,7 @@ async def salon_delete(sid: int, request: Request, db: AsyncSession = Depends(ge
 # ── ОТЗЫВЫ ───────────────────────────────────────────────────────────────────
 @router.post("/reviews/{rid}/delete")
 async def review_delete(rid: int, request: Request, db: AsyncSession = Depends(get_db)):
-    admin = await _get_admin(request, db)
+    admin = await _get_senior_admin(request, db)
     if not admin:
         return RedirectResponse("/login?redirect=/admin", status_code=302)
 
@@ -384,16 +435,22 @@ async def review_delete(rid: int, request: Request, db: AsyncSession = Depends(g
     await db.delete(review)
     await db.flush()
 
-    # пересчёт рейтинга мастера
+    # пересчёт рейтинга мастера (только по подтверждённым — как в ReviewService)
     master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
     if master:
-        avg = (await db.execute(select(func.avg(Review.rating)).where(Review.master_id == master_id))).scalar()
+        avg = (await db.execute(
+            select(func.avg(Review.rating)).where(Review.master_id == master_id, Review.is_verified == True)
+        )).scalar()
         master.rating = round(float(avg or 0.0), 1)
-    # пересчёт рейтинга и счётчика салона
+    # пересчёт рейтинга и счётчика салона (только по подтверждённым)
     salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one_or_none()
     if salon:
-        cnt = (await db.execute(select(func.count(Review.id)).where(Review.salon_id == salon_id))).scalar() or 0
-        avg = (await db.execute(select(func.avg(Review.rating)).where(Review.salon_id == salon_id))).scalar()
+        cnt = (await db.execute(
+            select(func.count(Review.id)).where(Review.salon_id == salon_id, Review.is_verified == True)
+        )).scalar() or 0
+        avg = (await db.execute(
+            select(func.avg(Review.rating)).where(Review.salon_id == salon_id, Review.is_verified == True)
+        )).scalar()
         salon.reviews_count = cnt
         salon.rating = round(float(avg or 0.0), 1)
 
