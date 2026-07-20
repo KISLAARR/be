@@ -390,6 +390,49 @@ async def seed_database():
                 final_price=1500
             ))
         
+        # ========== ЗАПИСИ ДЛЯ ИГОРЯ ВЛАДЕЛЬЦА ==========
+        # Игорь – владелец салона, но также может иметь свои записи как клиент.
+        # Добавим ему 3 завершённых и 2 отменённых записи в салоне "Брутальный" (s1)
+        user_igor = await session.execute(select(User).where(User.phone == "+79990000002"))
+        user_igor = user_igor.scalar_one_or_none()
+        if user_igor:
+            # Завершённые записи (COMPLETED)
+            completed_dates = [
+                (datetime.now() - timedelta(days=5), 14, svc_m1_1, m1),
+                (datetime.now() - timedelta(days=10), 15, svc_m1_2, m1),
+                (datetime.now() - timedelta(days=15), 16, svc_m2_1, m2),
+            ]
+            for day, hour, service, master in completed_dates:
+                start_time = day.replace(hour=hour, minute=0, second=0, microsecond=0)
+                end_time = start_time + timedelta(minutes=service.duration_minutes if service else 30)
+                bookings.append(Booking(
+                    client_id=user_igor.id,
+                    master_id=master.id,
+                    service_id=service.id,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.COMPLETED,
+                    final_price=service.price if service else 1500
+                ))
+            
+            # Отменённые записи (CANCELLED)
+            cancelled_dates = [
+                (datetime.now() - timedelta(days=3), 12, svc_m1_1, m1),
+                (datetime.now() - timedelta(days=7), 13, svc_m2_1, m2),
+            ]
+            for day, hour, service, master in cancelled_dates:
+                start_time = day.replace(hour=hour, minute=0, second=0, microsecond=0)
+                end_time = start_time + timedelta(minutes=service.duration_minutes if service else 30)
+                bookings.append(Booking(
+                    client_id=user_igor.id,
+                    master_id=master.id,
+                    service_id=service.id,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.CANCELLED,
+                    final_price=None  # отменённые записи не имеют цены
+                ))
+        
         session.add_all(bookings)
         await session.flush()
         
@@ -524,6 +567,7 @@ async def seed_database():
               "множество записей на разные даты, отзывы, лояльность, склад, зарплаты!")
         print(f"   - Создано {len(bookings)} записей за последние 30 дней.")
         print(f"   - Добавлено {len(reviews)} отзывов.")
+        print("   - Игорю Владельцу добавлены 3 завершённых и 2 отменённых записи.")
 
 if __name__ == "__main__":
     asyncio.run(seed_database())

@@ -18,8 +18,6 @@ from app.models.models import (
 
 
 class ReviewError(Exception):
-    """Бизнес-ошибка отзыва. message — текст для пользователя, status — HTTP-код."""
-
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
         self.message = message
@@ -32,11 +30,6 @@ class ReviewService:
         db: AsyncSession, client_id: int, salon_id: int,
         target_type: ReviewTargetType, master_id: int | None,
     ) -> Booking | None:
-        """Доказательство реального визита: COMPLETED-запись этого клиента.
-
-        Про мастера — запись именно к нему. Про салон/сотрудника — любая
-        завершённая запись в этом салоне (к любому мастеру): человек реально
-        был на месте, этого достаточно, чтобы судить о помещении/сервисе."""
         query = (
             select(Booking)
             .join(Master, Master.id == Booking.master_id)
@@ -56,7 +49,6 @@ class ReviewService:
         db: AsyncSession, client_id: int, target_type: ReviewTargetType,
         salon_id: int, master_id: int | None, staff_user_id: int | None,
     ) -> bool:
-        """Не больше одного отзыва на пару клиент-цель (мастер / салон / сотрудник)."""
         query = select(func.count(Review.id)).where(
             Review.client_id == client_id, Review.target_type == target_type,
         )
@@ -80,6 +72,7 @@ class ReviewService:
         comment: str = "",
         master_id: int | None = None,
         staff_user_id: int | None = None,
+        booking_id: int | None = None,
     ) -> Review:
         if rating < 1 or rating > 5:
             raise ReviewError("Оценка должна быть от 1 до 5", status=400)
@@ -116,9 +109,16 @@ class ReviewService:
         if await ReviewService._already_reviewed(db, client_id, target_type, salon_id, master_id, staff_user_id):
             raise ReviewError("Вы уже оставляли отзыв на эту цель", status=409)
 
-        verifying_booking = await ReviewService._find_verifying_booking(
-            db, client_id, salon_id, target_type, master_id,
-        )
+        # Проверка привязки к записи
+        verifying_booking = None
+        if booking_id:
+            booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+            if booking and booking.client_id == client_id and booking.status == BookingStatus.COMPLETED:
+                verifying_booking = booking
+        else:
+            verifying_booking = await ReviewService._find_verifying_booking(
+                db, client_id, salon_id, target_type, master_id,
+            )
 
         review = Review(
             client_id=client_id,
@@ -132,7 +132,7 @@ class ReviewService:
             booking_id=verifying_booking.id if verifying_booking else None,
         )
         db.add(review)
-        await db.flush()  # нужен review.id для фото, если их прикрепят следом
+        await db.flush()
 
         if master is not None:
             avg_master = await db.execute(
@@ -142,9 +142,6 @@ class ReviewService:
             )
             master.rating = round(float(avg_master.scalar() or 0.0), 1)
 
-        # Рейтинг салона считается по ВСЕМ отзывам (про мастера, помещение,
-        # сотрудника) — все они отражают опыт визита в этот салон. Заново от
-        # факта, не инкрементом — не расходится при рассинхроне.
         count_salon = await db.execute(select(func.count(Review.id)).where(Review.salon_id == salon_id))
         salon.reviews_count = count_salon.scalar() or 0
         avg_salon = await db.execute(select(func.avg(Review.rating)).where(Review.salon_id == salon_id))

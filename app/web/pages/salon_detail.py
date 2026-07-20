@@ -548,71 +548,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
         reviews_html = '<p class="empty-state">Пока нет отзывов. Будьте первым!</p>'
 
     # ----- Форма отзыва -----
-    if user:
-        master_options = ""
-        for m in masters:
-            mu = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
-            master_options += f'<option value="{m.id}">{mu.full_name if mu else "Мастер"}</option>'
-        staff_options = "".join(
-            f'<option value="{su.id}">{su.full_name or su.phone}</option>' for _sm, su in staff_members
-        )
-        review_form_html = f"""
-        <div class="card review-form-card">
-            <h3>Оставить отзыв</h3>
-            <form id="reviewForm" action="/api/v1/reviews/create" method="post" enctype="multipart/form-data">
-                <input type="hidden" name="salon_id" value="{salon.id}">
-                <div class="review-form-group">
-                    <label for="reviewTargetType">О чём отзыв</label>
-                    <select name="target_type" id="reviewTargetType" onchange="reviewToggleTarget()">
-                        <option value="salon">Салон в целом (помещение, сервис)</option>
-                        <option value="master">Конкретный мастер</option>
-                        <option value="staff">Администратор/сотрудник</option>
-                    </select>
-                </div>
-                <div class="review-form-group" id="reviewMasterField">
-                    <label for="reviewMaster">Мастер</label>
-                    <select name="master_id" id="reviewMaster">
-                        {master_options}
-                    </select>
-                </div>
-                <div class="review-form-group" id="reviewStaffField" style="display:none">
-                    <label for="reviewStaff">Сотрудник</label>
-                    <select name="staff_user_id" id="reviewStaff">
-                        {staff_options}
-                    </select>
-                </div>
-                <div class="review-form-group">
-                    <label for="reviewRating">Оценка</label>
-                    <select name="rating" id="reviewRating">
-                        <option value="5">★★★★★</option>
-                        <option value="4">★★★★☆</option>
-                        <option value="3">★★★☆☆</option>
-                        <option value="2">★★☆☆☆</option>
-                        <option value="1">★☆☆☆☆</option>
-                    </select>
-                </div>
-                <div class="review-form-group">
-                    <label for="reviewComment">Комментарий</label>
-                    <textarea name="comment" id="reviewComment" rows="3"></textarea>
-                </div>
-                <div class="review-form-group">
-                    <label for="reviewPhotos">Фото работ (до 5)</label>
-                    <input type="file" name="files" id="reviewPhotos" accept="image/*" multiple>
-                </div>
-                <button type="submit" class="btn-primary">Отправить отзыв</button>
-            </form>
-        </div>
-        <script>
-            function reviewToggleTarget() {{
-                const v = document.getElementById('reviewTargetType').value;
-                document.getElementById('reviewMasterField').style.display = v === 'master' ? 'block' : 'none';
-                document.getElementById('reviewStaffField').style.display = v === 'staff' ? 'block' : 'none';
-            }}
-        </script>
-        """
-    else:
-        review_form_html = '<p class="empty-state">Чтобы оставить отзыв, <a href="/login">войдите</a>.</p>'
-
     reviews_filter_html = """
     <div class="review-filters">
         <button class="btn-outline review-filter-btn active" data-filter="all" onclick="reviewFilter('all', this)">Все</button>
@@ -672,7 +607,6 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
 
             <section class="section-container reviews-section">
                 <h2 class="section-title">Отзывы</h2>
-                {review_form_html}
                 {reviews_filter_html}
                 <div class="reviews-list">
                     {reviews_html}

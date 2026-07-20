@@ -577,8 +577,7 @@
 
 .master-image-box {
     min-width: 180px;
-    width: 180px;
-    height: 100%;
+    min-height: 180px;
     flex-shrink: 0;
     position: relative;
 }
@@ -588,6 +587,7 @@
     height: 100%;
     object-fit: cover;
 }
+
 .master-avatar-placeholder {
     background: var(--color-accent-light);
     display: flex;

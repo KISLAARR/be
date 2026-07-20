@@ -13,7 +13,7 @@ from app.web.components.icons import (
     ICON_USER_CHECK,
     ICON_CLOCK,
     ICON_X,
-    ICON_DOLLAR_SIGN,
+    ICON_RUBLE_SIGN,  # <-- заменили доллар на рубль
     ICON_CREDIT_CARD_SMALL,
 )
 
@@ -128,9 +128,13 @@ async def render_overview_tab(
 
     # --- 2. ВЫРУЧКА ЗА НЕДЕЛЮ (график с аккордеоном) ---
     max_revenue = max(max(revenue_data.values()) if revenue_data else 1, 1)
+    # Контейнер имеет высоту 150px, оставляем 12px на подписи и отступы
+    chart_height = 110
     revenue_bars = ""
     for i in range(7):
-        height = int(revenue_data[i] / max_revenue * 150) if max_revenue > 0 else 5
+        height = int(revenue_data[i] / max_revenue * chart_height) if max_revenue > 0 else 5
+        # минимальная высота 8px, чтобы столбцы были видны
+        height = max(height, 8)
         is_highest = revenue_data[i] == max(revenue_data.values()) if revenue_data else False
         rev_val = f"{revenue_data[i]}".replace(",", " ")
         bar_color = "#059669" if is_highest else "#34d399"
@@ -138,7 +142,7 @@ async def render_overview_tab(
         revenue_bars += f"""
         <div class="chart-column" data-day-index="{i}" onclick="toggleDayDetails({i}, '{days[i]}', {revenue_data[i]}, {prev_revenue_data[i]})" style="cursor:pointer">
             <div class="chart-value">{rev_val} ₽</div>
-            <div class="chart-fill {'highest' if is_highest else ''}" style="height:{max(height, 5)}px; {bar_bg}"></div>
+            <div class="chart-fill {'highest' if is_highest else ''}" style="height:{height}px; {bar_bg}"></div>
             <span class="chart-label">{days[i]}</span>
         </div>"""
 
@@ -148,7 +152,7 @@ async def render_overview_tab(
         <div class="day-accordion-header">
             <h4 id="accordionDayTitle">Операции за день</h4>
             <span id="accordionDaySummary" class="text-muted"></span>
-            <button class="accordion-close" onclick="closeDayDetails()">{ICON_X}</button>
+            <button class="accordion-close">{ICON_X}</button>
         </div>
         <div id="accordionDayOperations" class="day-accordion-body"></div>
     </div>
@@ -157,7 +161,7 @@ async def render_overview_tab(
     revenue_html = f"""
     <div class="chart-wrapper">
         <div class="chart-header">
-            <h3>{ICON_DOLLAR_SIGN} Выручка за неделю</h3>
+            <h3>{ICON_RUBLE_SIGN} Выручка за неделю</h3>
             <span class="chart-total">Общая: {total_revenue:,} ₽</span>
         </div>
         <div class="chart-bar">{revenue_bars}</div>
@@ -224,72 +228,86 @@ async def render_overview_tab(
     </div>
 
     <script>
-        const weekOperations = {week_operations_json};
-        const days = {days_json};
-        let currentOpenDay = null;
+        (function() {{
+            const weekOperations = {week_operations_json};
+            const days = {days_json};
+            let currentOpenDay = null;
 
-        function toggleDayDetails(index, dayName, revenue, prevRevenue) {{
-            const accordion = document.getElementById('dayAccordion');
-            const title = document.getElementById('accordionDayTitle');
-            const summary = document.getElementById('accordionDaySummary');
-            const container = document.getElementById('accordionDayOperations');
-            
-            // Если уже открыт этот же день — закрываем
-            if (currentOpenDay === index && accordion.style.display !== 'none') {{
-                closeDayDetails();
-                return;
+            function closeDayDetails() {{
+                const accordion = document.getElementById('dayAccordion');
+                if (accordion) accordion.style.display = 'none';
+                currentOpenDay = null;
             }}
-            
-            const ops = weekOperations[index] || [];
-            title.textContent = `Операции за ${{dayName}}`;
-            const totalOps = ops.length;
-            const paidCount = ops.filter(o => o.status === 'completed').length;
-            summary.textContent = `${{totalOps}} операций • ${{revenue.toLocaleString()}} ₽ • Оплачено: ${{paidCount}}/${{totalOps}}`;
-            
-            container.innerHTML = '';
-            if (totalOps === 0) {{
-                container.innerHTML = '<p class="text-muted">Нет операций за этот день</p>';
-            }} else {{
-                ops.forEach(op => {{
-                    const time = new Date(op.start_time).toLocaleTimeString('ru-RU', {{hour:'2-digit', minute:'2-digit'}});
-                    const price = (op.final_price || op.service.price).toLocaleString();
-                    const statusLabel = op.status === 'completed' ? '✓' : '○';
-                    const statusClass = op.status === 'completed' ? 'status-paid' : 'status-waiting';
-                    const initials = op.client.full_name ? op.client.full_name.split(' ').map(n => n[0]).join('') : 'К';
-                    const method = op.payment_method || 'Карта';
-                    
-                    const item = document.createElement('div');
-                    item.className = 'booking-item';
-                    item.innerHTML = `
-                        <div class="avatar">${{initials}}</div>
-                        <div class="info">
-                            <div class="name">${{op.client.full_name || op.client.phone}}</div>
-                            <div class="desc">
-                                {ICON_CLOCK} ${{time}} • ${{op.service.name}}
+
+            function toggleDayDetails(index, dayName, revenue, prevRevenue) {{
+                const accordion = document.getElementById('dayAccordion');
+                const title = document.getElementById('accordionDayTitle');
+                const summary = document.getElementById('accordionDaySummary');
+                const container = document.getElementById('accordionDayOperations');
+                
+                if (currentOpenDay === index && accordion.style.display !== 'none') {{
+                    closeDayDetails();
+                    return;
+                }}
+                
+                const ops = weekOperations[index] || [];
+                title.textContent = `Операции за ${{dayName}}`;
+                const totalOps = ops.length;
+                const paidCount = ops.filter(o => o.status === 'completed').length;
+                summary.textContent = `${{totalOps}} операций • ${{revenue.toLocaleString()}} ₽ • Оплачено: ${{paidCount}}/${{totalOps}}`;
+                
+                container.innerHTML = '';
+                if (totalOps === 0) {{
+                    container.innerHTML = '<p class="text-muted">Нет операций за этот день</p>';
+                }} else {{
+                    ops.forEach(op => {{
+                        const time = new Date(op.start_time).toLocaleTimeString('ru-RU', {{hour:'2-digit', minute:'2-digit'}});
+                        const price = (op.final_price || op.service.price).toLocaleString();
+                        const statusLabel = op.status === 'completed' ? '✓' : '○';
+                        const statusClass = op.status === 'completed' ? 'status-paid' : 'status-waiting';
+                        const initials = op.client.full_name ? op.client.full_name.split(' ').map(n => n[0]).join('') : 'К';
+                        const method = op.payment_method || 'Карта';
+                        
+                        const item = document.createElement('div');
+                        item.className = 'booking-item';
+                        item.innerHTML = `
+                            <div class="avatar">${{initials}}</div>
+                            <div class="info">
+                                <div class="name">${{op.client.full_name || op.client.phone}}</div>
+                                <div class="desc">
+                                    {ICON_CLOCK} ${{time}} • ${{op.service.name}}
+                                </div>
                             </div>
-                        </div>
-                        <div class="price">${{price}} ₽</div>
-                        <div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0">
-                            <span style="font-size:0.7rem;color:var(--color-muted)">${{method}}</span>
-                            <span class="status ${{statusClass}}">${{statusLabel}}</span>
-                        </div>
-                    `;
-                    container.appendChild(item);
-                }});
+                            <div class="price">${{price}} ₽</div>
+                            <div style="display:flex;align-items:center;gap:0.5rem;flex-shrink:0">
+                                <span style="font-size:0.7rem;color:var(--color-muted)">${{method}}</span>
+                                <span class="status ${{statusClass}}">${{statusLabel}}</span>
+                            </div>
+                        `;
+                        container.appendChild(item);
+                    }});
+                }}
+                
+                accordion.style.display = 'block';
+                accordion.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
+                currentOpenDay = index;
             }}
-            
-            accordion.style.display = 'block';
-            accordion.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
-            currentOpenDay = index;
-        }}
-        
-        function closeDayDetails() {{
-            document.getElementById('dayAccordion').style.display = 'none';
-            currentOpenDay = null;
-        }}
-        
-        document.addEventListener('keydown', function(e) {{
-            if (e.key === 'Escape') closeDayDetails();
-        }});
+
+            window.toggleDayDetails = toggleDayDetails;
+            window.closeDayDetails = closeDayDetails;
+
+            // Обработчик крестика через делегирование (работает надёжнее)
+            document.addEventListener('click', function(e) {{
+                const closeBtn = e.target.closest('.accordion-close');
+                if (closeBtn) {{
+                    e.preventDefault();
+                    closeDayDetails();
+                }}
+            }});
+
+            document.addEventListener('keydown', function(e) {{
+                if (e.key === 'Escape') closeDayDetails();
+            }});
+        }})();
     </script>
     """

@@ -225,11 +225,11 @@ def render_model_landing_page(user=None) -> str:
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Кто может стать моделью? <span class="faq-icon">+</span></button>
-                        <div class="faq-answer" style="display:none;">Любой желающий, достигший 18 лет. Вам не нужен опыт моделирования — вы просто записываетесь на услуги по сниженной цене.</div>
+                        <div class="faq-answer" style="display:none;">Любой желающий, достигший 18 лет. Вам не нужен опыт — вы просто записываетесь на услуги по сниженной цене.</div>
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Могу ли я отменить подписку? <span class="faq-icon">+</span></button>
-                        <div class="faq-answer" style="display:none;">Да, вы можете отменить подписку в любой момент в настройках профиля. Следующий месяц списан не будет.</div>
+                        <div class="faq-answer" style="display:none;">Да, вы можете отменить подписку в любой момент в настройках профиля. Оплата за следующий месяц списана не будет.</div>
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Какие услуги доступны по подписке? <span class="faq-icon">+</span></button>

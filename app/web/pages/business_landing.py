@@ -279,7 +279,7 @@ def render_business_landing_page(user=None) -> str:
         -->
 
         <!-- Сравнение (белый фон) -->
-        <section class="section-py bl-comparison" style="background: #ffffff;">
+        <section class="section-py bl-comparison">
             <div class="section-container">
                 <div class="bl-section-header">
                     <span class="bl-badge">Сравнение</span>
