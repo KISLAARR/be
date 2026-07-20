@@ -674,6 +674,15 @@ ICON_DOLLAR_SIGN = (
     '</svg>'
 )
 
+# Добавляем иконку рубля (заменяет доллар в графике)
+ICON_RUBLE_SIGN = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M6 4h8a4 4 0 0 1 0 8H6v-8z"/>'
+    '<line x1="6" y1="12" x2="16" y2="12"/>'
+    '<line x1="6" y1="16" x2="14" y2="16"/>'
+    '</svg>'
+)
+
 ICON_TRENDING_UP = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" '
     'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
@@ -920,5 +929,62 @@ ICON_SCISSORS = (
     '<path d="M20 4 8.12 15.88"/>'
     '<circle cx="6" cy="18" r="3"/>'
     '<path d="M14.8 14.8 20 20"/>'
+    '</svg>'
+)
+
+ICON_CALENDAR_BOOKING = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="booking-icon" aria-hidden="true">'
+    '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>'
+    '<line x1="16" y1="2" x2="16" y2="6"></line>'
+    '<line x1="8" y1="2" x2="8" y2="6"></line>'
+    '<line x1="3" y1="10" x2="21" y2="10"></line>'
+    '</svg>'
+)
+
+ICON_USER_BOOKING = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="booking-icon" aria-hidden="true">'
+    '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>'
+    '<circle cx="12" cy="7" r="4"></circle>'
+    '</svg>'
+)
+
+ICON_BUILDING_BOOKING = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="booking-icon" aria-hidden="true">'
+    '<rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>'
+    '<line x1="9" y1="6" x2="15" y2="6"></line>'
+    '<line x1="9" y1="10" x2="15" y2="10"></line>'
+    '<line x1="9" y1="14" x2="15" y2="14"></line>'
+    '<line x1="9" y1="18" x2="12" y2="18"></line>'
+    '</svg>'
+)
+
+ICON_MONEY_BOOKING = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    'class="booking-icon" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="10"></circle>'
+    '<path d="M8 8h5a2 2 0 0 1 0 4h-3"></path>'
+    '<path d="M10 16v-4"></path>'
+    '<path d="M10 12h3"></path>'
+    '</svg>'
+)
+
+ICON_EDIT_PENCIL = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>'
+    '</svg>'
+)
+
+ICON_STAR_EMPTY = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" '
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
     '</svg>'
 )

@@ -32,7 +32,6 @@ def render_model_landing_page(user=None) -> str:
     <main class="home-main">
         <!-- Hero -->
         <section class="model-hero">
-            <!-- Фоновое изображение удалено, оставлен только градиент из CSS -->
             <div class="section-container">
                 <div class="model-hero-content">
                     <div class="model-hero-badge">
@@ -97,7 +96,8 @@ def render_model_landing_page(user=None) -> str:
             </div>
         </section>
 
-        <!-- Партнёр Альфа-Банк -->
+        <!-- Партнёр Альфа-Банк — временно скрыт -->
+        <!--
         <section class="section-py model-partner">
             <div class="section-container">
                 <div class="partner-horizontal">
@@ -125,6 +125,7 @@ def render_model_landing_page(user=None) -> str:
                 </div>
             </div>
         </section>
+        -->
 
         <!-- Тарифы -->
         <section id="plans" class="section-py model-plans">
@@ -224,11 +225,11 @@ def render_model_landing_page(user=None) -> str:
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Кто может стать моделью? <span class="faq-icon">+</span></button>
-                        <div class="faq-answer" style="display:none;">Любой желающий, достигший 18 лет. Вам не нужен опыт моделирования — вы просто записываетесь на услуги по сниженной цене.</div>
+                        <div class="faq-answer" style="display:none;">Любой желающий, достигший 18 лет. Вам не нужен опыт — вы просто записываетесь на услуги по сниженной цене.</div>
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Могу ли я отменить подписку? <span class="faq-icon">+</span></button>
-                        <div class="faq-answer" style="display:none;">Да, вы можете отменить подписку в любой момент в настройках профиля. Следующий месяц списан не будет.</div>
+                        <div class="faq-answer" style="display:none;">Да, вы можете отменить подписку в любой момент в настройках профиля. Оплата за следующий месяц списана не будет.</div>
                     </div>
                     <div class="faq-item">
                         <button class="faq-question">Какие услуги доступны по подписке? <span class="faq-icon">+</span></button>
