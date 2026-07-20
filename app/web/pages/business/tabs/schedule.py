@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.models.models import Booking, Master, Service, User as UserModel, BookingStatus, ScheduleClosure
 from app.services.schedule_utils import get_salon_work_hours, MAX_BOOKING_DAYS_AHEAD
 from app.services.schedule_service import ScheduleService
+from app.web.components.hint import hint as _hint
 from app.web.components.icons import (
     ICON_CHECK_SMALL,
     ICON_X,
@@ -24,6 +25,7 @@ WEEKDAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 async def render_schedule_tab(
     db: AsyncSession, salon, masters, can_manage_schedule: bool = False,
     schedule_master_id: int = None, can_close_dates: bool = None,
+    viewer_master_id: int = None,
 ) -> str:
     """Вкладка «Расписание»: выбор мастера → месяц → неделя → сетка
     дни×часы на MAX_BOOKING_DAYS_AHEAD (2 месяца) вперёд, плюс закрытие дат.
@@ -33,7 +35,13 @@ async def render_schedule_tab(
     независимо от SalonMember). can_close_dates по умолчанию равен
     can_manage_schedule (владелец/админ), но у мастера, просматривающего только
     свой календарь, эти права разные: закрытие дат требует SalonMember,
-    которого у мастера нет, поэтому вызывающий код передаёт False явно."""
+    которого у мастера нет, поэтому вызывающий код передаёт False явно.
+
+    viewer_master_id — id профиля Master текущего пользователя, если он сам
+    мастер (просматривает свой календарь): тогда у его записей показывается
+    кнопка «Видел». Для владельца/админа (viewer_master_id=None) вместо кнопки
+    показывается только индикатор с подсказкой — сам он это отметить не может,
+    это личное подтверждение мастера."""
     if can_close_dates is None:
         can_close_dates = can_manage_schedule
 
@@ -112,17 +120,35 @@ async def render_schedule_tab(
         status = "confirmed" if b.status == BookingStatus.CONFIRMED else "pending"
         bg = "#dcfce7" if status == "confirmed" else "#fef9c3"
         actions = ""
-        if can_manage_schedule and status == "confirmed":
+        if can_manage_schedule:
             actions = f"""<div class="actions">
                 <button onclick="event.stopPropagation();openCompleteModal({b.id}, {b.client_id})" title="Выполнено" class="complete-btn">{ICON_CHECK_SMALL}</button>
                 <button onclick="event.stopPropagation();markBooking({b.id}, 'no-show')" title="Неявка" class="no-show-btn">{ICON_X}</button>
             </div>"""
+
+        seen_html = ""
+        if viewer_master_id is not None and b.master_id == viewer_master_id:
+            # Сам мастер смотрит свою запись — может отметить «Видел», если ещё не отметил.
+            if b.master_seen_at is None:
+                seen_html = (
+                    f'<button onclick="event.stopPropagation();markSeen({b.id}, this)" '
+                    f'title="Отметить, что видели эту запись" class="seen-btn">👁 Видел</button>'
+                )
+            else:
+                seen_html = '<span class="seen-indicator" title="Вы отметили, что видели эту запись">👁 Видели</span>'
+        elif viewer_master_id is None:
+            # Владелец/админ — только индикатор, отметить за мастера нельзя.
+            seen_html = (
+                _hint(f"Мастер видел плановую запись: {b.master_seen_at.strftime('%d.%m.%Y %H:%M')}")
+                if b.master_seen_at else
+                _hint("Мастер ещё не отмечал, что видел эту запись")
+            )
         svc_name = svc.name if svc else "—"
         client_name = client.full_name if client else "Клиент"
         time_str = f"{b.start_time.strftime('%H:%M')}-{b.end_time.strftime('%H:%M')}"
         booking_class = "schedule-booking" + (" pending" if status == "pending" else "")
         return f"""<div class="{booking_class}" title="{client_name} — {svc_name} ({time_str})">
-            {time_str}<br>{svc_name[:14]}{actions}
+            {time_str}<br>{svc_name[:14]}{seen_html}{actions}
         </div>"""
 
     def build_week_grid(week_days) -> str:
