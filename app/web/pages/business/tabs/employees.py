@@ -13,6 +13,7 @@ from app.web.components.icons import (
     ICON_CHEVRON_DOWN,
     ICON_FILE_TEXT,
 )
+from app.web.components.hint import hint as _hint
 
 _ERROR_MESSAGES = {
     "bad_phone": "Не удалось распознать телефон. Формат: +7 999 123-45-67 или 8 999 123-45-67.",
@@ -280,7 +281,7 @@ async def render_employees_tab(db: AsyncSession, salon, masters, user, membershi
                         <th>Опыт</th>
                         <th>Рейтинг</th>
                         <th>Статус</th>
-                        <th style="width:120px">Действия</th>
+                        <th style="width:120px">Действия {_hint("Отключить — временно скрыть мастера из записи, не теряя историю визитов и зарплат. Удалить — убрать мастера из салона полностью (аккаунт пользователя при этом сохраняется).")}</th>
                     </tr>
                 </thead>
                 <tbody>
