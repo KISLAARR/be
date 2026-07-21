@@ -24,7 +24,7 @@ async def render_master_detail(db: AsyncSession, master_id: int, user=None) -> s
     
     # Получаем услуги мастера
     services_result = await db.execute(
-        select(Service).where(Service.master_id == master.id).order_by(Service.price)
+        select(Service).where(Service.master_id == master.id, Service.is_active == True).order_by(Service.price)
     )
     services = services_result.scalars().all()
     

@@ -123,7 +123,9 @@ async def delete_service_web(
     except HTTPException:
         return HTMLResponse(content="Недостаточно прав для управления услугами", status_code=403)
 
-    await db.delete(service)
+    # Мягкое удаление: услуга скрыта из выбора/записи, но брони с ней (история)
+    # остаются валидными. Hard-delete ронял 500 (Booking.service_id NOT NULL).
+    service.is_active = False
     await db.commit()
 
     return RedirectResponse(url="/business/dashboard?tab=services&deleted=1", status_code=302)

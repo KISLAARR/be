@@ -292,6 +292,9 @@ class Service(Base):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Мягкое удаление: удалённая услуга скрыта из выбора/записи, но брони с ней
+    # (история) остаются валидными — Booking.service_id не рвётся.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
     master: Mapped["Master"] = relationship(back_populates="services")
 

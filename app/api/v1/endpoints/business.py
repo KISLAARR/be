@@ -228,7 +228,10 @@ async def delete_salon(
         target_type="salon", target_id=salon.id, salon_id=salon.id,
         detail=f"Удалён салон «{salon.name}»",
     ))
-    await db.delete(salon)
+    # Мягкое удаление: салон скрывается (is_active=False) — из каталога/записи
+    # уходит, но брони/отзывы/мастера целы. Hard-delete владельцем ронял 500
+    # (ORM обнулял master.salon_id NOT NULL) и снёс бы всю историю салона.
+    salon.is_active = False
     await db.commit()
     return {"status": "deleted"}
 

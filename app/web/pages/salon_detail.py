@@ -105,7 +105,7 @@ async def render_salon_detail(db: AsyncSession, salon_id: int, user=None) -> str
     for m in masters:
         user_result = await db.execute(select(User).where(User.id == m.user_id))
         master_user = user_result.scalar_one_or_none()
-        services_result = await db.execute(select(Service).where(Service.master_id == m.id))
+        services_result = await db.execute(select(Service).where(Service.master_id == m.id, Service.is_active == True))
         services = services_result.scalars().all()
         masters_data.append({
             "id": m.id,
