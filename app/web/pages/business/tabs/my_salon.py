@@ -28,8 +28,8 @@ _ERROR_MESSAGES = {
 }
 
 
-def _render_edit_card(salon: Salon) -> str:
-    """Карточка салона с режимом редактирования."""
+def _render_edit_card(salon: Salon, photos: list) -> str:
+    """Карточка салона с режимом редактирования и галереей фото."""
     rating = salon.rating or 0.0
     reviews = salon.reviews_count or 0
 
@@ -38,6 +38,7 @@ def _render_edit_card(salon: Salon) -> str:
     else:
         photo_html = f'<div class="salon-edit-photo-placeholder">{salon.name[0].upper()}</div>'
 
+    # Статическая часть (видна всегда, кроме режима редактирования)
     static_html = f"""
         <div class="salon-edit-static">
             <div class="salon-edit-photo-wrapper">
@@ -61,60 +62,7 @@ def _render_edit_card(salon: Salon) -> str:
         </div>
     """
 
-    inputs_html = f"""
-        <div class="salon-edit-inputs" style="display:none;">
-            <div class="salon-edit-photo-wrapper">
-                <div class="salon-edit-photo" id="salonEditPhotoContainer">
-                    {photo_html}
-                    <label class="salon-edit-photo-upload" id="salonEditPhotoUpload">
-                        {ICON_EDIT} Изменить фото
-                        <input type="file" id="salonEditPhotoInput" accept="image/*" style="display:none">
-                    </label>
-                </div>
-            </div>
-            <div class="salon-edit-info">
-                <div class="salon-edit-field">
-                    <label>Название</label>
-                    <input type="text" id="salonEditNameInput" value="{salon.name}" class="salon-edit-input">
-                </div>
-                <div class="salon-edit-field">
-                    <label>Телефон</label>
-                    <input type="tel" id="salonEditPhoneInput" value="{salon.phone or ''}" class="salon-edit-input phone-input">
-                </div>
-                <div class="salon-edit-field">
-                    <label>Адрес</label>
-                    <input type="text" id="salonEditAddressInput" value="{salon.address or ''}" class="salon-edit-input">
-                </div>
-                <div class="salon-edit-field">
-                    <label>Описание</label>
-                    <textarea id="salonEditDescInput" class="salon-edit-input salon-edit-textarea">{salon.description or ''}</textarea>
-                </div>
-            </div>
-        </div>
-    """
-
-    return f"""
-    <div class="salon-edit-card" id="salonEditCard">
-        {static_html}
-        {inputs_html}
-        <div class="salon-edit-toggle" id="salonEditToggleContainer">
-            <button class="btn-outline salon-edit-toggle-btn" id="salonEditToggleBtn">
-                {ICON_EDIT} Редактировать
-            </button>
-        </div>
-    </div>
-    """
-
-
-async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_params=None) -> str:
-    """Вкладка «Редактировать салон» для бизнес-панели."""
-    query_params = query_params or {}
-
-    # Фото галереи
-    photos = (
-        await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
-    ).scalars().all()
-
+    # Блок галереи
     def _photo_card(p) -> str:
         is_cover = salon.logo_url == p.url
         border_class = "cover-border" if is_cover else "default-border"
@@ -135,9 +83,13 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
         </div>'''
 
     photo_cards = "".join(_photo_card(p) for p in photos)
-    photos_section = f'''
-            <div class="my-salon-card">
-                <h2 class="my-salon-card-title">Фото салона</h2>
+
+    # Редактируемая часть
+    inputs_html = f"""
+        <div class="salon-edit-inputs" style="display:none;">
+            <!-- Блок фото салона -->
+            <div class="salon-edit-photos-block">
+                <div class="salon-edit-photos-label">Фото салона</div>
                 <div id="photoDropZone" data-upload-url="/api/v1/upload/salon/{salon.id}/photo" class="my-salon-dropzone">
                     <p>Перетащите фото сюда или нажмите, чтобы выбрать</p>
                     <p class="hint">Можно несколько сразу · JPG/PNG до 5 МБ · появятся на странице салона</p>
@@ -147,7 +99,63 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
                 <div class="my-salon-photos">
                     {photo_cards or '<p style="color:var(--color-muted);margin:0">Пока нет фотографий</p>'}
                 </div>
-            </div>'''
+            </div>
+
+            <!-- Поля ввода -->
+            <div class="salon-edit-fields" style="margin-top: 1.5rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+                <div class="salon-edit-field">
+                    <label>Название</label>
+                    <input type="text" id="salonEditNameInput" value="{salon.name}" class="salon-edit-input">
+                </div>
+                <div class="salon-edit-field">
+                    <label>Телефон</label>
+                    <input type="tel" id="salonEditPhoneInput" value="{salon.phone or ''}" class="salon-edit-input phone-input">
+                </div>
+                <div class="salon-edit-field">
+                    <label>Адрес</label>
+                    <input type="text" id="salonEditAddressInput" value="{salon.address or ''}" class="salon-edit-input">
+                </div>
+                <div class="salon-edit-field">
+                    <label>Описание</label>
+                    <textarea id="salonEditDescInput" class="salon-edit-input salon-edit-textarea">{salon.description or ''}</textarea>
+                </div>
+            </div>
+        </div>
+    """
+
+    # Скрипт с начальными данными для JS (передаём массив объектов с id и url)
+    photos_data = [{"id": p.id, "url": p.url} for p in photos]
+    initial_logo = salon.logo_url or ''
+    import json
+    init_script = f"""
+    <script>
+        window.initialPhotos = {json.dumps(photos_data)};
+        window.initialLogo = {json.dumps(initial_logo)};
+    </script>
+    """
+
+    return f"""
+    <div class="salon-edit-card" id="salonEditCard">
+        {static_html}
+        {inputs_html}
+        <div class="salon-edit-toggle" id="salonEditToggleContainer">
+            <button class="btn-outline salon-edit-toggle-btn" id="salonEditToggleBtn">
+                {ICON_EDIT} Редактировать
+            </button>
+        </div>
+        {init_script}
+    </div>
+    """
+
+
+async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_params=None) -> str:
+    """Вкладка «Редактировать салон» для бизнес-панели."""
+    query_params = query_params or {}
+
+    # Загружаем фото галереи (нужны для карточки)
+    photos = (
+        await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
+    ).scalars().all()
 
     error_banner = ""
     error_code = query_params.get("error")
@@ -271,7 +279,7 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
             <!-- Карточка салона с редактированием -->
             <div class="my-salon-card">
                 <h2 class="my-salon-card-title">Основная информация</h2>
-                {_render_edit_card(salon)}
+                {_render_edit_card(salon, photos)}
             </div>
 
             <!-- Часы работы -->
@@ -288,8 +296,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
                     <button type="button" class="my-salon-btn-outline" onclick="copyMondayToWeekdays()">{ICON_COPY} Скопировать понедельник на пн–пт</button>
                 </div>
             </div>
-
-            {photos_section}
 
             <!-- Акции -->
             <div class="my-salon-card">

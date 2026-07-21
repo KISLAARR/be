@@ -26,24 +26,29 @@
     let isEditing = false;
     let isPreview = false;
     let originalValues = {};
+    let isUploading = false;
+    // currentPhotos – массив объектов {id, url}
+    let currentPhotos = [];
+    let currentLogo = ''; // url текущей обложки (временной)
 
-    // Иконки из глобальных переменных (SVG)
     const ICON_EDIT = window.ICON_EDIT || '';
     const ICON_EYE = window.ICON_EYE || '';
     const ICON_SAVE = window.ICON_SAVE || '';
     const ICON_X = window.ICON_X || '';
 
-    // Сохраняем оригинальные значения при входе в режим
+    // ===== Вспомогательные функции =====
+
     function saveOriginalValues() {
         originalValues = {
             name: displayName.textContent.trim(),
             address: displayAddress.textContent.trim(),
             phone: displayPhone.textContent.trim(),
-            desc: displayDesc.textContent.trim()
+            desc: displayDesc.textContent.trim(),
+            photos: currentPhotos.map(p => ({id: p.id, url: p.url})),
+            logo: currentLogo
         };
     }
 
-    // Восстанавливаем оригинальные значения в статике и инпутах
     function restoreOriginalValues() {
         displayName.textContent = originalValues.name || 'Название салона';
         displayAddress.textContent = originalValues.address || 'Адрес не указан';
@@ -53,9 +58,12 @@
         inputAddress.value = originalValues.address;
         inputPhone.value = originalValues.phone;
         inputDesc.value = originalValues.desc;
+        currentPhotos = (originalValues.photos || []).map(p => ({id: p.id, url: p.url}));
+        currentLogo = originalValues.logo || '';
+        renderGallery();
+        updateLogoInCard();
     }
 
-    // Обновить статику из инпутов (без сохранения)
     function applyInputsToStatic() {
         displayName.textContent = inputName.value || 'Название салона';
         displayAddress.textContent = inputAddress.value || 'Адрес не указан';
@@ -63,10 +71,8 @@
         displayDesc.textContent = inputDesc.value || '';
     }
 
-    // Установить кнопки в контейнере
     function setButtons(html) {
         toggleContainer.innerHTML = html;
-        // Перепривязываем обработчики для новых кнопок (если они есть)
         const previewBtn = document.getElementById('salonEditPreviewBtn');
         const saveBtn = document.getElementById('salonEditSaveBtn');
         const cancelBtn = document.getElementById('salonEditCancelBtn');
@@ -77,7 +83,6 @@
         if (cancelBtn) cancelBtn.addEventListener('click', exitEditMode);
         if (backBtn) {
             backBtn.addEventListener('click', function() {
-                // Вернуться к редактированию (из предпросмотра)
                 isPreview = false;
                 staticBlock.style.display = 'none';
                 inputsBlock.style.display = 'block';
@@ -90,7 +95,158 @@
         }
     }
 
-    // Вход в режим редактирования
+    // ===== Рендер галереи =====
+    function renderGallery() {
+        const gallery = document.querySelector('.my-salon-photos');
+        if (!gallery) return;
+        gallery.innerHTML = '';
+        if (currentPhotos.length === 0) {
+            gallery.innerHTML = '<p style="color:var(--color-muted);margin:0">Пока нет фотографий</p>';
+            return;
+        }
+        currentPhotos.forEach(photo => {
+            const isCover = (photo.url === currentLogo);
+            const borderClass = isCover ? 'cover-border' : 'default-border';
+            const item = document.createElement('div');
+            item.className = 'my-salon-photo-item';
+            item.innerHTML = `
+                <img src="${photo.url}" alt="" class="${borderClass}">
+                <button class="delete-btn" data-action="delete" data-url="${photo.url}" title="Удалить фото">&times;</button>
+                ${isCover ? '<span class="cover-badge">★ Обложка</span>' : `<button class="cover-btn" data-action="cover" data-url="${photo.url}" title="Сделать обложкой">Сделать обложкой</button>`}
+            `;
+            gallery.appendChild(item);
+        });
+    }
+
+    function updateLogoInCard() {
+        const wrapper = document.querySelector('.salon-edit-photo-wrapper');
+        if (!wrapper) return;
+        const existingImg = wrapper.querySelector('img');
+        const placeholder = wrapper.querySelector('.salon-edit-photo-placeholder');
+        if (currentLogo) {
+            if (existingImg) {
+                existingImg.src = currentLogo + '?t=' + Date.now();
+            } else if (placeholder) {
+                const newImg = document.createElement('img');
+                newImg.src = currentLogo + '?t=' + Date.now();
+                newImg.alt = 'Фото салона';
+                newImg.className = 'salon-edit-photo';
+                wrapper.replaceChild(newImg, placeholder);
+            } else {
+                const newImg = document.createElement('img');
+                newImg.src = currentLogo + '?t=' + Date.now();
+                newImg.alt = 'Фото салона';
+                newImg.className = 'salon-edit-photo';
+                wrapper.appendChild(newImg);
+            }
+        } else {
+            if (existingImg) {
+                existingImg.remove();
+                const newPlaceholder = document.createElement('div');
+                newPlaceholder.className = 'salon-edit-photo-placeholder';
+                newPlaceholder.textContent = displayName.textContent[0].toUpperCase() || '?';
+                wrapper.appendChild(newPlaceholder);
+            } else if (!placeholder) {
+                const newPlaceholder = document.createElement('div');
+                newPlaceholder.className = 'salon-edit-photo-placeholder';
+                newPlaceholder.textContent = displayName.textContent[0].toUpperCase() || '?';
+                wrapper.appendChild(newPlaceholder);
+            }
+        }
+    }
+
+    // ===== Локальные действия с фото =====
+
+    function localSetCover(url) {
+        const found = currentPhotos.some(p => p.url === url);
+        if (found) {
+            currentLogo = url;
+            renderGallery();
+            updateLogoInCard();
+        }
+    }
+
+    function localDeletePhoto(url) {
+        const index = currentPhotos.findIndex(p => p.url === url);
+        if (index !== -1) {
+            const removed = currentPhotos[index];
+            currentPhotos.splice(index, 1);
+            if (currentLogo === url) {
+                currentLogo = currentPhotos.length > 0 ? currentPhotos[0].url : '';
+            }
+            renderGallery();
+            updateLogoInCard();
+        }
+    }
+
+    // ===== Загрузка новых фото =====
+    async function uploadPhotos(files) {
+        if (isUploading) return;
+        if (!files || files.length === 0) return;
+
+        const dropZone = document.getElementById('photoDropZone');
+        const statusDiv = document.getElementById('photoUploadStatus');
+        const url = dropZone.dataset.uploadUrl;
+        const salonId = window.salonId;
+
+        isUploading = true;
+        statusDiv.innerHTML = '<p style="color:var(--color-muted)">Загрузка...</p>';
+
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        try {
+            const res = await fetch(url, { method: 'POST', body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.saved && data.saved.length) {
+                    data.saved.forEach(url => {
+                        // Добавляем новый объект с id: null (временный)
+                        currentPhotos.push({ id: null, url: url });
+                        if (!currentLogo) {
+                            currentLogo = url;
+                        }
+                    });
+                    renderGallery();
+                    updateLogoInCard();
+                    statusDiv.innerHTML = '<p style="color:#22c55e">Фото загружены</p>';
+                } else {
+                    statusDiv.innerHTML = '<p style="color:#ef4444">Ошибка: фото не сохранены</p>';
+                }
+                setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+            } else {
+                const d = await res.json();
+                statusDiv.innerHTML = `<p style="color:#ef4444">Ошибка: ${d.detail || 'Неизвестная ошибка'}</p>`;
+            }
+        } catch (e) {
+            statusDiv.innerHTML = '<p style="color:#ef4444">Ошибка сети</p>';
+        } finally {
+            isUploading = false;
+            const fileInput = document.getElementById('photoFileInput');
+            if (fileInput) fileInput.value = '';
+        }
+    }
+
+    // ===== Обработчики для галереи (делегирование) =====
+    document.addEventListener('click', function(e) {
+        const target = e.target;
+        if (target.classList.contains('cover-btn')) {
+            e.preventDefault();
+            const url = target.dataset.url;
+            if (url) localSetCover(url);
+        }
+        if (target.classList.contains('delete-btn')) {
+            e.preventDefault();
+            if (!confirm('Удалить фото?')) return;
+            const url = target.dataset.url;
+            if (url) localDeletePhoto(url);
+        }
+    });
+
+    // ===== Режимы редактирования =====
+
     function enterEditMode() {
         isEditing = true;
         isPreview = false;
@@ -108,13 +264,12 @@
         `);
     }
 
-    // Выход из режима редактирования (отмена)
     function exitEditMode() {
         isEditing = false;
         isPreview = false;
+        restoreOriginalValues();
         staticBlock.style.display = 'flex';
         inputsBlock.style.display = 'none';
-        restoreOriginalValues();
         setButtons(`
             <button class="btn-outline salon-edit-toggle-btn" id="salonEditToggleBtn">${ICON_EDIT} Редактировать</button>
         `);
@@ -127,12 +282,10 @@
         });
     }
 
-    // Переключение предпросмотра
     function togglePreview() {
         if (!isEditing) return;
         isPreview = !isPreview;
         if (isPreview) {
-            // Применяем значения из инпутов в статику
             applyInputsToStatic();
             staticBlock.style.display = 'flex';
             inputsBlock.style.display = 'none';
@@ -142,7 +295,6 @@
                 <button class="btn-outline salon-edit-cancel-btn" id="salonEditCancelBtn">${ICON_X} Отменить</button>
             `);
         } else {
-            // Возврат к редактированию (из предпросмотра)
             staticBlock.style.display = 'none';
             inputsBlock.style.display = 'block';
             setButtons(`
@@ -153,33 +305,49 @@
         }
     }
 
-    // Сохранение (без перезагрузки страницы)
+    // ===== СОХРАНЕНИЕ (отправляем все данные, включая фото) =====
     async function saveChanges() {
         if (!isEditing) return;
         const data = {
             name: inputName.value,
             phone: inputPhone.value,
             address: inputAddress.value,
-            description: inputDesc.value
+            description: inputDesc.value,
+            photos: currentPhotos.map(p => p.url), // список URL
+            logo_url: currentLogo                  // URL обложки
         };
         const salonId = window.salonId;
         try {
+            // 1. Сохраняем основные данные и список фото
             const res = await fetch('/api/v1/business/my-salon?salon_id=' + salonId, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
             if (res.ok) {
-                // Обновляем статику новыми значениями
+                // 2. Если обложка изменилась и есть ID фото (не новое), отправляем запрос на установку обложки
+                const logoChanged = (currentLogo !== originalValues.logo);
+                if (logoChanged && currentLogo) {
+                    const photoObj = currentPhotos.find(p => p.url === currentLogo);
+                    if (photoObj && photoObj.id !== null) {
+                        // Отправляем запрос на установку обложки
+                        await fetch('/api/v1/upload/salon/' + salonId + '/photo/' + photoObj.id + '/cover', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'next=/business/dashboard?tab=edit'
+                        });
+                    }
+                }
+
                 applyInputsToStatic();
-                // Обновляем originalValues, чтобы они совпадали с новыми
                 originalValues = {
                     name: data.name,
                     address: data.address,
                     phone: data.phone,
-                    desc: data.description
+                    desc: data.description,
+                    photos: currentPhotos.map(p => ({id: p.id, url: p.url})),
+                    logo: currentLogo
                 };
-                // Закрываем режим редактирования
                 isEditing = false;
                 isPreview = false;
                 staticBlock.style.display = 'flex';
@@ -194,7 +362,6 @@
                         enterEditMode();
                     }
                 });
-                // Показываем краткое сообщение об успехе
                 const msg = document.createElement('div');
                 msg.className = 'alert success';
                 msg.textContent = 'Изменения сохранены';
@@ -210,7 +377,7 @@
         }
     }
 
-    // Загрузка фото (логотип) – перезагружать страницу не будем, обновим фото в DOM
+    // ===== Загрузка логотипа через кнопку "Изменить фото" =====
     async function uploadLogo(file) {
         const salonId = window.salonId;
         const formData = new FormData();
@@ -231,46 +398,98 @@
                 alert('Не удалось получить URL загруженного фото');
                 return;
             }
-            // Обновляем логотип через PUT
-            const updateRes = await fetch('/api/v1/business/my-salon?salon_id=' + salonId, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ logo_url: url })
-            });
-            if (updateRes.ok) {
-                // Обновляем фото в карточке
-                const img = document.querySelector('.salon-edit-photo-wrapper img');
-                const placeholder = document.querySelector('.salon-edit-photo-placeholder');
-                if (img) {
-                    img.src = url + '?t=' + Date.now();
-                } else if (placeholder) {
-                    // Заменяем плейсхолдер на img
-                    const wrapper = placeholder.parentNode;
-                    const newImg = document.createElement('img');
-                    newImg.src = url + '?t=' + Date.now();
-                    newImg.alt = 'Фото салона';
-                    newImg.className = 'salon-edit-photo';
-                    wrapper.replaceChild(newImg, placeholder);
-                }
-                // Также обновляем логотип в статике (если нужно, но мы уже обновили)
-                // Показываем сообщение
-                const msg = document.createElement('div');
-                msg.className = 'alert success';
-                msg.textContent = 'Фото обновлено';
-                msg.style.marginTop = '1rem';
-                card.parentNode.insertBefore(msg, card.nextSibling);
-                setTimeout(() => { msg.remove(); }, 3000);
-            } else {
-                const d = await updateRes.json();
-                alert(d.detail || 'Не удалось обновить фото');
+            currentPhotos.push({ id: null, url: url });
+            if (!currentLogo) {
+                currentLogo = url;
             }
+            renderGallery();
+            updateLogoInCard();
+            const msg = document.createElement('div');
+            msg.className = 'alert success';
+            msg.textContent = 'Фото добавлено';
+            msg.style.marginTop = '1rem';
+            card.parentNode.insertBefore(msg, card.nextSibling);
+            setTimeout(() => { msg.remove(); }, 3000);
         } catch (err) {
             alert('Ошибка сети при загрузке фото');
         }
     }
 
-    // Обработчики событий
-    // При начальной загрузке – только кнопка "Редактировать"
+    // ===== Инициализация =====
+    if (window.initialPhotos !== undefined) {
+        // initialPhotos – массив объектов {id, url}
+        currentPhotos = window.initialPhotos.map(p => ({id: p.id, url: p.url}));
+    }
+    if (window.initialLogo !== undefined) {
+        currentLogo = window.initialLogo;
+    }
+    renderGallery();
+    updateLogoInCard();
+
+    // ===== Обработчики для загрузки фото (drag-and-drop) =====
+    const dropZone = document.getElementById('photoDropZone');
+    const fileInput = document.getElementById('photoFileInput');
+    const statusDiv = document.getElementById('photoUploadStatus');
+
+    if (dropZone && fileInput) {
+        dropZone.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (isUploading) return;
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = 'var(--color-primary)';
+            dropZone.style.background = 'var(--color-surface-alt)';
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            dropZone.style.background = '';
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            dropZone.style.background = '';
+            if (isUploading) return;
+            if (e.dataTransfer.files.length) {
+                fileInput.value = '';
+                uploadPhotos(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (isUploading) {
+                fileInput.value = '';
+                return;
+            }
+            if (fileInput.files.length) {
+                const files = fileInput.files;
+                fileInput.value = '';
+                uploadPhotos(files);
+            }
+        });
+    }
+
+    // ===== Обработчики для кнопки "Изменить фото" в карточке =====
+    if (photoUploadLabel && photoInput) {
+        photoUploadLabel.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (isUploading) return;
+            photoInput.click();
+        });
+        photoInput.addEventListener('change', function(e) {
+            if (e.target.files.length) {
+                uploadLogo(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+    }
+
+    // ===== Кнопка "Редактировать" (начальная) =====
     const initialToggle = document.getElementById('salonEditToggleBtn');
     if (initialToggle) {
         initialToggle.addEventListener('click', function() {
@@ -282,21 +501,7 @@
         });
     }
 
-    if (photoUploadLabel && photoInput) {
-        photoUploadLabel.addEventListener('click', (e) => {
-            e.stopPropagation();
-            photoInput.click();
-        });
-        photoInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                uploadLogo(e.target.files[0]);
-                e.target.value = '';
-            }
-        });
-    }
-
-    // ===== Существующие функции (акции, часы, лояльность, фото) =====
-    // Акции
+    // ===== Существующие функции (акции, часы, лояльность) =====
     window.deletePromo = function(id, title) {
         if (confirm('Удалить акцию "' + title + '"? Это действие нельзя отменить.')) {
             fetch('/api/v1/business/my-salon/promotions/' + id + '/delete', { method: 'POST' })
@@ -304,7 +509,6 @@
         }
     };
 
-    // Часы работы
     const WH_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
     window.toggleDayClosed = function(day, isClosed) {
@@ -348,7 +552,6 @@
         } catch (e) { alert('Ошибка сети'); }
     };
 
-    // Лояльность
     window.saveLoyaltySettings = async function(salonId) {
         const body = {
             regular_client_discount_percent: parseInt(document.getElementById('loyaltyRegularPercent').value) || 0,
@@ -389,63 +592,6 @@
         fetch(`/api/v1/loyalty/salon/${salonId}/offers/${id}`, { method: 'DELETE' })
             .then(r => { if (r.ok) location.reload(); else r.json().then(d => alert(d.detail || 'Ошибка')); });
     };
-
-    // Фото: drag & drop (для галереи)
-    const dropZone = document.getElementById('photoDropZone');
-    const fileInput = document.getElementById('photoFileInput');
-    const statusDiv = document.getElementById('photoUploadStatus');
-
-    if (dropZone && fileInput) {
-        dropZone.addEventListener('click', () => fileInput.click());
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = 'var(--color-primary)';
-            dropZone.style.background = 'var(--color-surface-alt)';
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.style.borderColor = '';
-            dropZone.style.background = '';
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = '';
-            dropZone.style.background = '';
-            if (e.dataTransfer.files.length) {
-                uploadPhotos(e.dataTransfer.files);
-            }
-        });
-
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files.length) {
-                uploadPhotos(fileInput.files);
-                fileInput.value = '';
-            }
-        });
-    }
-
-    async function uploadPhotos(files) {
-        const url = dropZone.dataset.uploadUrl;
-        statusDiv.innerHTML = '<p style="color:var(--color-muted)">Загрузка...</p>';
-        const formData = new FormData();
-        for (const file of files) {
-            formData.append('files', file);
-        }
-        try {
-            const res = await fetch(url, { method: 'POST', body: formData });
-            if (res.ok) {
-                statusDiv.innerHTML = '<p style="color:#22c55e">Фото загружены</p>';
-                location.reload();
-            } else {
-                const d = await res.json();
-                statusDiv.innerHTML = `<p style="color:#ef4444">Ошибка: ${d.detail || 'Неизвестная ошибка'}</p>`;
-            }
-        } catch (e) {
-            statusDiv.innerHTML = '<p style="color:#ef4444">Ошибка сети</p>';
-        }
-    }
 
     // Модалки
     document.querySelectorAll('.my-salon-modal-close').forEach(btn => {
