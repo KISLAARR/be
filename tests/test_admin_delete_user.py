@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.core.security import get_password_hash
 from app.models.models import (
     User, UserRole, Salon, ClientLoyalty, SalonModel, ClientNote,
-    SalonMember, SalonRole,
+    SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
 )
 
 ADMIN_PHONE = "+79993330099"
@@ -77,3 +77,46 @@ async def test_delete_staff_blocked(client, db_session):
     assert r.status_code == 302 and "err=" in r.headers["location"]
     async with db_session() as db:
         assert (await db.execute(select(User).where(User.id == cid))).scalar_one_or_none() is not None
+
+
+async def test_change_owner_revokes_old_owner_access(client, db_session):
+    """Смена владельца: старый владелец теряет доступ (is_active=False)."""
+    from app.api.deps import get_salon_membership
+
+    async with db_session() as db:
+        salon = Salon(name="S2", address="a", phone="+70000000098",
+                      latitude=1.0, longitude=1.0, timezone="Europe/Moscow")
+        db.add(salon)
+        await db.commit()
+        await db.refresh(salon)
+        old = User(phone="+79993330040", full_name="Старый",
+                   hashed_password=get_password_hash("Pass1"), role=UserRole.BUSINESS)
+        new = User(phone="+79993330041", full_name="Новый",
+                   hashed_password=get_password_hash("Pass1"), role=UserRole.CLIENT)
+        db.add_all([old, new])
+        await db.commit()
+        await db.refresh(old)
+        await db.refresh(new)
+        salon.creator_id = old.id
+        db.add(SalonMember(salon_id=salon.id, user_id=old.id, role=SalonRole.OWNER,
+                           is_creator=True, permissions=dict(OWNER_DEFAULT_PERMISSIONS),
+                           is_active=True))
+        await db.commit()
+        sid, old_id, new_id = salon.id, old.id, new.id
+
+    await _senior_admin_login(client, db_session)
+    r = await client.post(f"/api/v1/admin/salons/{sid}/owner",
+                          data={"owner_phone": "+79993330041"})
+    assert r.status_code == 302 and "ok=" in r.headers["location"], r.headers["location"]
+
+    async with db_session() as db:
+        old_m = (await db.execute(select(SalonMember).where(
+            SalonMember.salon_id == sid, SalonMember.user_id == old_id))).scalar_one()
+        assert old_m.is_active is False and old_m.is_creator is False
+        # доступ снят: активного членства больше нет
+        assert await get_salon_membership(db, old_id, sid) is None
+        new_m = (await db.execute(select(SalonMember).where(
+            SalonMember.salon_id == sid, SalonMember.user_id == new_id))).scalar_one()
+        assert new_m.is_active is True and new_m.is_creator is True and new_m.role == SalonRole.OWNER
+        salon = (await db.execute(select(Salon).where(Salon.id == sid))).scalar_one()
+        assert salon.creator_id == new_id

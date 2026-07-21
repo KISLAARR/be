@@ -394,6 +394,10 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
         current_creator_membership.is_creator = False
 
     if not owner_phone:  # снять владельца
+        # Ex-владелец теряет доступ: снятия is_creator мало — доступ даёт
+        # активное членство + permissions, а не флаг создателя.
+        if current_creator_membership is not None:
+            current_creator_membership.is_active = False
         salon.creator_id = None
         _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец снят", salon_id=sid)
         await db.commit()
@@ -402,6 +406,15 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
     owner = (await db.execute(select(User).where(User.phone == owner_phone))).scalar_one_or_none()
     if not owner:
         return _back("salons", err="Пользователь с таким телефоном не найден")
+
+    # Старый владелец (если это ДРУГОЙ человек) теряет доступ к салону —
+    # иначе он сохранял бы OWNER-права: снятия is_creator недостаточно,
+    # права даёт активное членство + permissions.
+    if (
+        current_creator_membership is not None
+        and current_creator_membership.user_id != owner.id
+    ):
+        current_creator_membership.is_active = False
 
     # Множественные салоны на владельца разрешены — блокировки больше нет.
     membership = (await db.execute(
