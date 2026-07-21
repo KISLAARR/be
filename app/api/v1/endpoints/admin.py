@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select, func, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -20,6 +21,7 @@ from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, Promotion,
     SalonPhoto, Favorite, AdminAudit, SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
     SalonModerationStatus, PhotoReport, PhotoReportStatus, MasterPhoto, ReviewPhoto,
+    ClientLoyalty, SalonModel, ClientNote,
 )
 from app.core.security import get_password_hash
 from app.web.auth import get_current_user_from_cookie
@@ -203,22 +205,40 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
     if target.role == UserRole.ADMIN and target.is_senior_admin and await _active_seniors_excluding(db, target.id) == 0:
         return _back("users", err="Нельзя удалить последнего старшего модератора")
 
-    # Сложные связи блокируем — их надо разрулить явно (заблокируйте пользователя)
+    # Сложные связи блокируем — их надо разрулить явно (заблокируйте пользователя).
+    # Персонал (SalonMember) держит created_by-ссылки в аудите склада/зарплат/
+    # закрытий/движений лояльности (не nullable) — их массово чистить нельзя,
+    # это исказит записи салона; такого пользователя удаляем через салон.
     owns_salon = (await db.execute(select(func.count(Salon.id)).where(Salon.creator_id == target.id))).scalar() or 0
     is_master = (await db.execute(select(func.count(Master.id)).where(Master.user_id == target.id))).scalar() or 0
+    is_staff = (await db.execute(select(func.count(SalonMember.id)).where(SalonMember.user_id == target.id))).scalar() or 0
     if owns_salon:
         return _back("users", err="Пользователь владеет салоном — сначала переназначьте владельца")
     if is_master:
         return _back("users", err="У пользователя есть профиль мастера — удалите его через салон")
+    if is_staff:
+        return _back("users", err="Пользователь — сотрудник салона; сначала удалите его из салона (или заблокируйте)")
 
     phone = target.phone
-    # Чистим клиентские зависимости и удаляем
+    # Чистим клиентские зависимости. ClientLoyalty каскадит движения баллов
+    # (ondelete=CASCADE). Review.staff_user_id — SET NULL на уровне БД.
     await db.execute(delete(Favorite).where(Favorite.user_id == target.id))
     await db.execute(delete(Review).where(Review.client_id == target.id))
     await db.execute(delete(Booking).where(Booking.client_id == target.id))
+    await db.execute(delete(ClientLoyalty).where(ClientLoyalty.client_id == target.id))
+    await db.execute(delete(SalonModel).where(SalonModel.user_id == target.id))
+    await db.execute(delete(ClientNote).where(
+        (ClientNote.client_id == target.id) | (ClientNote.author_id == target.id)
+    ))
+    await db.execute(delete(PhotoReport).where(PhotoReport.reporter_id == target.id))
     await db.delete(target)
     _audit(db, admin.id, "delete_user", "user", uid, f"удалён {phone}")
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Остались непредвиденные связанные записи — не роняем 500, просим блокировку
+        await db.rollback()
+        return _back("users", err="У пользователя остались связанные данные — заблокируйте его вместо удаления")
     return _back("users", ok=f"Пользователь {phone} удалён")
 
 
