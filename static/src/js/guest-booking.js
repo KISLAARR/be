@@ -73,7 +73,8 @@
     masters.forEach(m => {
         const b = document.createElement('button');
         b.className = 'gb-card';
-        b.innerHTML = `<strong>${m.name}</strong><br><small>${m.spec}</small>`;
+        b.innerHTML = `<div class="gb-ava">${(m.name[0] || 'М')}</div>` +
+            `<div class="gb-card-body"><strong>${m.name}</strong><small>${m.spec}</small></div>`;
         b.addEventListener('click', () => { state.master = m; renderServices(); show('service'); });
         mList.appendChild(b);
     });
@@ -85,7 +86,8 @@
         state.master.services.forEach(s => {
             const b = document.createElement('button');
             b.className = 'gb-card';
-            b.innerHTML = `<strong>${s.name}</strong><br><small>${s.price.toLocaleString('ru-RU')} ₽ · ${s.duration} мин</small>`;
+            b.innerHTML = `<div class="gb-card-body"><strong>${s.name}</strong><small>${s.duration} мин</small></div>` +
+                `<div class="gb-card-price">${s.price.toLocaleString('ru-RU')} ₽</div>`;
             b.addEventListener('click', () => { state.service = s; setupDate(); show('slot'); });
             el.appendChild(b);
         });
