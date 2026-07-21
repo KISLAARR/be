@@ -120,3 +120,25 @@ async def test_change_owner_revokes_old_owner_access(client, db_session):
         assert new_m.is_active is True and new_m.is_creator is True and new_m.role == SalonRole.OWNER
         salon = (await db.execute(select(Salon).where(Salon.id == sid))).scalar_one()
         assert salon.creator_id == new_id
+
+
+async def test_delete_ex_owner_inactive_membership_ok(client, db_session):
+    """Снятый владелец/уволенный (неактивное членство) — удаляется, блок не срабатывает."""
+    salon_id = await _make_salon(db_session)
+    async with db_session() as db:
+        u = User(phone="+79993330050", full_name="Экс-владелец",
+                 hashed_password=get_password_hash("Pass1"), role=UserRole.CLIENT)
+        db.add(u)
+        await db.commit()
+        await db.refresh(u)
+        db.add(SalonMember(salon_id=salon_id, user_id=u.id, role=SalonRole.OWNER,
+                           permissions={}, is_active=False, is_creator=False))
+        await db.commit()
+        cid = u.id
+
+    await _senior_admin_login(client, db_session)
+    r = await client.post(f"/api/v1/admin/users/{cid}/delete")
+    assert r.status_code == 302 and "ok=" in r.headers["location"], r.headers["location"]
+    async with db_session() as db:
+        assert (await db.execute(select(User).where(User.id == cid))).scalar_one_or_none() is None
+        assert (await db.execute(select(SalonMember).where(SalonMember.user_id == cid))).scalar_one_or_none() is None

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -211,13 +211,18 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
     # это исказит записи салона; такого пользователя удаляем через салон.
     owns_salon = (await db.execute(select(func.count(Salon.id)).where(Salon.creator_id == target.id))).scalar() or 0
     is_master = (await db.execute(select(func.count(Master.id)).where(Master.user_id == target.id))).scalar() or 0
-    is_staff = (await db.execute(select(func.count(SalonMember.id)).where(SalonMember.user_id == target.id))).scalar() or 0
+    # Блокируем ТОЛЬКО активное членство (текущий сотрудник). Неактивные
+    # (снятый владелец/уволенный сотрудник — remove_member делает soft-delete)
+    # не должны мешать удалению: их строки чистим ниже.
+    is_staff = (await db.execute(select(func.count(SalonMember.id)).where(
+        SalonMember.user_id == target.id, SalonMember.is_active == True
+    ))).scalar() or 0
     if owns_salon:
         return _back("users", err="Пользователь владеет салоном — сначала переназначьте владельца")
     if is_master:
         return _back("users", err="У пользователя есть профиль мастера — удалите его через салон")
     if is_staff:
-        return _back("users", err="Пользователь — сотрудник салона; сначала удалите его из салона (или заблокируйте)")
+        return _back("users", err="Пользователь — активный сотрудник салона; сначала удалите его из салона (или заблокируйте)")
 
     phone = target.phone
     # Чистим клиентские зависимости. ClientLoyalty каскадит движения баллов
@@ -231,6 +236,10 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
         (ClientNote.client_id == target.id) | (ClientNote.author_id == target.id)
     ))
     await db.execute(delete(PhotoReport).where(PhotoReport.reporter_id == target.id))
+    # Неактивные членства (активных нет — заблокированы выше) удаляем; ссылки
+    # invited_by на удаляемого обнуляем, иначе FK не даст удалить юзера.
+    await db.execute(update(SalonMember).where(SalonMember.invited_by_id == target.id).values(invited_by_id=None))
+    await db.execute(delete(SalonMember).where(SalonMember.user_id == target.id))
     await db.delete(target)
     _audit(db, admin.id, "delete_user", "user", uid, f"удалён {phone}")
     try:
