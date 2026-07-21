@@ -37,6 +37,7 @@ _PUBLIC_SALON = (Salon.is_active == True) & (Salon.moderation_status == SalonMod
 from app.schemas.salon import SalonResponse, SalonWithDistance
 from app.schemas.master import MasterResponse, ServiceResponse
 from app.api.v1.endpoints import auth
+from app.api.v1.endpoints import guest
 from app.api.v1.endpoints import business
 from app.api.v1.endpoints import auth_web
 from app.api.v1.endpoints import reviews
@@ -112,6 +113,7 @@ app.include_router(auth_yandex.router, prefix="/api/v1/auth", tags=["auth-yandex
 app.include_router(loyalty.router, prefix="/api/v1/loyalty", tags=["loyalty"])
 app.include_router(schedule_endpoints.router, prefix="/api/v1/schedule", tags=["schedule"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
+app.include_router(guest.router, prefix="/api/v1/guest", tags=["guest"])
 
 # Healthcheck — регистрируем ДО веб-роутера, иначе его перехватывает
 # catch-all страниц (`/{path:path}`) и /health отдаёт 404.
