@@ -239,6 +239,21 @@ async def render_my_salon_page(db: AsyncSession, salon: Salon, user=None, query_
                 </div>
             </div>
 
+            <!-- Запись без регистрации -->
+            <div class="my-salon-card">
+                <h2 class="my-salon-card-title">Запись без регистрации</h2>
+                <p class="my-salon-card-hint">Клиенты записываются по ссылке или QR без регистрации; заявка приходит вам на подтверждение.</p>
+                <label style="display:block;margin:0.5rem 0">
+                    <input type="checkbox" id="guestToggle" data-salon-id="{salon.id}" {"checked" if salon.guest_booking_enabled else ""}>
+                    Принимать записи без регистрации
+                </label>
+                <p style="margin:0.5rem 0">Ссылка: <a href="/book/{salon.id}" target="_blank" class="text-link">…/book/{salon.id}</a></p>
+                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+                    <img src="/book/{salon.id}/qr" alt="QR-код записи" style="width:150px;height:150px;border:1px solid var(--color-border,#eee);border-radius:8px">
+                    <a href="/book/{salon.id}/qr" download="rumi-qr-{salon.id}.png" class="my-salon-btn-outline">Скачать QR</a>
+                </div>
+            </div>
+
             {photos_section}
 
             <!-- Акции -->

@@ -58,6 +58,34 @@ async def master_detail_page(master_id: int, request: Request, db: AsyncSession 
     return HTMLResponse(content=html)
 
 
+@router.get("/book/{salon_id}", response_class=HTMLResponse)
+async def guest_booking_page(salon_id: int, db: AsyncSession = Depends(get_db)):
+    """Публичная запись без регистрации (по ссылке/QR салона)."""
+    from app.web.pages.guest_booking import render_guest_booking_page
+    return HTMLResponse(content=await render_guest_booking_page(db, salon_id))
+
+
+@router.get("/guest-booking/{token}", response_class=HTMLResponse)
+async def guest_manage_page(token: str, db: AsyncSession = Depends(get_db)):
+    """Просмотр/отмена гостевой брони по токену."""
+    from app.web.pages.guest_booking import render_guest_manage_page
+    return HTMLResponse(content=await render_guest_manage_page(db, token))
+
+
+@router.get("/book/{salon_id}/qr")
+async def guest_booking_qr(salon_id: int, request: Request):
+    """PNG QR-код на публичную страницу записи салона (для печати на ресепшене)."""
+    import io
+    import qrcode
+    from fastapi import Response
+
+    url = f"{request.url.scheme}://{request.url.netloc}/book/{salon_id}"
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
 @router.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request, db: AsyncSession = Depends(get_db)):
     """Страница профиля."""

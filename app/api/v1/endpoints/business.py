@@ -236,6 +236,22 @@ async def delete_salon(
     return {"status": "deleted"}
 
 
+@router.post("/my-salon/guest-toggle")
+async def toggle_guest_booking(
+    salon_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Включить/выключить приём записей без регистрации (owner/manage_salon)."""
+    await check_salon_permission(db, current_user, salon_id, "manage_salon")
+    salon = (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one_or_none()
+    if salon is None:
+        raise HTTPException(status_code=404, detail="Салон не найден")
+    salon.guest_booking_enabled = not salon.guest_booking_enabled
+    await db.commit()
+    return {"guest_booking_enabled": salon.guest_booking_enabled}
+
+
 @router.get("/my-salon", response_model=SalonResponse)
 async def get_my_salon(
     salon: Salon = Depends(get_current_salon)

@@ -130,8 +130,10 @@ async def register_web(
     except ValueError:
         return RedirectResponse(url=f"/register?error=weak_password&{keep}", status_code=302)
 
-    existing = await db.execute(select(User).where(User.phone == norm_phone))
-    if existing.scalar_one_or_none():
+    existing = (await db.execute(select(User).where(User.phone == norm_phone))).scalar_one_or_none()
+    # Реальный аккаунт с этим номером блокирует регистрацию; гостя (создан
+    # гостевой записью) — не блокируем, «заберём» после верификации ниже.
+    if existing is not None and not existing.is_guest:
         return RedirectResponse(url=f"/register?error=phone_exists&{keep}", status_code=302)
 
     # При выключенном OTP (нет каналов) поля подтверждения не требуем вовсе —
@@ -149,14 +151,23 @@ async def register_web(
     if not code_valid:
         return RedirectResponse(url=f"/register?error=bad_code&{keep}", status_code=302)
 
-    user = User(
-        phone=norm_phone,
-        full_name=full_name,
-        hashed_password=get_password_hash(password),
-        role=UserRole.CLIENT,
-        is_active=True,
-    )
-    db.add(user)
+    if existing is not None:
+        # Гость «забирается»: апгрейд до полноценного аккаунта. Гостевые брони
+        # (client_id=existing.id) остаются за ним.
+        user = existing
+        user.full_name = full_name or user.full_name
+        user.hashed_password = get_password_hash(password)
+        user.is_guest = False
+        user.is_active = True
+    else:
+        user = User(
+            phone=norm_phone,
+            full_name=full_name,
+            hashed_password=get_password_hash(password),
+            role=UserRole.CLIENT,
+            is_active=True,
+        )
+        db.add(user)
     await db.commit()
     await db.refresh(user)
 
