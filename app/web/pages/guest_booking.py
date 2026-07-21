@@ -90,7 +90,7 @@ async def render_guest_booking_page(db, salon_id: int) -> str:
             <div class="gb-step" data-step="slot" style="display:none">
                 <button class="gb-back" data-to="service">← Услуги</button>
                 <h2 class="gb-h2">3. Дата и время</h2>
-                <input type="date" id="gb-date" class="phone-input" style="margin-bottom:0.75rem">
+                <input type="date" id="gb-date" class="gb-input" style="margin-bottom:0.75rem">
                 <div id="gb-slots" class="gb-slots"></div>
             </div>
 
@@ -99,11 +99,11 @@ async def render_guest_booking_page(db, salon_id: int) -> str:
                 <h2 class="gb-h2">4. Ваши данные</h2>
                 <div id="gb-summary" class="text-muted" style="margin-bottom:0.75rem"></div>
                 <div class="form-group"><label>Имя *</label>
-                    <input type="text" id="gb-name" class="phone-input" required></div>
+                    <input type="text" id="gb-name" class="gb-input" required></div>
                 <div class="form-group"><label>Телефон *</label>
                     <input type="tel" id="gb-phone" class="phone-input" placeholder="+7 (___) ___-__-__" required></div>
                 <div class="form-group"><label>Email (для уведомлений, необязательно)</label>
-                    <input type="email" id="gb-email" class="phone-input" placeholder="example@mail.ru"></div>
+                    <input type="email" id="gb-email" class="gb-input" placeholder="example@mail.ru"></div>
                 <p id="gb-error" style="color:var(--color-danger,#c0392b);min-height:1.2em"></p>
                 <button id="gb-submit" class="btn-primary" style="width:100%">Записаться</button>
             </div>
@@ -126,6 +126,7 @@ async def render_guest_booking_page(db, salon_id: int) -> str:
         .gb-slot{{padding:0.5rem;border:1px solid var(--color-border,#e0e0e0);border-radius:8px;background:var(--color-surface,#fff);cursor:pointer}}
         .gb-slot:hover{{border-color:var(--color-primary,#7c3aed)}}
         .gb-back{{background:none;border:none;color:var(--color-muted,#888);cursor:pointer;padding:0 0 0.75rem}}
+        .gb-input{{width:100%;padding:0.6rem 0.75rem;border:1px solid var(--color-border,#e0e0e0);border-radius:8px;font-size:1rem;background:var(--color-surface,#fff)}}
         </style>"""
     return _shell(f"Запись в {salon.name}", body)
 
