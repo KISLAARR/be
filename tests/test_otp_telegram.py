@@ -143,3 +143,21 @@ async def test_tg_start_rejects_registered_phone(client: httpx.AsyncClient, tg_e
     await register_user(client, PHONE)
     r = await client.post("/api/v1/auth/register/tg-start", json={"phone": PHONE})
     assert r.status_code == 409
+
+
+async def test_find_pending_register_token_rescue(tg_enabled):
+    """Спасение без deep-link токена: находит ожидающую TG-регистрацию по номеру."""
+    from app.tg_bot import _find_pending_register_token
+    import app.services.otp as otp_mod
+
+    phone = "+79993334455"
+    started = await otp_mod.start_tg_verification(phone)
+    r = otp_mod.get_redis()
+
+    # находит ожидающую регистрацию по номеру
+    assert await _find_pending_register_token(r, phone) == started["request_id"]
+    # другой номер — не находит
+    assert await _find_pending_register_token(r, "+79990000000") is None
+    # после подтверждения (status != pending) — больше не находит
+    await r.hset(_key(started["request_id"]), "status", TG_STATUS_CONFIRMED)
+    assert await _find_pending_register_token(r, phone) is None
