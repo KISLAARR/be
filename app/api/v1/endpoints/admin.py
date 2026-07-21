@@ -463,15 +463,23 @@ async def salon_delete(sid: int, request: Request, db: AsyncSession = Depends(ge
         return _back("salons", err="В салоне есть мастера — сначала удалите их")
 
     name = salon.name
+    # RESTRICT-FK на salons.id, которые НЕ каскадят: Promotion, Review, Favorite
+    # (остальное — CASCADE/SET NULL; Master заблокирован выше). Favorite салона
+    # чистим явно, иначе удаление салона из чьего-то избранного роняло 500.
     await db.execute(delete(Promotion).where(Promotion.salon_id == sid))
     await db.execute(delete(Review).where(Review.salon_id == sid))
     await db.execute(delete(SalonPhoto).where(SalonPhoto.salon_id == sid))
+    await db.execute(delete(Favorite).where(Favorite.salon_id == sid))
     await db.delete(salon)
     # salon_id тут намеренно не проставляем (не salon_id=sid): салон удалён,
     # его собственную страницу «Сотрудники» с логом больше некому открыть —
     # событие остаётся только в платформенном логе для модератора.
     _audit(db, admin.id, "salon_delete", "salon", sid, f"удалён «{name}»")
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return _back("salons", err="У салона остались связанные данные — деактивируйте его вместо удаления")
     return _back("salons", ok=f"Салон «{name}» удалён")
 
 

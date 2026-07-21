@@ -142,3 +142,25 @@ async def test_delete_ex_owner_inactive_membership_ok(client, db_session):
     async with db_session() as db:
         assert (await db.execute(select(User).where(User.id == cid))).scalar_one_or_none() is None
         assert (await db.execute(select(SalonMember).where(SalonMember.user_id == cid))).scalar_one_or_none() is None
+
+
+async def test_salon_delete_with_favorite_ok(client, db_session):
+    """Раньше давало 500: Favorite салона (RESTRICT-FK) не чистился."""
+    from app.models.models import Favorite
+
+    salon_id = await _make_salon(db_session)
+    async with db_session() as db:
+        u = User(phone="+79993330060", full_name="Фан",
+                 hashed_password=get_password_hash("Pass1"), role=UserRole.CLIENT)
+        db.add(u)
+        await db.commit()
+        await db.refresh(u)
+        db.add(Favorite(user_id=u.id, salon_id=salon_id))
+        await db.commit()
+
+    await _senior_admin_login(client, db_session)
+    r = await client.post(f"/api/v1/admin/salons/{salon_id}/delete")
+    assert r.status_code == 302 and "ok=" in r.headers["location"], r.headers["location"]
+    async with db_session() as db:
+        assert (await db.execute(select(Salon).where(Salon.id == salon_id))).scalar_one_or_none() is None
+        assert (await db.execute(select(Favorite).where(Favorite.salon_id == salon_id))).scalar_one_or_none() is None
