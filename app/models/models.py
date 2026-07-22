@@ -119,7 +119,12 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(15), unique=True, index=True, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(100), unique=True, index=True, nullable=True)
     full_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Гость (создан гостевой записью без регистрации): пароль случайный,
+    # войти нельзя; при регистрации этим номером аккаунт «забирается»
+    # (is_guest=False + пароль). Не блокирует регистрацию.
+    is_guest: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.CLIENT, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -188,6 +193,8 @@ class Salon(Base):
 
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Принимать записи без регистрации (гостевые по ссылке/QR). По умолчанию вкл.
+    guest_booking_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     photos: Mapped[List["SalonPhoto"]] = relationship(back_populates="salon")
 
     rating: Mapped[float] = mapped_column(Float, default=0.0)
@@ -291,6 +298,9 @@ class Service(Base):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Мягкое удаление: удалённая услуга скрыта из выбора/записи, но брони с ней
+    # (история) остаются валидными — Booking.service_id не рвётся.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
 
     master: Mapped["Master"] = relationship(back_populates="services")
 
@@ -321,6 +331,10 @@ class Booking(Base):
     # см. app/services/loyalty_service.py.
     discount_percent: Mapped[int] = mapped_column(Integer, default=0)
     final_price: Mapped[int] = mapped_column(Integer, nullable=True)
+    # Гостевая запись (без регистрации): токен управления/отмены по ссылке и
+    # опциональный email для уведомлений. У обычных броней — NULL.
+    guest_manage_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    guest_email: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # Что именно применили: "regular_client" / "personal" / текст промокода / NULL.
     loyalty_source: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     bonus_points_redeemed: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)

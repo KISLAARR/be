@@ -42,8 +42,10 @@ async def send_register_code(
             detail="Подтверждение по СМС временно недоступно",
         )
 
-    existing = await db.execute(select(User).where(User.phone == data.phone))
-    if existing.scalar_one_or_none():
+    existing_user = (await db.execute(select(User).where(User.phone == data.phone))).scalar_one_or_none()
+    # Гость (создан гостевой записью) НЕ блокирует: verification-start его
+    # пропускает, register — «забирает» (is_guest→False ниже). Реальный — блок.
+    if existing_user is not None and not existing_user.is_guest:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Пользователь с таким номером уже зарегистрирован",
@@ -83,8 +85,10 @@ async def start_tg_verification(
             detail="Подтверждение через Telegram выключено",
         )
 
-    existing = await db.execute(select(User).where(User.phone == data.phone))
-    if existing.scalar_one_or_none():
+    existing_user = (await db.execute(select(User).where(User.phone == data.phone))).scalar_one_or_none()
+    # Гость (создан гостевой записью) НЕ блокирует: verification-start его
+    # пропускает, register — «забирает» (is_guest→False ниже). Реальный — блок.
+    if existing_user is not None and not existing_user.is_guest:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Пользователь с таким номером уже зарегистрирован",
@@ -117,8 +121,10 @@ async def start_max_verification(
             detail="Подтверждение через MAX выключено",
         )
 
-    existing = await db.execute(select(User).where(User.phone == data.phone))
-    if existing.scalar_one_or_none():
+    existing_user = (await db.execute(select(User).where(User.phone == data.phone))).scalar_one_or_none()
+    # Гость (создан гостевой записью) НЕ блокирует: verification-start его
+    # пропускает, register — «забирает» (is_guest→False ниже). Реальный — блок.
+    if existing_user is not None and not existing_user.is_guest:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Пользователь с таким номером уже зарегистрирован",
@@ -171,8 +177,10 @@ async def register(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-    existing = await db.execute(select(User).where(User.phone == data.phone))
-    if existing.scalar_one_or_none():
+    existing_user = (await db.execute(select(User).where(User.phone == data.phone))).scalar_one_or_none()
+    # Гость (создан гостевой записью) НЕ блокирует: verification-start его
+    # пропускает, register — «забирает» (is_guest→False ниже). Реальный — блок.
+    if existing_user is not None and not existing_user.is_guest:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Пользователь с таким номером уже зарегистрирован",
@@ -189,14 +197,21 @@ async def register(
             detail="Неверный или истёкший код подтверждения",
         )
 
-    user = User(
-        phone=data.phone,
-        full_name=data.full_name,
-        hashed_password=get_password_hash(data.password),
-        role=UserRole.CLIENT,  # назначается сервером, не из тела запроса
-
-    )
-    db.add(user)
+    if existing_user is not None:
+        # «Забираем» гостя: апгрейд до полноценного аккаунта, гостевые брони за ним.
+        user = existing_user
+        user.full_name = data.full_name or user.full_name
+        user.hashed_password = get_password_hash(data.password)
+        user.is_guest = False
+        user.is_active = True
+    else:
+        user = User(
+            phone=data.phone,
+            full_name=data.full_name,
+            hashed_password=get_password_hash(data.password),
+            role=UserRole.CLIENT,  # назначается сервером, не из тела запроса
+        )
+        db.add(user)
     await db.commit()
     await db.refresh(user)
 

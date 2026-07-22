@@ -252,9 +252,37 @@ async def on_start(message: Message, command: CommandObject) -> None:
     )
 
 
+async def _find_pending_register_token(r, phone: str) -> str | None:
+    """request_id ожидающей TG-регистрации на этот номер, либо None.
+
+    Нужно для спасения тех, кто открыл бота БЕЗ deep-link токена: Telegram не
+    всегда пересылает ?start=<token> для уже существующего чата, и человек
+    попадает в режим привязки, хотя реально подтверждает регистрацию. Скан по
+    небольшому числу активных otp:{uuid}-записей (TTL 5 мин) — дёшево.
+    """
+    target = _hash(phone)
+    try:
+        async for key in r.scan_iter(match="otp:*", count=100):
+            # исключаем служебные строки otp:tg-chat:* и otp:tg-pending:*
+            if key.startswith("otp:tg-"):
+                continue
+            rec = await r.hgetall(key)
+            if (
+                rec.get("channel") == "telegram"
+                and rec.get("status") == TG_STATUS_PENDING
+                and rec.get("phone_hash") == target
+            ):
+                return key.split("otp:", 1)[1]
+    except Exception:
+        return None
+    return None
+
+
 async def _link_existing_account(message: Message) -> None:
-    """LINK_MODE: находим пользователя по номеру из контакта, сохраняем chat_id."""
+    """LINK_MODE: подтверждаем ожидающую регистрацию по номеру (спасение без
+    токена) либо привязываем chat_id к уже существующему аккаунту."""
     if message.contact.user_id != message.from_user.id:
+        logger.info("link_foreign_contact: tg_user=%s", message.from_user.id)
         await message.answer(
             "Это чужой контакт — привязать можно только свой. "
             "Нажмите кнопку «Поделиться контактом».",
@@ -264,9 +292,33 @@ async def _link_existing_account(message: Message) -> None:
 
     phone = try_normalize_phone(message.contact.phone_number or "")
     if not phone:
+        logger.info(
+            "link_bad_phone: tg_user=%s raw=%r",
+            message.from_user.id, message.contact.phone_number,
+        )
         await message.answer(
             "Не удалось разобрать номер из контакта.",
             reply_markup=ReplyKeyboardRemove(),
+        )
+        return
+
+    r = get_redis()
+
+    # Спасение: пришёл без deep-link токена, но на сайте есть ожидающая
+    # регистрация-верификация на этот номер — подтверждаем её здесь.
+    pending_token = await _find_pending_register_token(r, phone)
+    if pending_token is not None:
+        await r.hset(_key(pending_token), "status", TG_STATUS_CONFIRMED)
+        await r.delete(_pending_key(message.from_user.id))
+        await save_tg_chat_id(_hash(phone), message.chat.id)
+        logger.info(
+            "confirmed_via_link: tg_user=%s phone=%s",
+            message.from_user.id, _mask_phone(phone),
+        )
+        await message.answer(
+            "Номер подтверждён ✅\nВернитесь на сайт — регистрация продолжится сама.\n\n"
+            "Кнопка «⚙️ Мои уведомления» внизу — управление подписками.",
+            reply_markup=_MENU_KB,
         )
         return
 
@@ -280,6 +332,10 @@ async def _link_existing_account(message: Message) -> None:
             await db.execute(select(User).where(User.phone == phone))
         ).scalar_one_or_none()
         if user is None:
+            logger.info(
+                "link_not_registered: tg_user=%s phone=%s",
+                message.from_user.id, _mask_phone(phone),
+            )
             await message.answer(
                 "Аккаунт с этим номером не найден. Сначала зарегистрируйтесь "
                 "на сайте Руми — привязка произойдёт сама при подтверждении номера.",
@@ -289,7 +345,6 @@ async def _link_existing_account(message: Message) -> None:
         user.tg_chat_id = message.chat.id
         await db.commit()
 
-    r = get_redis()
     await r.delete(_pending_key(message.from_user.id))
     logger.info(
         "linked: tg_user=%s phone=%s", message.from_user.id, _mask_phone(phone)
@@ -305,11 +360,11 @@ async def on_contact(message: Message) -> None:
     r = get_redis()
     token = await r.get(_pending_key(message.from_user.id))
     if not token:
-        await message.answer(
-            "Не вижу активного подтверждения. Вернитесь на сайт Руми и нажмите "
-            "«Подтвердить в Telegram» — затем снова поделитесь контактом.",
-            reply_markup=ReplyKeyboardRemove(),
-        )
+        # Нет активного подтверждения у ЭТОГО tg-пользователя. Но человек мог
+        # прийти без токена в процессе регистрации — пробуем спасти как привязку
+        # (внутри — поиск ожидающей регистрации по номеру).
+        logger.info("contact_no_pending: tg_user=%s", message.from_user.id)
+        await _link_existing_account(message)
         return
 
     if token == LINK_MODE:
@@ -341,12 +396,21 @@ async def on_contact(message: Message) -> None:
             reply_markup=_MENU_KB,
         )
     elif verdict == VERDICT_FOREIGN_CONTACT:
+        logger.info(
+            "verify_foreign_contact: tg_user=%s contact_user=%s",
+            message.from_user.id, message.contact.user_id,
+        )
         await message.answer(
             "Это чужой контакт — так подтвердить номер нельзя. "
             "Нажмите кнопку «Поделиться контактом», чтобы отправить свой.",
             reply_markup=_CONTACT_KB,
         )
     elif verdict == VERDICT_PHONE_MISMATCH:
+        logger.info(
+            "verify_phone_mismatch: tg_user=%s tg_phone=%s",
+            message.from_user.id,
+            _mask_phone(try_normalize_phone(message.contact.phone_number) or "?"),
+        )
         await message.answer(
             "Этот Telegram привязан к другому номеру — не к тому, что указан "
             "при регистрации. Проверьте номер на сайте или подтвердите его "
@@ -354,6 +418,7 @@ async def on_contact(message: Message) -> None:
             reply_markup=ReplyKeyboardRemove(),
         )
     else:
+        logger.info("verify_expired: tg_user=%s", message.from_user.id)
         await message.answer(
             f"Подтверждение устарело (действует {settings.OTP_TTL_MINUTES} мин). "
             "Вернитесь на сайт и начните заново.",

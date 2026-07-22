@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -20,6 +21,7 @@ from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, Promotion,
     SalonPhoto, Favorite, AdminAudit, SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
     SalonModerationStatus, PhotoReport, PhotoReportStatus, MasterPhoto, ReviewPhoto,
+    ClientLoyalty, SalonModel, ClientNote,
 )
 from app.core.security import get_password_hash
 from app.web.auth import get_current_user_from_cookie
@@ -203,22 +205,49 @@ async def delete_user(uid: int, request: Request, db: AsyncSession = Depends(get
     if target.role == UserRole.ADMIN and target.is_senior_admin and await _active_seniors_excluding(db, target.id) == 0:
         return _back("users", err="Нельзя удалить последнего старшего модератора")
 
-    # Сложные связи блокируем — их надо разрулить явно (заблокируйте пользователя)
+    # Сложные связи блокируем — их надо разрулить явно (заблокируйте пользователя).
+    # Персонал (SalonMember) держит created_by-ссылки в аудите склада/зарплат/
+    # закрытий/движений лояльности (не nullable) — их массово чистить нельзя,
+    # это исказит записи салона; такого пользователя удаляем через салон.
     owns_salon = (await db.execute(select(func.count(Salon.id)).where(Salon.creator_id == target.id))).scalar() or 0
     is_master = (await db.execute(select(func.count(Master.id)).where(Master.user_id == target.id))).scalar() or 0
+    # Блокируем ТОЛЬКО активное членство (текущий сотрудник). Неактивные
+    # (снятый владелец/уволенный сотрудник — remove_member делает soft-delete)
+    # не должны мешать удалению: их строки чистим ниже.
+    is_staff = (await db.execute(select(func.count(SalonMember.id)).where(
+        SalonMember.user_id == target.id, SalonMember.is_active == True
+    ))).scalar() or 0
     if owns_salon:
         return _back("users", err="Пользователь владеет салоном — сначала переназначьте владельца")
     if is_master:
         return _back("users", err="У пользователя есть профиль мастера — удалите его через салон")
+    if is_staff:
+        return _back("users", err="Пользователь — активный сотрудник салона; сначала удалите его из салона (или заблокируйте)")
 
     phone = target.phone
-    # Чистим клиентские зависимости и удаляем
+    # Чистим клиентские зависимости. ClientLoyalty каскадит движения баллов
+    # (ondelete=CASCADE). Review.staff_user_id — SET NULL на уровне БД.
     await db.execute(delete(Favorite).where(Favorite.user_id == target.id))
     await db.execute(delete(Review).where(Review.client_id == target.id))
     await db.execute(delete(Booking).where(Booking.client_id == target.id))
+    await db.execute(delete(ClientLoyalty).where(ClientLoyalty.client_id == target.id))
+    await db.execute(delete(SalonModel).where(SalonModel.user_id == target.id))
+    await db.execute(delete(ClientNote).where(
+        (ClientNote.client_id == target.id) | (ClientNote.author_id == target.id)
+    ))
+    await db.execute(delete(PhotoReport).where(PhotoReport.reporter_id == target.id))
+    # Неактивные членства (активных нет — заблокированы выше) удаляем; ссылки
+    # invited_by на удаляемого обнуляем, иначе FK не даст удалить юзера.
+    await db.execute(update(SalonMember).where(SalonMember.invited_by_id == target.id).values(invited_by_id=None))
+    await db.execute(delete(SalonMember).where(SalonMember.user_id == target.id))
     await db.delete(target)
     _audit(db, admin.id, "delete_user", "user", uid, f"удалён {phone}")
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Остались непредвиденные связанные записи — не роняем 500, просим блокировку
+        await db.rollback()
+        return _back("users", err="У пользователя остались связанные данные — заблокируйте его вместо удаления")
     return _back("users", ok=f"Пользователь {phone} удалён")
 
 
@@ -374,6 +403,10 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
         current_creator_membership.is_creator = False
 
     if not owner_phone:  # снять владельца
+        # Ex-владелец теряет доступ: снятия is_creator мало — доступ даёт
+        # активное членство + permissions, а не флаг создателя.
+        if current_creator_membership is not None:
+            current_creator_membership.is_active = False
         salon.creator_id = None
         _audit(db, admin.id, "salon_owner", "salon", sid, f"{salon.name}: владелец снят", salon_id=sid)
         await db.commit()
@@ -382,6 +415,15 @@ async def salon_owner(sid: int, request: Request, owner_phone: str = Form(""), d
     owner = (await db.execute(select(User).where(User.phone == owner_phone))).scalar_one_or_none()
     if not owner:
         return _back("salons", err="Пользователь с таким телефоном не найден")
+
+    # Старый владелец (если это ДРУГОЙ человек) теряет доступ к салону —
+    # иначе он сохранял бы OWNER-права: снятия is_creator недостаточно,
+    # права даёт активное членство + permissions.
+    if (
+        current_creator_membership is not None
+        and current_creator_membership.user_id != owner.id
+    ):
+        current_creator_membership.is_active = False
 
     # Множественные салоны на владельца разрешены — блокировки больше нет.
     membership = (await db.execute(
@@ -421,15 +463,23 @@ async def salon_delete(sid: int, request: Request, db: AsyncSession = Depends(ge
         return _back("salons", err="В салоне есть мастера — сначала удалите их")
 
     name = salon.name
+    # RESTRICT-FK на salons.id, которые НЕ каскадят: Promotion, Review, Favorite
+    # (остальное — CASCADE/SET NULL; Master заблокирован выше). Favorite салона
+    # чистим явно, иначе удаление салона из чьего-то избранного роняло 500.
     await db.execute(delete(Promotion).where(Promotion.salon_id == sid))
     await db.execute(delete(Review).where(Review.salon_id == sid))
     await db.execute(delete(SalonPhoto).where(SalonPhoto.salon_id == sid))
+    await db.execute(delete(Favorite).where(Favorite.salon_id == sid))
     await db.delete(salon)
     # salon_id тут намеренно не проставляем (не salon_id=sid): салон удалён,
     # его собственную страницу «Сотрудники» с логом больше некому открыть —
     # событие остаётся только в платформенном логе для модератора.
     _audit(db, admin.id, "salon_delete", "salon", sid, f"удалён «{name}»")
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return _back("salons", err="У салона остались связанные данные — деактивируйте его вместо удаления")
     return _back("salons", ok=f"Салон «{name}» удалён")
 
 

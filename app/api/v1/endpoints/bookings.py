@@ -19,11 +19,13 @@ async def _salon_bookable(db, master_id: int) -> bool:
     (модерация регистрации бизнеса).
     """
     row = (await db.execute(
-        select(Salon.is_active, Salon.moderation_status)
+        select(Salon.is_active, Salon.moderation_status, Master.is_active)
         .join(Master, Master.salon_id == Salon.id)
         .where(Master.id == master_id)
     )).first()
-    return bool(row) and row[0] and row[1] == SalonModerationStatus.APPROVED
+    # Салон одобрен и активен И сам мастер активен (мягко удалённый —
+    # is_active=False — записи не принимает).
+    return bool(row) and row[0] and row[1] == SalonModerationStatus.APPROVED and row[2]
 from app.schemas.booking import BookingCreate, BookingResponse, BookingCancel
 from app.api.deps import get_current_user, get_salon_membership
 from app.services.notifications import notify_booking_cancelled, notify_booking_created
@@ -41,7 +43,7 @@ async def create_booking(
     db: AsyncSession = Depends(get_db)
 ):
     """Создать новую запись."""
-    service_result = await db.execute(select(Service).where(Service.id == booking_data.service_id))
+    service_result = await db.execute(select(Service).where(Service.id == booking_data.service_id, Service.is_active == True))
     service = service_result.scalar_one_or_none()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -128,11 +130,13 @@ async def get_available_slots(
 ):
     """Возвращает доступные слоты с учётом графика салона, услуги и перерыва."""
     
-    master = (await db.execute(select(Master).where(Master.id == master_id))).scalar_one_or_none()
+    master = (await db.execute(
+        select(Master).where(Master.id == master_id, Master.is_active == True)
+    )).scalar_one_or_none()
     if not master:
         return {"slots": [], "message": "Мастер не найден"}
     
-    service = (await db.execute(select(Service).where(Service.id == service_id))).scalar_one_or_none()
+    service = (await db.execute(select(Service).where(Service.id == service_id, Service.is_active == True))).scalar_one_or_none()
     if not service:
         return {"slots": [], "message": "Услуга не найдена"}
     
@@ -235,7 +239,7 @@ async def create_booking_web(
         return HTMLResponse(content="<h1>Мастер не найден</h1>", status_code=404)
     if not await _salon_bookable(db, master_id):
         return HTMLResponse(content="<h1>Салон ещё не подтверждён — запись недоступна</h1>", status_code=403)
-    svc_result = await db.execute(select(Service).where(Service.master_id == master_id).limit(1))
+    svc_result = await db.execute(select(Service).where(Service.master_id == master_id, Service.is_active == True).limit(1))
     service = svc_result.scalar_one_or_none()
     if not service:
         return HTMLResponse(content="<h1>У мастера пока нет услуг</h1>", status_code=400)
@@ -268,7 +272,7 @@ async def confirm_booking_web(
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     
-    service = (await db.execute(select(Service).where(Service.id == service_id))).scalar_one_or_none()
+    service = (await db.execute(select(Service).where(Service.id == service_id, Service.is_active == True))).scalar_one_or_none()
     if not service:
         return HTMLResponse(content="<h1>Услуга не найдена</h1>", status_code=404)
     
@@ -439,4 +443,64 @@ async def mark_booking_seen(
     if master is None or master.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Отметить «видел» может только сам мастер записи")
     return await BookingService.mark_seen_by_master(db, booking)
+
+
+async def _email_guest_status(booking: Booking, status_text: str) -> None:
+    """Письмо гостю (гостевая запись) о смене статуса — если оставлял email."""
+    if not booking.guest_email:
+        return
+    try:
+        from app.core.worker import get_arq_pool
+        pool = await get_arq_pool()
+        when = booking.start_time.strftime("%d.%m.%Y %H:%M") if booking.start_time else ""
+        await pool.enqueue_job(
+            "send_email", booking.guest_email, "Статус записи — Руми",
+            f"Ваша запись {when}: {status_text}.\n\n"
+            "Управление бронью — по ссылке, которую вы получили при записи на rrumi.ru.",
+        )
+    except Exception:
+        pass
+
+
+@router.post("/{booking_id}/accept", response_model=BookingResponse)
+async def accept_booking(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Салон подтверждает запись: PENDING → CONFIRMED (owner/admin/manage_schedule/мастер)."""
+    booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    if not await _can_mark_booking(db, current_user, booking):
+        raise HTTPException(status_code=403, detail="Нет прав подтверждать эту запись")
+    if booking.status != BookingStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Запись не в статусе ожидания")
+    booking.status = BookingStatus.CONFIRMED
+    await db.commit()
+    await db.refresh(booking)
+    await _email_guest_status(booking, "подтверждена салоном ✅")
+    return booking
+
+
+@router.post("/{booking_id}/reject", response_model=BookingResponse)
+async def reject_booking(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Салон отклоняет/отменяет запись: → CANCELLED (owner/admin/manage_schedule/мастер)."""
+    booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    if not await _can_mark_booking(db, current_user, booking):
+        raise HTTPException(status_code=403, detail="Нет прав отклонять эту запись")
+    if booking.status not in (BookingStatus.PENDING, BookingStatus.CONFIRMED):
+        raise HTTPException(status_code=400, detail="Эту запись уже нельзя отклонить")
+    booking.status = BookingStatus.CANCELLED
+    await db.commit()
+    await db.refresh(booking)
+    await _email_guest_status(booking, "отклонена салоном")
+    await notify_booking_cancelled(db, booking)
+    return booking
 
