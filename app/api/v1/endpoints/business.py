@@ -281,23 +281,26 @@ async def update_my_salon(
     if update_data.working_hours is not None:
         salon.working_hours = update_data.working_hours
 
+    # Обработка фото
     if update_data.photos is not None:
+        # Удаляем все старые фото
         old_photos = await db.execute(
             select(SalonPhoto).where(SalonPhoto.salon_id == salon.id)
         )
         for photo in old_photos.scalars().all():
             await db.delete(photo)
-
+        # Добавляем новые
         for url in update_data.photos:
             new_photo = SalonPhoto(salon_id=salon.id, url=url)
             db.add(new_photo)
 
+    if update_data.logo_url is not None:
+        salon.logo_url = update_data.logo_url
+
     await db.commit()
     await db.refresh(salon)
 
-    # SalonResponse сериализует salon.photos — у AsyncSession нет implicit
-    # lazy load для relationship (см. тот же класс бага в chat.py), поэтому
-    # грузим явным запросом вместо обращения к непрогретой связи.
+    # Загружаем фото для ответа
     photos_result = await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id))
     salon.photos = list(photos_result.scalars().all())
 
