@@ -45,13 +45,15 @@ async def render_services_tab(
 
         actions_cell = ""
         if can_manage:
+            name_js = service.name.replace("'", "\\'")
+            desc_js = service.description.replace("'", "\\'") if service.description else ''
             actions_cell = f"""
             <td class="services-actions-cell">
-                <button class="services-edit-btn" onclick="openEditModal({service.id}, '{service.name.replace("'", "\\'")}', {service.price}, {service.duration_minutes}, '{service.description.replace("'", "\\'") if service.description else ''}', {service.master_id})" title="Редактировать">
+                <button class="services-edit-btn" onclick="openEditModal({service.id}, '{name_js}', {service.price}, {service.duration_minutes}, '{desc_js}', {service.master_id})" title="Редактировать">
                     {ICON_EDIT}
                 </button>
                 <form method="post" action="/api/v1/services/{service.id}/delete" style="display:inline-block; margin:0;">
-                    <button type="submit" class="services-delete-btn" title="Удалить" onclick="return confirm('Удалить услугу «{service.name.replace("'", "\\'")}»?')">
+                    <button type="submit" class="services-delete-btn" title="Удалить" onclick="return confirm('Удалить услугу «{name_js}»?')">
                         {ICON_TRASH}
                     </button>
                 </form>
@@ -80,12 +82,14 @@ async def render_services_tab(
 
         actions = ""
         if can_manage:
+            name_js = service.name.replace("'", "\\'")
+            desc_js = service.description.replace("'", "\\'") if service.description else ''
             actions = f"""
-            <button class="services-edit-btn" onclick="openEditModal({service.id}, '{service.name.replace("'", "\\'")}', {service.price}, {service.duration_minutes}, '{service.description.replace("'", "\\'") if service.description else ''}', {service.master_id})" title="Редактировать">
+            <button class="services-edit-btn" onclick="openEditModal({service.id}, '{name_js}', {service.price}, {service.duration_minutes}, '{desc_js}', {service.master_id})" title="Редактировать">
                 {ICON_EDIT}
             </button>
             <form method="post" action="/api/v1/services/{service.id}/delete" style="display:inline-block; margin:0;">
-                <button type="submit" class="services-delete-btn" title="Удалить" onclick="return confirm('Удалить услугу «{service.name.replace("'", "\\'")}»?')">
+                <button type="submit" class="services-delete-btn" title="Удалить" onclick="return confirm('Удалить услугу «{name_js}»?')">
                     {ICON_TRASH}
                 </button>
             </form>

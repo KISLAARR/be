@@ -20,8 +20,11 @@ def render_promos_tab(promotions, can_manage: bool = False, salon_id: int = None
                     {ICON_TRASH}
                 </button>
             '''
+            title_js = p.title.replace("'", "\\'")
+            desc_js = p.description.replace("'", "\\'") if p.description else ''
+            tag_js = p.tag.replace("'", "\\'")
             edit_btn = f'''
-                <button onclick="editPromo({p.id}, '{p.title.replace("'", "\\'")}', '{p.description.replace("'", "\\'") if p.description else ''}', '{p.tag.replace("'", "\\'")}')" 
+                <button onclick="editPromo({p.id}, '{title_js}', '{desc_js}', '{tag_js}')"
                         class="edit-btn-icon" title="Редактировать акцию">
                     {ICON_EDIT}
                 </button>
