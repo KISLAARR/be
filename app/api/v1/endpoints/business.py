@@ -353,6 +353,38 @@ async def create_promotion(
     return new_promotion
 
 
+@router.post("/my-salon/promotions/{promo_id}/update")
+async def update_promotion_web(
+    promo_id: int,
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(""),
+    tag: str = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновление акции через веб-форму (требуется право manage_promotions)."""
+    from app.web.auth import get_current_user_from_cookie
+    user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    promo = (await db.execute(select(Promotion).where(Promotion.id == promo_id))).scalar_one_or_none()
+    if not promo:
+        return HTMLResponse(content="Акция не найдена", status_code=404)
+
+    try:
+        await check_salon_permission(db, user, promo.salon_id, "manage_promotions")
+    except HTTPException:
+        return HTMLResponse(content="Недостаточно прав для управления акциями", status_code=403)
+
+    promo.title = title
+    promo.description = description
+    promo.tag = tag
+    await db.commit()
+
+    return RedirectResponse(url="/business/dashboard?tab=promos&updated=1", status_code=302)
+
+
 @router.get("/my-salon/dashboard")
 async def get_business_dashboard(
     salon: Salon = Depends(get_current_salon),
@@ -490,7 +522,7 @@ async def create_promotion_web(
     db.add(promo)
     await db.commit()
 
-    return RedirectResponse(url="/business/my-salon?promo_added=1", status_code=302)
+    return RedirectResponse(url="/business/dashboard?tab=promos&added=1", status_code=302)
 
 
 @router.post("/my-salon/promotions/{promo_id}/delete")
@@ -518,7 +550,7 @@ async def delete_promotion_web(
     await db.delete(promo)
     await db.commit()
 
-    return RedirectResponse(url="/business/my-salon?promo_deleted=1", status_code=302)
+    return RedirectResponse(url="/business/dashboard?tab=promos&deleted=1", status_code=302)
 
 
 # ========== Карточка клиента: заметки ==========

@@ -1,4 +1,6 @@
 # app/web/pages/business/dashboard.py
+import re
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
@@ -161,7 +163,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
 
     # Акции
     tab_buttons.append(('promos', ICON_SPARKLES, f'Акции ({len(promotions)})', True))
-    tabs_html.append(render_promos_tab(promotions))
+    tabs_html.append(render_promos_tab(promotions, can_manage=perms["manage_promotions"], salon_id=salon.id))
 
     # Отзывы
     tab_buttons.append(('reviews', ICON_STAR_FILLED, f'Отзывы ({len(reviews)})', True))
@@ -186,11 +188,10 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
         active_class = " active" if slug == active_tab else ""
         nav_buttons_html += f'<button class="tab-btn{active_class}" onclick="switchTab(\'{slug}\')">{icon} {label}</button>'
 
-    tabs_body_html = "\n".join(tabs_html).replace(
-        f'id="tab-{active_tab}" class="tab-content"',
-        f'id="tab-{active_tab}" class="tab-content active"',
-        1,
-    )
+    tabs_body_html = "\n".join(tabs_html)
+    # Добавляем класс active к нужной вкладке, учитывая любые другие классы
+    pattern = re.compile(f'(id="tab-{active_tab}" class="tab-content)([^"]*)"')
+    tabs_body_html = pattern.sub(r'\1\2 active"', tabs_body_html)
 
     switcher_html = ""
     if len(other_memberships) > 1:

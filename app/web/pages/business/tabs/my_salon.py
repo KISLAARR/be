@@ -3,7 +3,7 @@ import html
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.models import Salon, Promotion, SalonLoyaltySettings, LoyaltyOffer, User as UserModel, SalonPhoto
+from app.models.models import Salon, SalonLoyaltySettings, LoyaltyOffer, User as UserModel, SalonPhoto
 
 DAY_KEYS_RU = [
     ("mon", "Понедельник"), ("tue", "Вторник"), ("wed", "Среда"), ("thu", "Четверг"),
@@ -181,10 +181,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
             '<div class="alert success">Мастер добавлен.</div>'
         )
 
-    # Акции
-    promos_result = await db.execute(select(Promotion).where(Promotion.salon_id == salon.id))
-    promotions = promos_result.scalars().all()
-
     # Лояльность
     loyalty_settings = (await db.execute(
         select(SalonLoyaltySettings).where(SalonLoyaltySettings.salon_id == salon.id)
@@ -237,19 +233,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
             <span class="time-sep">—</span>
             <input type="time" id="wh-end-{key}" value="{end_val}" {disabled}>
         </div>"""
-
-    # Акции (таблица)
-    promos_rows = ""
-    for p in promotions:
-        promos_rows += f"""
-        <tr>
-            <td><strong>{p.title}</strong></td>
-            <td>{p.tag}</td>
-            <td>
-                <button onclick="deletePromo({p.id}, '{p.title}')" class="delete-btn-icon">{ICON_TRASH}</button>
-            </td>
-        </tr>
-        """
 
     # Подключаем иконки в глобальные переменные JS
     icon_script = f"""
@@ -316,30 +299,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
                 </div>
             </div>
 
-            <!-- Акции -->
-            <div class="my-salon-card">
-                <div class="my-salon-card-header">
-                    <h2 class="my-salon-card-title" style="margin:0;">Акции</h2>
-                    <button class="my-salon-btn-primary" onclick="document.getElementById('addPromoModal').classList.add('active')">
-                        {ICON_PLUS} Добавить акцию
-                    </button>
-                </div>
-                <div class="table-wrap">
-                    <table class="my-salon-table">
-                        <thead>
-                            <tr>
-                                <th>Название</th>
-                                <th>Тег</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {promos_rows or '<tr><td colspan="3" class="empty-state">Пока нет акций</td></tr>'}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <!-- Лояльность -->
             <div class="my-salon-card">
                 <h2 class="my-salon-card-title">Лояльность</h2>
@@ -384,30 +343,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
                             {loyalty_offers_rows or '<tr><td colspan="4" class="empty-state">Пока нет именных скидок</td></tr>'}
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- Модальное окно: Добавить акцию -->
-            <div class="my-salon-modal-overlay" id="addPromoModal">
-                <div class="my-salon-modal-box">
-                    <button class="my-salon-modal-close" onclick="document.getElementById('addPromoModal').classList.remove('active')">&times;</button>
-                    <h2>Добавить акцию</h2>
-                    <form action="/api/v1/business/my-salon/promotions/web" method="post">
-                        <input type="hidden" name="salon_id" value="{salon.id}">
-                        <div class="my-salon-form-group">
-                            <label for="promoTitle">Название *</label>
-                            <input type="text" id="promoTitle" name="title" required placeholder="Например: Скидка 20%">
-                        </div>
-                        <div class="my-salon-form-group">
-                            <label for="promoDesc">Описание</label>
-                            <textarea id="promoDesc" name="description" rows="2" placeholder="Условия акции..."></textarea>
-                        </div>
-                        <div class="my-salon-form-group">
-                            <label for="promoTag">Тег *</label>
-                            <input type="text" id="promoTag" name="tag" required placeholder="Новичкам, Выгода, Подарок...">
-                        </div>
-                        <button type="submit" class="my-salon-btn-primary" style="width:100%">Добавить акцию</button>
-                    </form>
                 </div>
             </div>
 
