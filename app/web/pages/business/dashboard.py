@@ -42,7 +42,7 @@ from app.web.pages.business.tabs.cost import render_cost_tab
 from app.web.pages.business.tabs.promo_models import render_promo_models_tab
 from app.web.pages.business.tabs.chat import render_chat_tab
 from app.web.pages.business.tabs.staff import render_staff_tab
-from app.web.pages.business.tabs.my_salon import render_my_salon_tab   # <-- НОВЫЙ ИМПОРТ
+from app.web.pages.business.tabs.my_salon import render_my_salon_tab
 from app.crm.tabs.clients import render_crm_tab
 
 
@@ -175,7 +175,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
 
     # Редактировать салон (всегда видна, в конце) — теперь реальная вкладка
     tab_buttons.append(('edit', ICON_SETTINGS_GEAR_SMALL, 'Редактировать салон', True))
-    tabs_html.append(await render_my_salon_tab(db, salon, user, query_params))   # <-- ИЗМЕНЕНО
+    tabs_html.append(await render_my_salon_tab(db, salon, user, query_params))
 
     visible_slugs = [slug for slug, _, _, visible in tab_buttons if visible]
     if active_tab not in visible_slugs:
@@ -212,7 +212,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
         moderation_banner = (
             '<div style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;'
             'padding:0.9rem 1.1rem;border-radius:0.75rem;margin:1.5rem 0 0;font-size:0.9rem">'
-            '⏳ <b>Заявка на рассмотрении.</b> Можно настраивать салон (услуги, мастера, фото), '
+            '<b>Заявка на рассмотрении.</b> Можно настраивать салон (услуги, мастера, фото), '
             'но клиентам он пока не виден и запись закрыта — откроются после подтверждения платформой.</div>'
         )
     elif salon.moderation_status == SalonModerationStatus.REJECTED:
@@ -221,7 +221,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
         moderation_banner = (
             '<div style="background:#fee2e2;border:1px solid #ef4444;color:#991b1b;'
             'padding:0.9rem 1.1rem;border-radius:0.75rem;margin:1.5rem 0 0;font-size:0.9rem">'
-            f'⛔ <b>Заявка отклонена.</b>{reason} Свяжитесь с поддержкой.</div>'
+            f'<b>Заявка отклонена.</b>{reason} Свяжитесь с поддержкой.</div>'
         )
 
     header_html = f"""
@@ -265,4 +265,43 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     {render_footer(user)}
 </body>
 </html>"""
+
+    # Скрипт для обновления URL при переключении вкладок
+    script_block = """
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обновляем URL при клике на кнопку вкладки
+            document.querySelectorAll('.tab-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    // Даем оригинальному обработчику выполниться (он уже сработает через onclick)
+                    // Используем setTimeout, чтобы дать switchTab завершиться.
+                    setTimeout(function() {
+                        // Определяем имя вкладки из onclick или data-tab
+                        var tabName = null;
+                        var onclickAttr = btn.getAttribute('onclick');
+                        if (onclickAttr) {
+                            var match = onclickAttr.match(/switchTab\\(['"]([^'"]+)['"]\\)/);
+                            if (match) tabName = match[1];
+                        }
+                        if (!tabName) {
+                            // Если не удалось извлечь, используем текст кнопки (приводим к нижнему регистру)
+                            tabName = btn.textContent.trim().toLowerCase();
+                        }
+                        if (tabName) {
+                            var url = new URL(window.location);
+                            url.searchParams.set('tab', tabName);
+                            // Удаляем параметры added, deleted, updated, чтобы URL был чистым
+                            url.searchParams.delete('added');
+                            url.searchParams.delete('deleted');
+                            url.searchParams.delete('updated');
+                            window.history.pushState({}, '', url);
+                        }
+                    }, 50);
+                });
+            });
+        });
+    </script>
+    """
+    html = html.replace('</body>', script_block + '\n</body>')
+
     return html
