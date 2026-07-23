@@ -21,7 +21,7 @@ from app.web.components.icons import (
     ICON_CHART_COLUMN,
     ICON_HEART,
     ICON_CALENDAR_DAYS,
-    ICON_MESSAGE_CIRCLE,
+    # ICON_MESSAGE_CIRCLE,  # закомментирован, так как чат убран
     ICON_STAR_FILLED,
     ICON_USER_CHECK,
     ICON_SPARKLES,
@@ -40,7 +40,7 @@ from app.web.pages.business.tabs.warehouse import render_warehouse_tab
 from app.web.pages.business.tabs.payroll import render_payroll_tab
 from app.web.pages.business.tabs.cost import render_cost_tab
 from app.web.pages.business.tabs.promo_models import render_promo_models_tab
-from app.web.pages.business.tabs.chat import render_chat_tab
+# from app.web.pages.business.tabs.chat import render_chat_tab  # закомментирован
 from app.web.pages.business.tabs.staff import render_staff_tab
 from app.web.pages.business.tabs.my_salon import render_my_salon_tab
 from app.crm.tabs.clients import render_crm_tab
@@ -152,9 +152,9 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     if perms["manage_inventory"]:
         tabs_html.append(await render_warehouse_tab(db, salon, masters, master_ids, warehouse_filters, membership))
 
-    # Чат
-    tab_buttons.append(('chat', ICON_MESSAGE_CIRCLE, 'Чат', True))
-    tabs_html.append(await render_chat_tab(db, salon, user))
+    # Чат — убран
+    # tab_buttons.append(('chat', ICON_MESSAGE_CIRCLE, 'Чат', True))
+    # tabs_html.append(await render_chat_tab(db, salon, user))
 
     # Модели (с правом manage_masters)
     tab_buttons.append(('models', ICON_HEART, 'Модели', perms["manage_masters"]))
