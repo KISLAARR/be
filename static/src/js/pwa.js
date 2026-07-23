@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator) {
             '#pwa-banner .pwa-txt{flex:1;font-size:.88rem;line-height:1.3;color:#1a1523}' +
             '#pwa-banner .pwa-txt b{display:block;margin-bottom:.1rem}' +
             '#pwa-banner .pwa-txt small{color:#6b6577}' +
-            '#pwa-banner .pwa-install{background:#6d28d9;color:#fff;border:none;border-radius:10px;' +
+            '#pwa-banner .pwa-install{background:#c081b8;color:#fff;border:none;border-radius:10px;' +
             'padding:.55rem .95rem;font-weight:600;font-size:.9rem;cursor:pointer;flex:none}' +
             '#pwa-banner .pwa-close{background:none;border:none;color:#9a93a8;font-size:1.5rem;' +
             'line-height:1;cursor:pointer;padding:0 .2rem;flex:none}' +
@@ -60,8 +60,8 @@ if ('serviceWorker' in navigator) {
         // iOS Safari: события beforeinstallprompt нет — показываем инструкцию
         showBanner(
             ICON +
-            '<div class="pwa-txt"><b>Установите Руми на экран</b>' +
-            '<small>Нажмите «Поделиться» ↑, затем «На экран „Домой“»</small></div>' +
+            '<div class="pwa-txt"><b>Добавьте Руми на главный экран</b>' +
+            '<small>Откройте меню «Поделиться» и выберите «На экран „Домой“»</small></div>' +
             '<button class="pwa-close" aria-label="Закрыть">×</button>'
         );
     } else {
@@ -73,7 +73,7 @@ if ('serviceWorker' in navigator) {
             showBanner(
                 ICON +
                 '<div class="pwa-txt"><b>Установите приложение Руми</b>' +
-                '<small>Быстрый доступ с экрана телефона</small></div>' +
+                '<small>Быстрый доступ прямо с главного экрана</small></div>' +
                 '<button class="pwa-install">Установить</button>' +
                 '<button class="pwa-close" aria-label="Закрыть">×</button>',
                 async function () {

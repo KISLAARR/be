@@ -114,9 +114,9 @@ _OFFLINE_HTML = """<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Нет сети — Руми</title></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#faf9fb;color:#1a1523">
 <div style="text-align:center;padding:2rem">
-<div style="font-size:1.6rem;font-weight:800;color:#6d28d9">руми.</div>
+<div style="font-size:1.6rem;font-weight:800;color:#c081b8">руми.</div>
 <p style="color:#6b6577">Нет подключения к интернету.<br>Проверьте связь и попробуйте снова.</p>
-<button onclick="location.reload()" style="background:#6d28d9;color:#fff;border:none;border-radius:10px;padding:.6rem 1.2rem;font-size:1rem;cursor:pointer">Обновить</button>
+<button onclick="location.reload()" style="background:#c081b8;color:#fff;border:none;border-radius:10px;padding:.6rem 1.2rem;font-size:1rem;cursor:pointer">Обновить</button>
 </div></body></html>"""
 
 
@@ -134,7 +134,7 @@ async def pwa_manifest():
         "orientation": "portrait",
         "lang": "ru",
         "background_color": "#faf9fb",
-        "theme_color": "#6d28d9",
+        "theme_color": "#c081b8",
         "icons": [
             {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
             {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},

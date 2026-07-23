@@ -30,7 +30,7 @@ def get_base_styles() -> str:
     <link rel="stylesheet" href="/static/dist/main.css?v={_CSS_V}">
     <script type="module" src="/static/dist/main.js?v={_JS_V}"></script>
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#6d28d9">
+    <meta name="theme-color" content="#c081b8">
     <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
