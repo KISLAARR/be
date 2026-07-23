@@ -50,7 +50,7 @@
         }
     });
 
-    // Глобальная функция для редактирования (заполняет форму и открывает модалку)
+    // Глобальная функция для редактирования
     window.openEditModal = function(id, name, price, duration, desc, masterId) {
         if (!modal) return;
         modalTitle.textContent = 'Редактировать услугу';
@@ -63,5 +63,5 @@
         form.action = '/api/v1/services/' + id + '/update';
         modal.classList.add('active');
     };
-
+    
 })();
