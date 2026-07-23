@@ -131,7 +131,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
 
     # Услуги
     tab_buttons.append(('services', ICON_USER_CHECK, 'Услуги', True))
-    tabs_html.append(await render_services_tab(db, salon, masters))
+    tabs_html.append(await render_services_tab(db, salon, masters, can_manage=perms["manage_masters"]))
 
     # Зарплаты (с правом manage_payroll)
     tab_buttons.append(('payroll', ICON_WALLET, 'Зарплаты', perms["manage_payroll"]))

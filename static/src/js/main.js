@@ -24,3 +24,5 @@ import './business/tabs/my-salon.js';
 import './business/dashboard.js';
 import './business/tabs/overview.js';
 import './business/tabs/promos.js';
+import './business/tabs/promos.js';
+import './business/tabs/services.js';
