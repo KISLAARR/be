@@ -38,7 +38,6 @@ def _render_edit_card(salon: Salon, photos: list) -> str:
     else:
         photo_html = f'<div class="salon-edit-photo-placeholder">{salon.name[0].upper()}</div>'
 
-    # Статическая часть (видна всегда, кроме режима редактирования)
     static_html = f"""
         <div class="salon-edit-static">
             <div class="salon-edit-photo-wrapper">
@@ -62,7 +61,6 @@ def _render_edit_card(salon: Salon, photos: list) -> str:
         </div>
     """
 
-    # Блок галереи
     def _photo_card(p) -> str:
         is_cover = salon.logo_url == p.url
         border_class = "cover-border" if is_cover else "default-border"
@@ -84,7 +82,6 @@ def _render_edit_card(salon: Salon, photos: list) -> str:
 
     photo_cards = "".join(_photo_card(p) for p in photos)
 
-    # Редактируемая часть
     inputs_html = f"""
         <div class="salon-edit-inputs" style="display:none;">
             <!-- Блок фото салона -->
@@ -94,7 +91,7 @@ def _render_edit_card(salon: Salon, photos: list) -> str:
                     <p>Перетащите фото сюда или нажмите, чтобы выбрать</p>
                     <p class="hint">Можно несколько сразу · JPG/PNG до 5 МБ · появятся на странице салона</p>
                 </div>
-                <input type="file" id="photoFileInput" accept="image/*" multiple style="display:none">
+                <input type="file" id="photoFileInputMySalon" accept="image/*" multiple style="display:none">
                 <div id="photoUploadStatus"></div>
                 <div class="my-salon-photos">
                     {photo_cards or '<p style="color:var(--color-muted);margin:0">Пока нет фотографий</p>'}
@@ -123,7 +120,6 @@ def _render_edit_card(salon: Salon, photos: list) -> str:
         </div>
     """
 
-    # Скрипт с начальными данными для JS (передаём массив объектов с id и url)
     photos_data = [{"id": p.id, "url": p.url} for p in photos]
     initial_logo = salon.logo_url or ''
     import json
@@ -152,7 +148,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
     """Вкладка «Редактировать салон» для бизнес-панели."""
     query_params = query_params or {}
 
-    # Загружаем фото галереи (нужны для карточки)
     photos = (
         await db.execute(select(SalonPhoto).where(SalonPhoto.salon_id == salon.id).order_by(SalonPhoto.id))
     ).scalars().all()
@@ -181,7 +176,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
             '<div class="alert success">Мастер добавлен.</div>'
         )
 
-    # Лояльность
     loyalty_settings = (await db.execute(
         select(SalonLoyaltySettings).where(SalonLoyaltySettings.salon_id == salon.id)
     )).scalar_one_or_none()
@@ -204,7 +198,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
         </tr>
         """
 
-    # Часы работы
     parsed_hours = {}
     if salon.working_hours:
         try:
@@ -234,7 +227,6 @@ async def render_my_salon_tab(db: AsyncSession, salon: Salon, user=None, query_p
             <input type="time" id="wh-end-{key}" value="{end_val}" {disabled}>
         </div>"""
 
-    # Подключаем иконки в глобальные переменные JS
     icon_script = f"""
     <script>
         window.ICON_EDIT = `{ICON_EDIT}`;
