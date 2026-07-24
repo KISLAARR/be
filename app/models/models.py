@@ -81,6 +81,14 @@ class PhotoReportStatus(str, enum.Enum):
     RESOLVED = "resolved"    # жалоба удовлетворена, фото удалено
     DISMISSED = "dismissed"  # жалоба отклонена, фото осталось
 
+
+class ModelModerationStatus(str, enum.Enum):
+    """Модерация анкеты модели — тот же принцип, что у SalonModerationStatus:
+    видна салонам в кандидатах только после APPROVED."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
 # Ключи прав салона. Значение — можно ли делать соответствующее действие.
 # У создателя салона (SalonMember.is_creator=True) все права всегда True
 # независимо от словаря, плюс только он может удалить сам салон.
@@ -135,6 +143,21 @@ class User(Base):
     # салонов, отзывы, аудит-лог, назначение других модераторов. Не имеет
     # смысла для не-ADMIN ролей.
     is_senior_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+
+    # Статус «модель» — дополнение к обычному клиентскому аккаунту (не смена
+    # role), открывает доступ к ленте мастеров, ищущих моделей, и мэтчингу.
+    is_model: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    model_photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    model_bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    model_looking_for: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Модерация анкеты модели (как у салона, см. SalonModerationStatus):
+    # видна салонам в кандидатах только после APPROVED. Ставится PENDING при
+    # первом включении is_model, повторные правки анкеты статус не сбрасывают.
+    model_moderation_status: Mapped[ModelModerationStatus] = mapped_column(
+        Enum(ModelModerationStatus), default=ModelModerationStatus.PENDING,
+        server_default="PENDING", nullable=False,
+    )
+    model_rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
@@ -280,7 +303,12 @@ class Master(Base):
     rating: Mapped[float] = mapped_column(Float, default=0.0)
     photo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     break_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15", nullable=False)
-    
+
+    # Мастер ищет модель для отработки навыка/пополнения портфолио — карточка
+    # попадает в городскую ленту свайпов (app/services/model_matching_service.py).
+    seeking_models: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    seeking_models_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     user: Mapped["User"] = relationship(back_populates="master_profile")
     salon: Mapped["Salon"] = relationship(back_populates="masters")
     services: Mapped[List["Service"]] = relationship(back_populates="master")
@@ -301,6 +329,19 @@ class Service(Base):
     # Мягкое удаление: удалённая услуга скрыта из выбора/записи, но брони с ней
     # (история) остаются валидными — Booking.service_id не рвётся.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    # Спецуслуга для отработки на моделях (своя цена/длительность) — не
+    # показывается обычным клиентам, доступна только через мэтчинг моделей.
+    is_model_practice: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Квота моделей на эту услугу: сколько BOOKED-мэтчей нужно набрать, прежде
+    # чем услуга перестанет предлагаться новым моделям. NULL — квота не задана,
+    # тогда открытость управляется только model_seeking_open вручную.
+    model_quota: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Ручной рубильник «ищем/не ищем моделей на эту услугу» — салон может
+    # закрыть в любой момент независимо от квоты («пока сам не закрою»).
+    model_seeking_open: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    # Желаемая дата отработки (форма «Опубликовать поиск») — чисто информационная,
+    # слоты для брони по-прежнему выбираются отдельно в оффере конкретному мэтчу.
+    model_desired_date: Mapped[Optional[date_]] = mapped_column(Date, nullable=True)
 
     master: Mapped["Master"] = relationship(back_populates="services")
 
@@ -433,7 +474,15 @@ class MasterPhoto(Base):
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    master: Mapped["Master"] = relationship()
+
+class ModelPhoto(Base):
+    """Галерея фото модели (помимо обложки User.model_photo_url)."""
+    __tablename__ = "model_photos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class PhotoReport(Base):
     """Жалоба на фото (из портфолио мастера или из отзыва) — модерация."""
@@ -837,4 +886,58 @@ class ScheduleClosure(Base):
             "uq_schedule_closure_master", "salon_id", "master_id", "date", unique=True,
             postgresql_where=text("master_id IS NOT NULL"),
         ),
+    )
+
+
+class ModelMatchStatus(str, enum.Enum):
+    PENDING = "pending"     # свайпнула только одна сторона
+    MATCHED = "matched"     # взаимный лайк — цена/услуга уже известны из Service, ждём выбор времени моделью
+    BOOKED = "booked"       # модель выбрала слот — создана запись
+    DECLINED = "declined"   # любая сторона отказалась
+
+
+class ModelMatch(Base):
+    """Мэтчинг «модель ↔ конкретный опубликованный поиск (Service с
+    is_model_practice=True)» — одна строка на пару (модель, услуга),
+    совмещает и факт свайпа с каждой стороны, и состояние последующей
+    брони. Цена/длительность/мастер берутся из Service — оффера как
+    отдельного шага нет: мэтч сразу даёт право выбрать реальный свободный
+    слот в расписании мастера (см. accept-slot)."""
+    __tablename__ = "model_matches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id", ondelete="CASCADE"))
+    master_id: Mapped[int] = mapped_column(ForeignKey("masters.id", ondelete="CASCADE"))  # денормализовано из service.master_id
+    salon_id: Mapped[int] = mapped_column(ForeignKey("salons.id", ondelete="CASCADE"))  # денормализовано для выборок со стороны салона
+
+    model_liked: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    model_liked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    salon_liked: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    salon_liked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    salon_liked_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    status: Mapped[ModelMatchStatus] = mapped_column(
+        Enum(ModelMatchStatus), default=ModelMatchStatus.PENDING,
+        server_default="PENDING", nullable=False,
+    )
+    matched_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    chosen_slot: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
+    booking_id: Mapped[Optional[int]] = mapped_column(ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+
+    declined_by: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # "model" | "salon"
+    declined_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    model_user: Mapped["User"] = relationship(foreign_keys=[model_user_id])
+    service: Mapped["Service"] = relationship()
+    master: Mapped["Master"] = relationship()
+    salon: Mapped["Salon"] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("model_user_id", "service_id", name="uq_model_match_pair"),
+        Index("ix_model_matches_model_status", "model_user_id", "status"),
+        Index("ix_model_matches_salon_status", "salon_id", "status"),
     )

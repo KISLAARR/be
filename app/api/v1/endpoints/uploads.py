@@ -11,13 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import check_salon_permission, get_current_user
 from app.db.session import get_db
-from app.models.models import Master, MasterPhoto, Review, ReviewPhoto, Salon, SalonPhoto, User
+from app.models.models import Master, MasterPhoto, ModelPhoto, Review, ReviewPhoto, Salon, SalonPhoto, User
 from app.services.uploads import UploadError, delete_stored, save_image
 
 router = APIRouter()
 
 MAX_MASTER_PHOTOS = 20
 MAX_REVIEW_PHOTOS = 5
+MAX_MODEL_PHOTOS = 6
 
 
 def _safe_next(target: str, fallback: str) -> str:
@@ -235,6 +236,61 @@ async def delete_review_photo(
 
     photo = (await db.execute(
         select(ReviewPhoto).where(ReviewPhoto.id == photo_id, ReviewPhoto.review_id == review_id)
+    )).scalar_one_or_none()
+    if photo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Фото не найдено")
+
+    url = photo.url
+    await db.delete(photo)
+    await db.commit()
+    if url.startswith("/uploads/"):
+        delete_stored(url)
+    return {"status": "deleted"}
+
+
+@router.post("/model/photo")
+async def upload_model_photos(
+    files: list[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Галерея анкеты модели — свои фото, до MAX_MODEL_PHOTOS штук.
+
+    Не проверяем current_user.is_model — модель может начать собирать
+    галерею до отправки анкеты (та же логика, что и upsert профиля)."""
+    existing_count = (await db.execute(
+        select(func.count(ModelPhoto.id)).where(ModelPhoto.model_user_id == current_user.id)
+    )).scalar() or 0
+
+    saved, errors = [], []
+    for file in files:
+        if existing_count + len(saved) >= MAX_MODEL_PHOTOS:
+            errors.append({"file": file.filename or "файл", "detail": f"Максимум {MAX_MODEL_PHOTOS} фото в галерее"})
+            continue
+        try:
+            url = await save_image(file, "models")
+        except UploadError as e:
+            errors.append({"file": file.filename or "файл", "detail": str(e)})
+            continue
+        db.add(ModelPhoto(model_user_id=current_user.id, url=url))
+        saved.append(url)
+    if saved:
+        await db.commit()
+
+    if not saved and errors:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=errors[0]["detail"])
+    return {"saved": saved, "errors": errors}
+
+
+@router.post("/model/photo/{photo_id}/delete")
+async def delete_model_photo(
+    photo_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Модель удаляет своё фото из галереи."""
+    photo = (await db.execute(
+        select(ModelPhoto).where(ModelPhoto.id == photo_id, ModelPhoto.model_user_id == current_user.id)
     )).scalar_one_or_none()
     if photo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Фото не найдено")

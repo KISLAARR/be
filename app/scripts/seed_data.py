@@ -14,7 +14,7 @@ from app.models.models import (
     SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
     Booking, BookingStatus, Review,
     SalonLoyaltySettings, LoyaltyOffer, ClientLoyalty, LoyaltyStatusSource,
-    InventoryItem, MasterPayrollSettings, SalonModerationStatus,
+    InventoryItem, MasterPayrollSettings, SalonModerationStatus, ModelModerationStatus,
 )
 from app.core.config import settings
 from app.core.security import get_password_hash
@@ -213,7 +213,13 @@ async def seed_database():
         test_users = [
             User(phone="+79990000001", full_name="Анна Клиент", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.CLIENT, is_active=True),
             User(phone="+79990000002", full_name="Игорь Владелец", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.BUSINESS, is_active=True),
-            User(phone="+79990000003", full_name="Мария Модель", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.MODEL, is_active=True),
+            User(
+                phone="+79990000003", full_name="Мария Модель", hashed_password=get_password_hash(DEV_PASSWORD),
+                role=UserRole.CLIENT, is_active=True, is_model=True,
+                model_bio="Ищу мастеров для практики окрашивания и стрижек.",
+                model_looking_for="Окрашивание, стрижка",
+                model_moderation_status=ModelModerationStatus.APPROVED,
+            ),
             User(phone="+79990000010", full_name="Дмитрий Смирнов", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.CLIENT, is_active=True),
             User(phone="+79990000011", full_name="Екатерина Иванова", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.CLIENT, is_active=True),
             User(phone="+79990000012", full_name="Сергей Петров", hashed_password=get_password_hash(DEV_PASSWORD), role=UserRole.CLIENT, is_active=True),

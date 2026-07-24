@@ -10,7 +10,7 @@ from app.web.pages.home import render_home_page
 from app.web.pages.login import render_login_page         
 from app.web.pages.register import render_register_page
 from app.web.pages.model_landing import render_model_landing_page
-from app.web.pages.model_checkout import render_model_checkout_page   
+from app.web.pages.model_join import render_model_join_page
 from app.web.pages.about import render_about_page
 from app.web.pages.business_landing import render_business_landing_page
 from app.web.components.header import render_header
@@ -370,21 +370,25 @@ async def model_landing_page(request: Request, db: AsyncSession = Depends(get_db
     return HTMLResponse(content=render_model_landing_page(user))
 
 
-@router.get("/model/checkout", response_class=HTMLResponse)
-async def model_checkout_page(
-    request: Request,
-    plan: str = "start",
-    db: AsyncSession = Depends(get_db)
-):
+@router.get("/model/join", response_class=HTMLResponse)
+async def model_join_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_current_user_from_cookie(request, db)
-    return HTMLResponse(content=render_model_checkout_page(plan, user))
+    if not user:
+        return RedirectResponse(url="/login?redirect=/model/join", status_code=302)
+    from app.models.models import ModelPhoto
+    photos = (await db.execute(
+        select(ModelPhoto).where(ModelPhoto.model_user_id == user.id).order_by(ModelPhoto.id)
+    )).scalars().all()
+    return HTMLResponse(content=render_model_join_page(user, photos=[{"id": p.id, "url": p.url} for p in photos]))
 
 
 @router.get("/model/dashboard", response_class=HTMLResponse)
 async def model_dashboard_page(request: Request, db: AsyncSession = Depends(get_db)):
     user = await get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login?redirect=/model/dashboard", status_code=302)
     from app.web.pages.model_dashboard import render_model_dashboard
-    return HTMLResponse(content=render_model_dashboard(user))
+    return HTMLResponse(content=await render_model_dashboard(db, user))
 
 
 @router.get("/book", response_class=HTMLResponse)

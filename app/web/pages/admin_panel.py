@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.models import (
     User, UserRole, Salon, SalonPhoto, Master, Service, Booking, Review, BookingStatus, AdminAudit,
-    SalonModerationStatus, PhotoReport, PhotoReportStatus,
+    SalonModerationStatus, PhotoReport, PhotoReportStatus, ModelModerationStatus,
 )
 from app.web.components.header import render_header
 from app.web.components.footer import render_footer
@@ -104,6 +104,54 @@ def _applications_tab(pending, owner_phone_by_id, extra_by_id):
     <div class="tab-content" id="tab-applications">
         <h2 style="margin-bottom:1rem">Заявки на регистрацию ({len(pending)})</h2>
         <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">Салон работает только после одобрения: до этого он не виден в каталоге и запись закрыта.</p>
+        {cards}
+    </div>
+    """
+
+
+# ── ВКЛАДКА: АНКЕТЫ МОДЕЛЕЙ (модерация) ──────────────────────────────────────
+def _model_applications_tab(pending_models):
+    """pending_models — список User с is_model=True и model_moderation_status=PENDING."""
+    cards = ""
+    for u in pending_models:
+        submitted = u.updated_at.strftime("%d.%m.%Y") if u.updated_at else "—"
+        photo_html = (
+            f'<img src="{_esc(u.model_photo_url)}" style="width:88px;height:88px;object-fit:cover;border-radius:0.75rem;flex-shrink:0">'
+            if u.model_photo_url else
+            '<div style="width:88px;height:88px;border-radius:0.75rem;background:var(--color-border);'
+            'display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.5rem">💃</div>'
+        )
+        approve = (
+            f'<form method="post" action="/api/v1/admin/models/{u.id}/approve" style="display:inline">'
+            f'<button class="btn-mini" style="border-color:#16a34a;color:#16a34a">✓ Одобрить</button></form>'
+        )
+        reject = (
+            f'<form method="post" action="/api/v1/admin/models/{u.id}/reject" style="display:inline-flex;gap:0.25rem" '
+            f'onsubmit="return confirm(\'Отклонить анкету «{_esc(u.full_name or u.phone)}»?\')">'
+            f'<input name="reason" placeholder="причина" '
+            f'style="padding:0.3rem 0.5rem;border:1px solid var(--color-border);border-radius:0.4rem;width:140px">'
+            f'<button class="btn-mini btn-danger">✕ Отклонить</button></form>'
+        )
+        cards += f"""
+        <div class="card" style="display:flex;gap:1rem;padding:1rem;margin-bottom:0.75rem">
+            {photo_html}
+            <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                    <strong>{_esc(u.full_name) or _esc(u.phone)}</strong>
+                    <span class="text-muted" style="font-size:0.8rem">подана {submitted}</span>
+                </div>
+                <p class="text-muted" style="font-size:0.85rem;margin:0.25rem 0">☎ {_esc(u.phone)}</p>
+                <p style="font-size:0.85rem;margin:0.25rem 0">{_esc(u.model_bio) or '<span class="text-muted">Без описания</span>'}</p>
+                {f'<p style="font-size:0.8rem;margin:0.25rem 0" class="text-muted">Ищет: {_esc(u.model_looking_for)}</p>' if u.model_looking_for else ''}
+                <div style="margin-top:0.5rem">{approve} {reject}</div>
+            </div>
+        </div>"""
+    if not cards:
+        cards = '<p class="text-muted" style="padding:1.5rem;text-align:center">Новых анкет нет</p>'
+    return f"""
+    <div class="tab-content" id="tab-models">
+        <h2 style="margin-bottom:1rem">Анкеты моделей на модерации ({len(pending_models)})</h2>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">Пока анкета не одобрена, салоны её не видят в кандидатах — как и с заявками салонов.</p>
         {cards}
     </div>
     """
@@ -415,6 +463,12 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
     applications_tab = _applications_tab(pending, phone_by_id, extra_by_id)
     reports_tab = _reports_tab(reports_data)
 
+    pending_models = [
+        u for u in users
+        if u.is_model and u.model_moderation_status == ModelModerationStatus.PENDING
+    ]
+    model_applications_tab = _model_applications_tab(pending_models)
+
     # Вкладки «Пользователи/Салоны/Отзывы/Аудит/Обзор» — только старшему
     # модератору: базовый модератор видит и решает только заявки и жалобы.
     overview = users_tab = salons_tab = reviews_tab = audit_tab = ""
@@ -428,13 +482,14 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         audit_tab = _audit_tab(audits, phone_by_id)
 
     allowed_tabs = (
-        {"overview", "users", "applications", "reports", "salons", "reviews", "audit"}
-        if is_senior else {"applications", "reports"}
+        {"overview", "users", "applications", "models", "reports", "salons", "reviews", "audit"}
+        if is_senior else {"applications", "models", "reports"}
     )
     default_tab = "overview" if is_senior else "applications"
     _tab = q.get("tab", default_tab)
     active_tab = _tab if _tab in allowed_tabs else default_tab
     pending_badge = f' <span style="background:#d97706;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(pending)}</span>' if pending else ""
+    models_badge = f' <span style="background:#d97706;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(pending_models)}</span>' if pending_models else ""
     reports_badge = f' <span style="background:#dc2626;color:#fff;border-radius:1rem;padding:0 0.4rem;font-size:0.7rem">{len(reports_data)}</span>' if reports_data else ""
 
     tab_nav = ""
@@ -442,6 +497,7 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         tab_nav += '<button class="tab-btn" data-tab="overview" onclick="switchTab(\'overview\')">📊 Обзор</button>'
         tab_nav += '<button class="tab-btn" data-tab="users" onclick="switchTab(\'users\')">👥 Пользователи</button>'
     tab_nav += f'<button class="tab-btn" data-tab="applications" onclick="switchTab(\'applications\')">📋 Заявки{pending_badge}</button>'
+    tab_nav += f'<button class="tab-btn" data-tab="models" onclick="switchTab(\'models\')">💃 Модели{models_badge}</button>'
     tab_nav += f'<button class="tab-btn" data-tab="reports" onclick="switchTab(\'reports\')">🚩 Жалобы{reports_badge}</button>'
     if is_senior:
         tab_nav += '<button class="tab-btn" data-tab="salons" onclick="switchTab(\'salons\')">🏢 Салоны</button>'
@@ -492,6 +548,7 @@ async def render_admin_panel(db: AsyncSession, user, q) -> str:
         {overview}
         {users_tab}
         {applications_tab}
+        {model_applications_tab}
         {reports_tab}
         {salons_tab}
         {reviews_tab}

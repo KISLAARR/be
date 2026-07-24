@@ -21,7 +21,7 @@ from app.models.models import (
     User, UserRole, Salon, Master, Service, Booking, Review, Promotion,
     SalonPhoto, Favorite, AdminAudit, SalonMember, SalonRole, OWNER_DEFAULT_PERMISSIONS,
     SalonModerationStatus, PhotoReport, PhotoReportStatus, MasterPhoto, ReviewPhoto,
-    ClientLoyalty, SalonModel, ClientNote,
+    ClientLoyalty, SalonModel, ClientNote, ModelModerationStatus,
 )
 from app.core.security import get_password_hash
 from app.web.auth import get_current_user_from_cookie
@@ -30,7 +30,9 @@ router = APIRouter()
 
 # Роли, которые админ может назначать вручную. MASTER исключён —
 # мастер создаётся через бизнес-флоу (профиль Master + привязка к салону).
-ASSIGNABLE_ROLES = {UserRole.CLIENT, UserRole.MODEL, UserRole.BUSINESS, UserRole.ADMIN}
+# MODEL исключён — статус модели теперь аддитивный флаг User.is_model поверх
+# обычной роли (см. app/api/v1/endpoints/model_matching.py), не отдельная role.
+ASSIGNABLE_ROLES = {UserRole.CLIENT, UserRole.BUSINESS, UserRole.ADMIN}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -520,3 +522,56 @@ async def review_delete(rid: int, request: Request, db: AsyncSession = Depends(g
     _audit(db, admin.id, "review_delete", "review", rid, f"удалён отзыв #{rid}", salon_id=salon_id)
     await db.commit()
     return _back("reviews", ok="Отзыв удалён, рейтинг пересчитан")
+
+
+# ── МОДЕЛИ (модерация анкет) ─────────────────────────────────────────────────
+async def _notify_model_moderation(db, model_user: User, approved: bool):
+    """Уведомить модель о решении по анкете (TG через ARQ) — по образцу
+    _notify_owner_moderation для салонов."""
+    if not model_user.tg_chat_id:
+        return
+    if approved:
+        tg = "✅ Ваша анкета модели одобрена — теперь салоны видят вас в поиске."
+    else:
+        why = f"\nПричина: {model_user.model_rejection_reason}" if model_user.model_rejection_reason else ""
+        tg = f"⚠️ Анкета модели отклонена.{why}"
+    try:
+        from app.core.worker import get_arq_pool
+        pool = await get_arq_pool()
+        await pool.enqueue_job("send_tg_message", model_user.tg_chat_id, tg)
+    except Exception:
+        logger.exception("не удалось уведомить модель о модерации user=%s", model_user.id)
+
+
+@router.post("/models/{uid}/approve")
+async def model_approve(uid: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Одобрить анкету модели: становится видна салонам в кандидатах."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    target = (await db.execute(select(User).where(User.id == uid, User.is_model == True))).scalar_one_or_none()
+    if not target:
+        return _back("applications", err="Анкета не найдена")
+    target.model_moderation_status = ModelModerationStatus.APPROVED
+    target.model_rejection_reason = None
+    _audit(db, admin.id, "model_approve", "user", uid, target.full_name or target.phone)
+    await db.commit()
+    await _notify_model_moderation(db, target, approved=True)
+    return _back("applications", ok=f"Анкета «{target.full_name or target.phone}» одобрена")
+
+
+@router.post("/models/{uid}/reject")
+async def model_reject(uid: int, request: Request, reason: str = Form(""), db: AsyncSession = Depends(get_db)):
+    """Отклонить анкету модели (с причиной)."""
+    admin = await _get_admin(request, db)
+    if not admin:
+        return RedirectResponse("/login?redirect=/admin", status_code=302)
+    target = (await db.execute(select(User).where(User.id == uid, User.is_model == True))).scalar_one_or_none()
+    if not target:
+        return _back("applications", err="Анкета не найдена")
+    target.model_moderation_status = ModelModerationStatus.REJECTED
+    target.model_rejection_reason = reason.strip() or None
+    _audit(db, admin.id, "model_reject", "user", uid, f"{target.full_name or target.phone}: {reason.strip()[:200]}")
+    await db.commit()
+    await _notify_model_moderation(db, target, approved=False)
+    return _back("applications", ok=f"Анкета «{target.full_name or target.phone}» отклонена")

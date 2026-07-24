@@ -14,7 +14,7 @@ async def render_services_tab(db: AsyncSession, salon, masters) -> str:
     if master_ids:
         services_result = await db.execute(
             select(Service, Master).join(Master, Service.master_id == Master.id)
-            .where(Service.master_id.in_(master_ids))
+            .where(Service.master_id.in_(master_ids), Service.is_model_practice == False)  # noqa: E712
             .order_by(Master.id, Service.price)
         )
         services_data = services_result.all()

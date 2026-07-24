@@ -80,32 +80,7 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
     # Ролевой блок
     role_block = ""
 
-    if role == "model":
-        tier_names = {"start": "Старт", "pro": "Про", "premium": "Премиум"}
-        tier = getattr(user, "subscription_tier", None)
-        tier_display = tier_names.get(tier.value if tier else "", "Неактивна") if tier else "Неактивна"
-        expires = getattr(user, "subscription_expires_at", None)
-        expires_str = expires.strftime("%d.%m.%Y") if expires else "—"
-        role_block = f"""
-        <div class="profile-role-block profile-subscription-block">
-            <div class="profile-role-header">
-                <h3>💎 Подписка</h3>
-            </div>
-            <div class="profile-role-body">
-                <div class="profile-subscription-row">
-                    <span class="profile-label">Тариф</span>
-                    <span class="profile-value">{tier_display}</span>
-                </div>
-                <div class="profile-subscription-row">
-                    <span class="profile-label">Действует до</span>
-                    <span class="profile-value">{expires_str}</span>
-                </div>
-                <a href="/model/dashboard" class="profile-btn-secondary">Управление подпиской →</a>
-            </div>
-        </div>
-        """
-
-    elif role == "master" and master_profile:
+    if role == "master" and master_profile:
         spec = master_profile.specialization or "—"
         exp = master_profile.experience_years or 0
         rating = master_profile.rating or 0
@@ -159,6 +134,48 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
                     <span>👥 {masters_count} мастеров</span>
                 </div>
                 <a href="/business/dashboard" class="profile-btn-secondary">Панель управления →</a>
+            </div>
+        </div>
+        """
+
+    # «Модель» — аддитивный статус поверх обычной роли (не сама role), поэтому
+    # блок считается независимо от role_block и может показываться вместе с ним.
+    is_model = bool(getattr(user, "is_model", False))
+    if is_model:
+        model_photo = getattr(user, "model_photo_url", None) or ""
+        model_bio = getattr(user, "model_bio", "") or ""
+        moderation = getattr(user, "model_moderation_status", None)
+        moderation_value = moderation.value if moderation else "pending"
+        moderation_badges = {
+            "pending": '<span class="profile-model-status" style="display:inline-block;padding:0.2rem 0.6rem;border-radius:1rem;font-size:0.75rem;font-weight:600;background:#fef3c7;color:#92400e;margin-bottom:0.5rem">На модерации</span>',
+            "approved": '<span class="profile-model-status" style="display:inline-block;padding:0.2rem 0.6rem;border-radius:1rem;font-size:0.75rem;font-weight:600;background:#d1fae5;color:#065f46;margin-bottom:0.5rem">Одобрена</span>',
+            "rejected": '<span class="profile-model-status" style="display:inline-block;padding:0.2rem 0.6rem;border-radius:1rem;font-size:0.75rem;font-weight:600;background:#fee2e2;color:#991b1b;margin-bottom:0.5rem">Отклонена</span>',
+        }
+        rejection_reason = getattr(user, "model_rejection_reason", "") or ""
+        model_block = f"""
+        <div class="profile-role-block profile-model-block">
+            <div class="profile-role-header">
+                <h3>💃 Статус «Модель»</h3>
+            </div>
+            <div class="profile-role-body">
+                {moderation_badges.get(moderation_value, "")}
+                {f'<p class="text-muted" style="font-size:0.85rem;margin-bottom:0.5rem">Причина: {rejection_reason}</p>' if moderation_value == "rejected" and rejection_reason else ''}
+                {f'<img src="{model_photo}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:0.5rem">' if model_photo else ''}
+                {f'<p style="margin-bottom:0.5rem">{model_bio}</p>' if model_bio else ''}
+                <a href="/model/dashboard" class="profile-btn-secondary">Лента и мои мэтчи →</a>
+                <a href="/model/join" class="profile-btn-secondary">Редактировать анкету →</a>
+            </div>
+        </div>
+        """
+    else:
+        model_block = f"""
+        <div class="profile-role-block profile-model-block">
+            <div class="profile-role-header">
+                <h3>💃 Стать моделью</h3>
+            </div>
+            <div class="profile-role-body">
+                <p class="text-muted" style="margin-bottom:0.75rem">Позвольте мастерам отработать на вас технику за скидку или бесплатно — заведите анкету и смотрите, кто ищет модель.</p>
+                <a href="/model/join" class="profile-btn-secondary">Стать моделью →</a>
             </div>
         </div>
         """
@@ -421,6 +438,9 @@ def render_profile_page(user=None, master_profile=None, salon=None, stats=None, 
 
             <!-- Ролевой блок -->
             {role_block}
+
+            <!-- Статус модели (аддитивный, независим от role_block) -->
+            {model_block}
 
             <!-- Блоки настроек -->
             {settings_blocks}

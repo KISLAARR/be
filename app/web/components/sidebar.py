@@ -53,6 +53,11 @@ def render_sidebar(current_page: str = "home", user=None) -> str:
                     <a class="sidebar-link {is_active('business_dashboard')}" href="/business/dashboard">
                         {ICON_BRIEFCASE} Панель бизнеса
                     </a>"""
+    if getattr(user, "is_model", False):
+        role_items += f"""
+                    <a class="sidebar-link {is_active('model_dashboard')}" href="/model/dashboard">
+                        {ICON_MODEL} Мои мэтчи
+                    </a>"""
     role_links = ""
     if role_items:
         role_links = f"""

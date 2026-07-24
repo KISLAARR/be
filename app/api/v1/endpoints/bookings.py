@@ -43,7 +43,9 @@ async def create_booking(
     db: AsyncSession = Depends(get_db)
 ):
     """Создать новую запись."""
-    service_result = await db.execute(select(Service).where(Service.id == booking_data.service_id, Service.is_active == True))
+    service_result = await db.execute(select(Service).where(
+        Service.id == booking_data.service_id, Service.is_active == True, Service.is_model_practice == False,
+    ))
     service = service_result.scalar_one_or_none()
     if not service:
         raise HTTPException(status_code=404, detail="Услуга не найдена")
@@ -136,7 +138,9 @@ async def get_available_slots(
     if not master:
         return {"slots": [], "message": "Мастер не найден"}
     
-    service = (await db.execute(select(Service).where(Service.id == service_id, Service.is_active == True))).scalar_one_or_none()
+    service = (await db.execute(select(Service).where(
+        Service.id == service_id, Service.is_active == True,
+    ))).scalar_one_or_none()
     if not service:
         return {"slots": [], "message": "Услуга не найдена"}
     
@@ -239,7 +243,9 @@ async def create_booking_web(
         return HTMLResponse(content="<h1>Мастер не найден</h1>", status_code=404)
     if not await _salon_bookable(db, master_id):
         return HTMLResponse(content="<h1>Салон ещё не подтверждён — запись недоступна</h1>", status_code=403)
-    svc_result = await db.execute(select(Service).where(Service.master_id == master_id, Service.is_active == True).limit(1))
+    svc_result = await db.execute(select(Service).where(
+        Service.master_id == master_id, Service.is_active == True, Service.is_model_practice == False,
+    ).limit(1))
     service = svc_result.scalar_one_or_none()
     if not service:
         return HTMLResponse(content="<h1>У мастера пока нет услуг</h1>", status_code=400)
@@ -272,7 +278,9 @@ async def confirm_booking_web(
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     
-    service = (await db.execute(select(Service).where(Service.id == service_id, Service.is_active == True))).scalar_one_or_none()
+    service = (await db.execute(select(Service).where(
+        Service.id == service_id, Service.is_active == True, Service.is_model_practice == False,
+    ))).scalar_one_or_none()
     if not service:
         return HTMLResponse(content="<h1>Услуга не найдена</h1>", status_code=404)
     

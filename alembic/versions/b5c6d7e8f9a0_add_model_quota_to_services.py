@@ -1,0 +1,28 @@
+"""add model_quota and model_seeking_open to services
+
+Revision ID: b5c6d7e8f9a0
+Revises: a4b5c6d7e8f9
+Create Date: 2026-07-24 09:00:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'b5c6d7e8f9a0'
+down_revision: Union[str, None] = 'a4b5c6d7e8f9'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    op.add_column('services', sa.Column('model_quota', sa.Integer(), nullable=True))
+    op.add_column('services', sa.Column('model_seeking_open', sa.Boolean(), nullable=False, server_default='true'))
+
+
+def downgrade() -> None:
+    op.drop_column('services', 'model_seeking_open')
+    op.drop_column('services', 'model_quota')

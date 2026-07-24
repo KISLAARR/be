@@ -65,7 +65,9 @@ async def create_guest_booking(
         raise HTTPException(status_code=403, detail="Салон не принимает записи без регистрации")
 
     service = (await db.execute(
-        select(Service).where(Service.id == data.service_id, Service.is_active == True)
+        select(Service).where(
+            Service.id == data.service_id, Service.is_active == True, Service.is_model_practice == False,
+        )
     )).scalar_one_or_none()
     if not service or service.master_id != data.master_id:
         raise HTTPException(status_code=400, detail="Услуга недоступна")

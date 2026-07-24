@@ -152,7 +152,7 @@ def render_model_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Доступ к начинающим мастерам</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Базовое портфолио</span></li>
                         </ul>
-                        <a href="/model/checkout?plan=start" class="plan-btn">
+                        <a href="/model/join" class="plan-btn">
                             Оформить подписку
                             {ICON_ARROW_RIGHT}
                         </a>
@@ -177,7 +177,7 @@ def render_model_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Расширенное портфолио</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Эксклюзивные процедуры</span></li>
                         </ul>
-                        <a href="/model/checkout?plan=pro" class="plan-btn">
+                        <a href="/model/join" class="plan-btn">
                             Оформить подписку
                             {ICON_ARROW_RIGHT}
                         </a>
@@ -202,7 +202,7 @@ def render_model_landing_page(user=None) -> str:
                             <li>{ICON_CIRCLE_CHECK}<span>Фотосессии для портфолио</span></li>
                             <li>{ICON_CIRCLE_CHECK}<span>Ранний доступ к новым салонам</span></li>
                         </ul>
-                        <a href="/model/checkout?plan=premium" class="plan-btn">
+                        <a href="/model/join" class="plan-btn">
                             Оформить подписку
                             {ICON_ARROW_RIGHT}
                         </a>

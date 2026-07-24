@@ -53,6 +53,7 @@ from app.api.v1.endpoints import uploads
 from app.api.v1.endpoints import auth_yandex
 from app.api.v1.endpoints import schedule as schedule_endpoints
 from app.api.v1.endpoints import reports
+from app.api.v1.endpoints import model_matching
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -114,6 +115,7 @@ app.include_router(loyalty.router, prefix="/api/v1/loyalty", tags=["loyalty"])
 app.include_router(schedule_endpoints.router, prefix="/api/v1/schedule", tags=["schedule"])
 app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 app.include_router(guest.router, prefix="/api/v1/guest", tags=["guest"])
+app.include_router(model_matching.router, prefix="/api/v1/model-matching", tags=["model-matching"])
 
 # Healthcheck — регистрируем ДО веб-роутера, иначе его перехватывает
 # catch-all страниц (`/{path:path}`) и /health отдаёт 404.

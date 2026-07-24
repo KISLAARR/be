@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.session import get_db
-from app.models.models import User, UserRole, SalonMember
+from app.models.models import User, UserRole, SalonMember, ModelModerationStatus
 from app.core.config import settings
 from app.core.security import decode_access_token
 
@@ -67,6 +67,31 @@ def require_role(*roles: UserRole):
             )
         return current_user
     return role_checker
+
+
+async def require_is_model(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Статус «модель» — аддитивный флаг поверх обычной роли (не сама role)."""
+    if not current_user.is_model:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Требуется профиль модели",
+        )
+    return current_user
+
+
+async def require_approved_model(
+    current_user: User = Depends(require_is_model)
+) -> User:
+    """Лента/свайпы модели — только после одобрения анкеты (см. ModelModerationStatus),
+    иначе можно было бы свайпать мастеров ещё до модерации."""
+    if current_user.model_moderation_status != ModelModerationStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Анкета ещё не прошла модерацию",
+        )
+    return current_user
 
 
 async def get_salon_membership(

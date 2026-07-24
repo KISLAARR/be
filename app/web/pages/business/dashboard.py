@@ -157,7 +157,7 @@ async def render_business_dashboard(db: AsyncSession, user, salon: Salon, member
     # Модели (с правом manage_masters)
     tab_buttons.append(('models', ICON_HEART, 'Модели', perms["manage_masters"]))
     if perms["manage_masters"]:
-        tabs_html.append(await render_promo_models_tab(db, salon))
+        tabs_html.append(await render_promo_models_tab(db, salon, masters))
 
     # Акции
     tab_buttons.append(('promos', ICON_SPARKLES, f'Акции ({len(promotions)})', True))

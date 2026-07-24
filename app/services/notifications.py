@@ -30,6 +30,7 @@ from app.core.worker import get_arq_pool
 from app.models.models import (
     Booking,
     Master,
+    ModelMatch,
     Review,
     ReviewTargetType,
     Salon,
@@ -53,6 +54,7 @@ TOPIC_REMINDERS = "reminders"
 TOPIC_WAREHOUSE = "warehouse"
 TOPIC_REVIEWS = "reviews"
 TOPIC_REPORTS = "reports"
+TOPIC_MODELS = "models"
 
 TOPIC_LABELS = {
     TOPIC_BOOKINGS: "Записи (новые и отмены)",
@@ -60,6 +62,7 @@ TOPIC_LABELS = {
     TOPIC_WAREHOUSE: "Склад и заявки",
     TOPIC_REVIEWS: "Отзывы",
     TOPIC_REPORTS: "Жалобы на фото",
+    TOPIC_MODELS: "Модельный мэтчинг",
 }
 
 
@@ -385,3 +388,43 @@ async def notify_photo_report(db: AsyncSession, salon_id: int | None) -> None:
                 await fanout.send(member, "🚩 Новая жалоба на фото — загляните в модерацию", topic=TOPIC_REPORTS)
     except Exception:
         logger.exception("notify_photo_report: не поставлено")
+
+
+# ── Модельный мэтчинг (manage_masters) ───────────────────────────────────────
+
+async def notify_model_match(db: AsyncSession, match: ModelMatch) -> None:
+    """Взаимный лайк по конкретной услуге → модели и команде салона с
+    manage_masters. Цена/услуга уже известны из мэтча (нет отдельного
+    оффера) — моделе сразу можно выбирать время в личном кабинете."""
+    if not settings.TG_NOTIFY_ENABLED:
+        return
+    try:
+        model_user = (await db.execute(select(User).where(User.id == match.model_user_id))).scalar_one_or_none()
+        master = (await db.execute(select(Master).where(Master.id == match.master_id))).scalar_one_or_none()
+        salon = (await db.execute(select(Salon).where(Salon.id == match.salon_id))).scalar_one_or_none()
+        service = (await db.execute(select(Service).where(Service.id == match.service_id))).scalar_one_or_none()
+        if salon is None:
+            return
+        master_user = (
+            await db.execute(select(User).where(User.id == master.user_id))
+        ).scalar_one_or_none() if master else None
+        master_name = (master_user.full_name if master_user and master_user.full_name else "мастер")
+        model_name = (model_user.full_name if model_user and model_user.full_name else "модель")
+        service_name = service.name if service else "услугу"
+        price_str = "бесплатно" if not service or not service.price else f"{service.price} ₽"
+
+        fanout = _Fanout()
+        await fanout.send(
+            model_user,
+            f"🎉 Мэтч! Мастер {master_name} из «{salon.name}» готов сделать вам «{service_name}» ({price_str}) "
+            f"— выберите время в личном кабинете",
+            topic=TOPIC_MODELS,
+        )
+        for member in await _members_with_permission(db, salon.id, "manage_masters"):
+            await fanout.send(
+                member,
+                f"🎉 Модель {model_name} откликнулась на «{service_name}» у мастера {master_name} — взаимный мэтч!",
+                topic=TOPIC_MODELS,
+            )
+    except Exception:
+        logger.exception("notify_model_match(%s): не поставлено", match.id)

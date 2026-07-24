@@ -122,7 +122,9 @@ async def render_guest_booking_page(db, salon_id: int) -> str:
     for m in masters:
         muser = (await db.execute(select(User).where(User.id == m.user_id))).scalar_one_or_none()
         services = (await db.execute(
-            select(Service).where(Service.master_id == m.id, Service.is_active == True).order_by(Service.price)
+            select(Service).where(
+                Service.master_id == m.id, Service.is_active == True, Service.is_model_practice == False,
+            ).order_by(Service.price)
         )).scalars().all()
         if not services:
             continue

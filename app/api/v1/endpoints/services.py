@@ -1,4 +1,6 @@
 # app/api/v1/endpoints/services.py
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,9 +21,19 @@ async def create_service_web(
     price: int = Form(...),
     duration_minutes: int = Form(...),
     description: str = Form(""),
+    is_model_practice: bool = Form(False),
+    model_quota: str = Form(""),
+    model_desired_date: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
-    """Добавление услуги мастеру."""
+    """Добавление услуги мастеру.
+
+    is_model_practice — спецуслуга для отработки на моделях (своя цена/
+    длительность, не показывается обычным клиентам, только в мэтчинге моделей).
+    model_quota — сколько моделей нужно набрать на неё, пусто = без квоты
+    (открытость тогда управляется только вручную, model_seeking_open).
+    model_desired_date — желаемая дата отработки, чисто информационная.
+    """
     from app.web.auth import get_current_user_from_cookie
 
     user = await get_current_user_from_cookie(request, db)
@@ -42,7 +54,10 @@ async def create_service_web(
         name=name,
         price=price,
         duration_minutes=duration_minutes,
-        description=description
+        description=description,
+        is_model_practice=is_model_practice,
+        model_quota=int(model_quota) if model_quota.strip() else None,
+        model_desired_date=date.fromisoformat(model_desired_date) if model_desired_date.strip() else None,
     )
     db.add(service)
     await db.commit()
